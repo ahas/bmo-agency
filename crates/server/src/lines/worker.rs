@@ -29,9 +29,10 @@ pub const LINE: &str = "worker";
 // The rulebook every worker's rules carry after the standing rules.
 pub const SELF_PRESERVATION: &str = "self-preservation";
 
-/// The platform's rulebook naming the platform's own parts the rule against destroying the system protects, which
-/// every run of the worker line carries after it, since the line's standing rules are the platform's work.
-pub const PLATFORM_PRESERVATION: &str = "preservation";
+/// The platform's rulebooks every run of the worker line carries after the rule against destroying the system,
+/// since the line's standing rules are the platform's own work: the platform's environment, and the platform's own
+/// parts that rule protects (docs/prompt-layers.md, 「The platform's rules」).
+pub const PLATFORM_RULEBOOKS: [&str; 2] = ["environment", "preservation"];
 
 // A value a base prompt names, as `{{name}}`: the base prompts' own syntax.
 static VALUE: LazyLock<Regex> =
@@ -143,7 +144,9 @@ pub fn standing_rules(
 
   parts.extend(languages.map(str::to_owned));
   parts.push(rulebook(trees, SELF_PRESERVATION)?);
-  parts.push(platform_rulebook(trees, PLATFORM_PRESERVATION)?);
+  for name in PLATFORM_RULEBOOKS {
+    parts.push(platform_rulebook(trees, name)?);
+  }
   parts.extend(own.clone());
   parts.extend(trailer.map(str::to_owned));
   parts.extend(documents.map(str::to_owned));

@@ -7,7 +7,7 @@ pieces_role = ["absolute-rules", "frame", "turn", "agent-words"]
 
 # The platform's rulebooks under prompts/platform/ a supervisor of the platform's administrator reads on a turn of
 # the pieces shape, after its harness and before its role (docs/prompt-layers.md), in the order it reads them.
-pieces_platform = ["preservation"]
+pieces_platform = ["environment", "preservation"]
 
 # Whether the gate's reading of a supervisor's brain reaches its turns — the sheets, memories and rows
 # the gate picks in front of its words, and the index it reads the brain through — where its settings

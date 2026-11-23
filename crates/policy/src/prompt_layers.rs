@@ -48,6 +48,8 @@ pub struct PromptLayers {
   pub declared_by: String,
   /// The folder under `prompts/` the platform's rulebooks stand in.
   pub platform_folder: String,
+  /// What a supervisor the platform's rules do not reach is told its own folder is.
+  pub workplace_unnamed: String,
   /// How long one ask of the account service may take, in seconds.
   pub ask_seconds: u64,
   pub organisation: Organisation,

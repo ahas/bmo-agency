@@ -13,8 +13,8 @@ fn every_platform_rulebook_a_shape_names_stands_in_the_platform_s_folder() {
     .join("prompts")
     .join(&PROMPT_LAYERS.platform_folder);
 
-  assert_eq!(CHAT_LINE.system.platform, ["preservation", "operations"]);
-  assert_eq!(SUPERVISORS.pieces_platform, ["preservation"]);
+  assert_eq!(CHAT_LINE.system.platform, ["environment", "preservation", "operations"]);
+  assert_eq!(SUPERVISORS.pieces_platform, ["environment", "preservation"]);
 
   for name in CHAT_LINE.system.platform.iter().chain(&SUPERVISORS.pieces_platform) {
     assert!(folder.join(format!("{name}.md")).is_file(), "{name}");

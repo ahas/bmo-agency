@@ -474,7 +474,7 @@ statements below about either are kept for a rollback to the road a deployment l
   ones it was opened on.
 - **What a job's change moved of the prefix is read by the files a session's prefix is built from:** the
   instructions and the tool declaration at a checkout's head, the platform's harness opening, the role's
-  prompt and its provider prompts, the worker line's settings, standing rules, report trailer, plugin, the self-preservation rulebook and the platform's `preservation.md`, and the repository's own rules and prefix
+  prompt and its provider prompts, the worker line's settings, standing rules, report trailer, plugin, the self-preservation rulebook and the platform's `environment.md` and `preservation.md`, and the repository's own rules and prefix
   documents. A runner asks which of its own commits' files those are, to say why it hands its session over.
 - **A session's generation and its context are kept for its state to read:** how many times a key's session
   was opened fresh rather than resumed, and on the record the tokens its last answered turn carried and the

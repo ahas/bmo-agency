@@ -25,7 +25,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
     organisation and names no part of the platform; the platform's own parts stand in the platform's rules.
 - **`prompts/platform/` holds the platform's rules,** the rulebooks of the platform's own operations that
   only the platform administrator's supervisors are given, and the worker line's runs the one of them its
-  line names (`docs/prompt-layers.md`, 「The platform's rules」): `preservation.md` and `operations.md`.
+  line names (`docs/prompt-layers.md`, 「The platform's rules」): `environment.md`, `preservation.md` and
+  `operations.md`.
 - **`prompts/agents/<folder>/own-rules.md`** is a repository's own rules, appended after the worker
   line's standing rules for a run in that repository's checkout, from the prompt folder the repository's
   row names (`docs/repositories.md`, 「What a repository row holds」); no repository carried in this
@@ -36,8 +37,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   The search and browse lines' instructions are not here: whoever starts a session on either hands them in
   whole (`docs/api.md`, 「sessions」), and the research unit keeps its own, with the search rulebooks.
 - **`prompts/harness.md` is the platform's harness opening,** agency's own and no program's: what the
-  harness around the agent is, how words reach it, where its memory is and what the platform around it
-  holds. Every line on Claude Code opens its whole system prompt with it — every supervisor's
+  harness around the agent is, how words reach it, where its memory is and how a hosted tool is found, naming
+  nothing of the platform's own (`docs/prompt-layers.md`, 「What every agent is told」). Every line on Claude Code opens its whole system prompt with it — every supervisor's
   session, every run of the worker line, and every session on the search and
   browse lines, before the instructions its caller hands in — but a run of the worker line on an account
   that names a base prompt, which opens on that base instead (`docs/base-prompts.md`, 「The harness

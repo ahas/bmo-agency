@@ -4,8 +4,10 @@
 
 - **Every line that runs on Claude Code is handed one whole system prompt,** given with
   `--system-prompt-file` in the place of the program's own, and it opens with a harness layer: what
-  the program around the model is, how words reach the agent, where its memory is and what the
-  platform around it holds. Claude Code's own prompt reaches no line.
+  the program around the model is, how words reach the agent, where its memory is and how a hosted tool is
+  found, true of an agent of any organisation; the platform around it is the platform's rules'
+  `environment.md`, which only the lines the platform's rules reach carry (`docs/prompt-layers.md`). Claude
+  Code's own prompt reaches no line.
 - **The platform's harness opening is agency's own document, `prompts/harness.md`,** read out of the
   deploy tree as each line is composed, like the other agent documents (`docs/agent-documents.md`).
   It is the harness layer of every line on Claude Code whose run goes out on no account naming a base

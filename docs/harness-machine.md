@@ -142,7 +142,8 @@ flowchart TD
   kernel's name and release, the shell's name and the model. A value the policy names that the
   prompt does not carry changes nothing, and any other `{{word}}` stays as written.
 - **The folder:** each supervisor's own under the data root's `supervisor-homes/`. The crate names the
-  folder; the runner that starts a turn makes it.
+  folder; the runner that starts a turn makes it. The frame names its path only where the layers attach the
+  platform's rules, and the prompt layers' words for it otherwise.
 - **The persona:** its settings' text, the `persona.md` of its prompt folder, or none where it holds
   neither, as a supervisor added on the console starts with no folder.
 

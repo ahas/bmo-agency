@@ -9,6 +9,10 @@ declared_by = "agency"
 # The folder under prompts/ the platform's rulebooks stand in.
 platform_folder = "platform"
 
+# What a supervisor the platform's rules do not reach is told its own folder is, in place of its path under the
+# platform's data root.
+workplace_unnamed = "the folder your shell starts in"
+
 # How long one ask of the account service may take, in seconds, before it counts as not answered.
 ask_seconds = 10
 

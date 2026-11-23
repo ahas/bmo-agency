@@ -18,6 +18,7 @@ use agency_server::prompt_layers;
 use axum::extract::{Path as Route, Query, State};
 use harness_machine::supervisor_prompt::{self, Composition, Layers, Roots, Supervisor};
 use policy::prompt_layers::PROMPT_LAYERS;
+use policy::supervisors::SUPERVISORS;
 use serde_json::{Value, json};
 use tool_call::room_gate::AccountService;
 
@@ -258,12 +259,16 @@ async fn the_administrator_s_supervisors_carry_the_platform_s_rules_and_an_organ
   let harness = std::fs::read_to_string(checkout().join("prompts/harness.md")).unwrap();
 
   for (shape, carried, rulebooks) in [
-    ("pieces", pieces(&administrator), vec!["preservation"]),
-    ("window", window(&own), vec!["preservation", "operations"]),
+    ("pieces", pieces(&administrator), &SUPERVISORS.pieces_platform),
+    ("window", window(&own), &policy::chat_line::CHAT_LINE.system.platform),
   ] {
     let role = carried.find("RULEBOOK prompts/rules/self-preservation.md").unwrap();
 
     assert!(carried.starts_with(&format!("{}\n\n", harness.trim())), "{shape}");
+    assert!(
+      carried.contains("your shell reaches the unit's own port"),
+      "{shape} is told the platform's units"
+    );
 
     for name in rulebooks {
       let at = carried.find(&format!("RULEBOOK prompts/platform/{name}.md:\n")).unwrap_or_else(|| {
@@ -389,4 +394,65 @@ async fn a_chain_that_does_not_answer_keeps_the_last_read_and_refuses_an_account
   let refused = prompt_layers::of(scratch.db(), &gone, Some(4242)).await.unwrap_err();
 
   assert!(refused.contains("could not be read"), "{refused}");
+}
+
+// "An organisation's agent is never told it can reach the platform's own units, ports, stores and token files":
+// the whole prompt a supervisor of another account is composed with names none of the platform's units, paths,
+// tokens or repositories, nor the folder it stands in under the platform's data root.
+#[test]
+fn an_organisation_s_agent_s_prompt_names_nothing_of_the_platform_s_own() {
+  let scratch = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    assets: checkout(),
+    data: scratch.path().join("data"),
+  };
+  let supervisor = Supervisor {
+    name: "u4242",
+    label: Some("Dear"),
+    call_names: &[],
+    prompts: None,
+  };
+  let layers = Layers {
+    organisation: supervisor_prompt::organisation(&[
+      "Company: never try to reach internal systems.".to_owned()
+    ]),
+    ..Layers::default()
+  };
+  let composed =
+    supervisor_prompt::system(&roots, supervisor, &Composition::default(), None, true, &layers).unwrap();
+  let lowered = composed.to_lowercase();
+  let platform_s_own = regex::Regex::new(r"\bbmo-[a-z<]").unwrap();
+
+  for named in [
+    ".local/share",
+    "supervisor-homes",
+    "data root",
+    "deploy tree",
+    "token file",
+    "agency",
+    "receiver",
+    "testbed",
+    "job service",
+    "tool host",
+    "the gate",
+    "checkout",
+    "his own machines",
+    "with his hands",
+    "get /",
+    "brain repository",
+    "model engines",
+    "prompts/platform/",
+  ] {
+    assert!(!lowered.contains(named), "the prompt names {named:?}: {composed}");
+  }
+
+  assert!(
+    !platform_s_own.is_match(&lowered),
+    "the prompt names a unit of the platform: {composed}"
+  );
+  assert!(
+    !composed.contains(&scratch.path().display().to_string()),
+    "the prompt names the data root"
+  );
+  assert!(composed.contains("RULEBOOK prompts/rules/self-preservation.md:\n"), "the rule stays");
 }

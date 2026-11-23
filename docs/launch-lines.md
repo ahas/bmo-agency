@@ -263,7 +263,8 @@
   `prompts/agents/worker/standing-rules.md`, then, on a registration that names the languages it writes,
   the result-language piece `prompts/agents/worker/result-languages.md` filled with them (`docs/own-llm.md`,
   「A run on the worker line is composed as on Claude」), then the rulebook against destroying the system and the
-  platform's `prompts/platform/preservation.md` naming the platform's own parts it protects
+  platform's `prompts/platform/environment.md` and `prompts/platform/preservation.md`, the platform around the
+  run and the platform's own parts the rule protects
   (`docs/prompt-layers.md`, 「The platform's rules」), then the
   repository's own rules where the run works in a repository's checkout and the repository names a
   document of its own, `prompts/agents/<folder>/own-rules.md` from the prompt folder its row names (a

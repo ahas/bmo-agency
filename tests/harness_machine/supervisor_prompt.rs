@@ -28,6 +28,7 @@ fn roots(dir: &Path) -> Roots {
 
   write("prompts/harness.md", "the platform's harness");
   write("prompts/rules/self-preservation.md", "keep the system");
+  write("prompts/platform/environment.md", "the platform's environment");
   write("prompts/platform/preservation.md", "the platform's parts");
   write("prompts/rules/absolute-rules.md", "ABSOLUTE RULES");
   write("prompts/rules/agent-words.md", "agent words");
@@ -36,7 +37,7 @@ fn roots(dir: &Path) -> Roots {
     "frame of {{label}}, called {{call_names}}\n{{tools}}\n{{unknown}}",
   );
   write("prompts/agents/pieces/turn.md", "turn");
-  write("prompts/agents/pieces/tools.md", "tools at {{workplace}}, verbs in {{tree}}");
+  write("prompts/agents/pieces/tools.md", "tools at {{workplace}}");
   write("prompts/agents/pal-prompts/persona.md", "persona file");
   write("prompts/agents/tester-pal/persona.md", "the name's persona, never read");
 
@@ -90,7 +91,10 @@ fn every_policy_piece_has_its_own_text() {
   let roots = roots(dir.path());
 
   for name in SUPERVISORS.pieces_role.iter().map(String::as_str).chain(["persona"]) {
-    assert!(piece(&roots, PAL, name, &Composition::default()).is_ok(), "{name}");
+    assert!(
+      piece(&roots, PAL, name, (&Composition::default(), &Layers::default())).is_ok(),
+      "{name}"
+    );
   }
 }
 
@@ -101,14 +105,10 @@ fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
   let dir = tempfile::tempdir().unwrap();
   let composed =
     system(&roots(dir.path()), PAL, &Composition::default(), None, false, &Layers::default()).unwrap();
-  let home = dir.path().join("data/supervisor-homes/tester-pal").display().to_string();
-  let tree = dir.path().join("assets").display().to_string();
 
   assert_eq!(
     composed,
-    format!(
-      "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
-    )
+    "RULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at the folder your shell starts in\n{{unknown}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\npersona file"
   );
 }
 
@@ -124,7 +124,8 @@ fn the_frame_names_the_label_and_the_call_names() {
     call_names: &names,
     ..PAL
   };
-  let frame = piece(&roots(dir.path()), named, "frame", &Composition::default()).unwrap();
+  let frame =
+    piece(&roots(dir.path()), named, "frame", (&Composition::default(), &Layers::default())).unwrap();
 
   assert!(frame.starts_with("frame of Tester's Dear, called Dear, dear\n"), "{frame}");
 }
@@ -154,13 +155,12 @@ fn the_base_prompt_is_the_harness_and_the_settings_persona_closes_the_prompt() {
     model: "model-0-1".into(),
   };
   let home = dir.path().join("data/supervisor-homes/tester-pal").display().to_string();
-  let tree = dir.path().join("assets").display().to_string();
 
   // The chosen base stands in the platform's opening's place, so the opening is not sent beside it.
   assert_eq!(
     system(&roots, PAL, &settings, Some(&base), true, &Layers::default()).unwrap(),
     format!(
-      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
+      "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at the folder your shell starts in\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
     )
   );
 }
@@ -230,4 +230,23 @@ fn a_persona_chosen_none_leaves_no_persona_text() {
   assert!(kept.ends_with("a cheerful pirate"), "{kept}");
   assert!(!left.contains("pirate") && !left.contains("persona file"), "{left}");
   assert!(left.ends_with("RULEBOOK prompts/rules/agent-words.md:\nagent words"), "{left}");
+}
+
+// The folder a supervisor stands in is named by its path, which stands under the platform's data root, to a
+// supervisor the platform's rules reach alone; any other is told it in words (docs/prompt-layers.md).
+#[test]
+fn only_a_platform_supervisor_is_told_its_folder_s_path() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let home = dir.path().join("data/supervisor-homes/tester-pal").display().to_string();
+  let platform = Layers {
+    platform: true,
+    ..Layers::default()
+  };
+  let named = piece(&roots, PAL, "frame", (&Composition::default(), &platform)).unwrap();
+  let unnamed = piece(&roots, PAL, "frame", (&Composition::default(), &Layers::default())).unwrap();
+
+  assert!(named.contains(&format!("tools at {home}")), "{named}");
+  assert!(!unnamed.contains(&home), "{unnamed}");
+  assert!(unnamed.contains(&format!("tools at {}", PROMPT_LAYERS.workplace_unnamed)), "{unnamed}");
 }

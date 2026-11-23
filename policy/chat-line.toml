@@ -14,7 +14,7 @@ manual = "manual.md"
 rulebooks = ["answer-content", "answer-shape", "plain-writing", "agent-words", "self-preservation"]
 # The platform's rulebooks under prompts/platform/ a supervisor of the platform's administrator reads on this line,
 # after its harness and before its role (docs/prompt-layers.md), in the order it reads them.
-platform = ["preservation", "operations"]
+platform = ["environment", "preservation", "operations"]
 
 # What a supervisor's program holds of its own tools. On Claude Code, on every road, it is shown every tool of
 # its own but the chat line's denied list (policy/run-lines.toml) and runs in bypass-permissions mode, so every

@@ -32,12 +32,13 @@ const HARNESS: &str = "harness.md";
 
 // The rulebooks and the supervisor's own documents a chat session is given as its system prompt, the platform's
 // rulebooks a supervisor of the platform administrator's carries among them.
-const CHAT_DOCUMENTS: [&str; 7] = [
+const CHAT_DOCUMENTS: [&str; 8] = [
   "rules/answer-content.md",
   "rules/answer-shape.md",
   "rules/plain-writing.md",
   "rules/agent-words.md",
   "rules/self-preservation.md",
+  "platform/environment.md",
   "platform/preservation.md",
   "platform/operations.md",
 ];

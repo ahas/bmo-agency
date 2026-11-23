@@ -31,6 +31,10 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 
 - **The platform's rulebooks stand under `prompts/platform/`,** apart from the rulebooks every agent reads
   under `prompts/rules/`:
+  - `environment.md` — the platform around the agent: the system the owner runs on his own machines, the
+    owner at the keyboard of a bare line, its units with their stores, ports and token files and the shell's
+    reach into them, the `bmo` command's verbs, the deploy trees and the checkouts, and the owner's routing of
+    models;
   - `preservation.md` — the platform's own parts the rule against destroying the system protects in
     particular — its stores and data root, its deploy trees, its checkouts, its services, its configuration
     and key files, the brain repository, the model engines and the gateway — and what is not
@@ -43,11 +47,24 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
   the whole machine (`docs/account-isolation.md`, 「The scope」), and no other. A supervisor of any other
   account is never given them, whatever its organisation's settings say.
 - **Each turn shape names the rulebooks it carries,** in its own policy and in its own order: the window
-  shape in `policy/chat-line.toml` (`[system] platform`), both of them; the pieces shape in
-  `policy/supervisors.toml` (`pieces_platform`), `preservation.md` alone, since its role holds no part of the
-  platform's operations for that rulebook to govern.
-- **The worker line carries `preservation.md` on every run,** after the rule against destroying the system,
-  since its standing rules are the platform's own work (`docs/launch-lines.md`).
+  shape in `policy/chat-line.toml` (`[system] platform`), all three; the pieces shape in
+  `policy/supervisors.toml` (`pieces_platform`), `environment.md` and `preservation.md`, since its role holds no
+  part of the platform's operations for that rulebook to govern.
+- **The worker line carries `environment.md` and `preservation.md` on every run,** after the rule against
+  destroying the system, since its standing rules are the platform's own work (`docs/launch-lines.md`).
+
+## What every agent is told
+
+- **Every text an agent of any organisation is given names nothing of the platform's own:** the harness
+  opening, the rule against destroying the system and the pieces role name no unit, path, token, store, port,
+  repository or machine of the platform's. The harness opening says what any agent's harness is, how words
+  reach it, where its memory is and how a hosted tool is found; the platform around it is `environment.md`.
+- **A supervisor's own folder** stands under the platform's data root, so its path is told to a supervisor the
+  platform's rules reach alone; any other is told it as the folder its shell starts in, in the words of
+  `policy/prompt-layers.toml`.
+- **The owner still stands in the role** as the authority the rooms mark (the absolute rules and the pieces
+  role read his lines by his recorded sender), which every supervisor answering the platform's rooms needs.
+- **The base prompt seeded for dsh** follows the harness opening: the platform's environment is not part of it.
 
 ## The organisation's instructions
 

@@ -590,6 +590,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     it holds no label, and the call names a person calls it by, its label where it holds none (「Its call
     names」 above). The frame tells it that this is its own name, to answer and speak of itself by, and that
     BMO is the platform's name. A supervisor of the `window` shape is told who it is by its own documents.
+  - **Its folder** is filled into the frame's tools: by its path for a supervisor the platform's rules reach,
+    and as the folder its shell starts in for any other (`docs/prompt-layers.md`, 「What every agent is
+    told」).
   - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`;
     none where the delegation chain chose none for the person it serves, so it keeps only its name and its
     picture.

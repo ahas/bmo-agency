@@ -193,15 +193,19 @@ pub fn folder(roots: &Roots, agent: &str) -> PathBuf {
   homes(&roots.data).join(agent)
 }
 
-/// What the frame says a supervisor can do: the chat line's tools, which every conversational agent holds, its
-/// folder, and the tree its shell's sending verbs stand in.
-fn tools_text(roots: &Roots, agent: &str) -> io::Result<String> {
+/// What the frame says a supervisor can do: the chat line's tools, which every conversational agent holds, and
+/// its folder. The folder is named by its path to a supervisor the
+/// platform's rules reach alone, since the path stands under the platform's own data root; any other is told it
+/// in the prompt layers' words (docs/prompt-layers.md).
+fn tools_text(roots: &Roots, agent: &str, layers: &Layers) -> io::Result<String> {
   let template = roots.agent_file("pieces", "tools.md")?;
-  let workplace = folder(roots, agent).display().to_string();
-  // The program's own tree, where the verbs its shell sends with stand.
-  let tree = roots.assets.display().to_string();
+  let workplace = if layers.platform {
+    folder(roots, agent).display().to_string()
+  } else {
+    PROMPT_LAYERS.workplace_unnamed.clone()
+  };
 
-  Ok(render(&template, &BTreeMap::from([("workplace", workplace), ("tree", tree)])))
+  Ok(render(&template, &BTreeMap::from([("workplace", workplace)])))
 }
 
 /// What a base prompt's values read on this machine for one run: the run's folder and model, and the
@@ -277,7 +281,7 @@ pub fn piece(
   roots: &Roots,
   supervisor: Supervisor,
   piece: &str,
-  settings: &Composition,
+  (settings, layers): (&Composition, &Layers),
 ) -> io::Result<String> {
   match piece {
     "absolute-rules" => roots.absolute_rules(),
@@ -286,7 +290,7 @@ pub fn piece(
       let values = BTreeMap::from([
         ("label", supervisor.standing_name().to_owned()),
         ("call_names", supervisor.called_by()),
-        ("tools", tools_text(roots, supervisor.name)?),
+        ("tools", tools_text(roots, supervisor.name, layers)?),
       ]);
 
       Ok(render(&frame, &values))
@@ -332,11 +336,13 @@ pub fn system(
   parts.push(roots.rulebook(SELF_PRESERVATION)?);
 
   for name in &SUPERVISORS.pieces_role {
-    parts.extend(Some(piece(roots, supervisor, name, settings)?).filter(|text| !text.is_empty()));
+    parts.extend(Some(piece(roots, supervisor, name, (settings, layers))?).filter(|text| !text.is_empty()));
   }
 
   if !layers.persona_none {
-    parts.extend(Some(piece(roots, supervisor, "persona", settings)?).filter(|text| !text.is_empty()));
+    parts.extend(
+      Some(piece(roots, supervisor, "persona", (settings, layers))?).filter(|text| !text.is_empty()),
+    );
   }
 
   Ok(parts.join("\n\n"))
