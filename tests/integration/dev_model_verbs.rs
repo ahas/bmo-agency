@@ -121,7 +121,11 @@ fn the_dev_server_s_environment() {
 
   assert_eq!(
     dev_environment(env, Path::new("/data/workbench/trainer"), None),
-    pairs(&[("PATH", "/bin"), ("HOME", "/home/tester"), ("BMO_WORKBENCH_DIR", "/data/workbench/trainer"),])
+    pairs(&[
+      ("PATH", "/bin"),
+      ("HOME", "/home/tester"),
+      ("BMO_WORKBENCH_DIR", "/data/workbench/trainer"),
+    ])
   );
   assert_eq!(
     dev_environment(
