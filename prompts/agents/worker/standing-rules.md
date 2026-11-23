@@ -137,6 +137,10 @@ says, and every subagent a job's program opens and every line the owner types in
   the commit named in the report, and its deployment is the supervisor's. Where the work cannot go on without
   its commit live — a live check the item itself asks for — the job asks the supervisor with `bmo job ask`
   once its close has merged, and waits on the answer, never deploying itself.
+- **A job never installs.** `bmo install --add`, `--preset` or `--set` lays a repository or its settings onto the
+  live machine, and that is the supervisor's alone, on the owner's approval for that one repository; `--status`
+  and a `--dry-run` change nothing and stay open. Work that needs a repository added asks the supervisor with
+  `bmo job ask` and waits on the answer.
 
 ## While something long runs
 

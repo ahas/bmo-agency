@@ -11,9 +11,26 @@ restart = "systemctl --user restart bmo-agency.service bmo-agent-host.service bm
 program = "claude"
 what = "Claude Code, the program every agent agency runs is, signed in once by a person: install it with `curl -fsSL https://claude.ai/install.sh | bash`, then run `claude` and sign in."
 
+# herdr, the terminal server every agent's pane stands in (https://github.com/herdrdev/herdr, Apache-2.0), at the
+# release agency runs, built from its repository where it is missing and placed as the one binary herdr.service runs.
 [[needs]]
 check = 'test -x "$HOME/.local/bin/herdr"'
-what = "herdr, the terminal server every agent's pane stands in, as the one static binary ~/.local/bin/herdr; agency's documents do not name where it is published, so it is copied from a machine that has it."
+what = "herdr, the terminal server every agent's pane stands in, as the one binary ~/.local/bin/herdr: the install builds it from https://github.com/herdrdev/herdr at v0.9.3, which needs Zig 0.16.0 on the PATH (https://ziglang.org/download/) besides Rust's rustup, which fetches the toolchain the repository pins."
+
+[needs.source]
+name = "herdr"
+repository = "https://github.com/herdrdev/herdr.git"
+rev = "v0.9.3"
+build = '''
+set -eu
+zig="${ZIG:-zig}"
+if ! "$zig" version 2> /dev/null | grep -qx '0.16.0'; then
+  echo "herdr's build needs Zig 0.16.0 on the PATH, or ZIG naming one (https://ziglang.org/download/)" >&2
+  exit 1
+fi
+cargo build --release --locked --bin herdr
+install -D -m 755 target/release/herdr "$HOME/.local/bin/herdr"
+'''
 
 [[needs]]
 check = 'PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin" command -v litellm'

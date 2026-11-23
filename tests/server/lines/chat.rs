@@ -442,6 +442,26 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
 }
 
 #[test]
+fn a_repository_is_added_to_the_live_machine_by_the_supervisor_alone_on_the_owner_s_approval() {
+  let read = |path: &str| std::fs::read_to_string(tree().join(path)).unwrap();
+  let manual = read("prompts/agents/chat/manual.md");
+  let rules = read("prompts/agents/worker/standing-rules.md");
+
+  for said in [
+    "`bmo install --add <repository>`, is yours alone and only on the owner's approval for that one repository.",
+    "no item's approval, room grant or standing word covers it",
+    "a later repository is asked again",
+    "run it only once he has approved that repository in his own words",
+    "A job or a worker never runs it",
+  ] {
+    assert!(manual.contains(said), "{said}: {manual}");
+  }
+  assert!(rules.contains("**A job never installs.**"), "{rules}");
+  assert!(rules.contains("`--status`\n  and a `--dry-run` change nothing"), "{rules}");
+  assert!(rules.contains("`bmo job ask` and waits on the answer"), "{rules}");
+}
+
+#[test]
 fn a_saved_secret_is_used_by_its_name_before_anybody_is_asked() {
   let read = |path: &str| std::fs::read_to_string(tree().join(path)).unwrap();
   let rules = read("prompts/agents/worker/standing-rules.md");
