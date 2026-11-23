@@ -217,6 +217,11 @@ impl Roots {
     self.data.join("nodes").join(node)
   }
 
+  /// The socket a person's PC's link takes the calls of its owner's personal tools on.
+  pub fn runner_socket(&self, node: &str) -> PathBuf {
+    self.node_dir(node).join("runner.sock")
+  }
+
   /// Where a node's link spec is written.
   pub fn spec_path(&self, node: &str) -> PathBuf {
     self.node_dir(node).join("link.json")
@@ -722,6 +727,16 @@ pub async fn spec(
     handed.push(roots.gateway_key.clone());
   }
 
+  // A person's PC runs the personal tools of the one account whose record names it alone, and of none where several
+  // share it, since no account's tool is yet kept from another's there (docs/person-nodes.md, 「Personal tools on a
+  // PC」).
+  let runner_owner = match owners.as_slice() {
+    [owner] if jake.is_some() && !crate::person_nodes::shares(db, owner, node).await? => {
+      Some(owner.clone())
+    }
+    _ => None,
+  };
+
   Ok(Ok(Spec {
     node: node.to_owned(),
     ssh: ssh.unwrap_or_default(),
@@ -768,6 +783,8 @@ pub async fn spec(
       .collect(),
     bridge_verbs,
     rewrite,
+    runner: jake.is_some().then(|| roots.runner_socket(node)),
+    runner_owner,
     jake,
     local,
   }))

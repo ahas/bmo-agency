@@ -322,3 +322,96 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
     assert!(record.get("withheldAppsFile").is_none(), "{agent}: {record}");
   }
 }
+
+// "A record names the account it acts for and the runner its personal tools run on" (docs/tools.md, 「The owner and
+// the runner a record names」): a person's on the runner socket of the PC whose link runs that person's personal tools,
+// the administrator's and the deployment's own supervisors' as the administrator's on this machine's node link, and a
+// caller of no account none.
+#[tokio::test]
+async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tools_run_on() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let more = BTreeMap::from([
+    ("BMO_MCP_HOST_SOCKET".to_owned(), socket.to_string_lossy().into_owned()),
+    ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
+  ]);
+  let ground = seeded_with(db, home.path(), &more).await;
+
+  rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;
+  rows::supervisor(db, "u9", &[("owner_account", 9i64.into())]).await;
+  rows::supervisor(db, "keeper", &[]).await;
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
+    .await;
+  scratch
+    .run(
+      r#"INSERT INTO "person_nodes" ("owner_account", "node", "shared", "set_at") VALUES ('8', 'u8pc', false, 1)"#,
+      vec![],
+    )
+    .await;
+
+  let spec_path = ground.roots.spec_path("u8pc");
+  let runner_socket = ground.roots.runner_socket("u8pc");
+  let spec = |owner: Option<&str>| {
+    json!({
+      "node": "u8pc", "ssh": [], "root": "/pc", "binary": "/pc/deploy/bin/node-link",
+      "herdr": { "local": "/h.sock", "remote": "/rh.sock" }, "bridge": "/b.sock", "deploy": "/d",
+      "control": "/c.sock", "proc": "/proc-here", "state": "/state.json",
+      "runner": runner_socket, "runner_owner": owner,
+    })
+    .to_string()
+  };
+
+  std::fs::create_dir_all(spec_path.parent().unwrap()).unwrap();
+  std::fs::write(&spec_path, spec(Some("8"))).unwrap();
+
+  let issue = |agent: &'static str| {
+    let (ground, issued) = (&ground, issued.clone());
+
+    async move {
+      let env = BTreeMap::from([("BMO_TURN_AGENT".to_owned(), agent.to_owned())]);
+
+      agency_server::lines::token::issue_for_run(ground, "chat", agent, "/tmp", &env, None, u64::MAX)
+        .await
+        .unwrap();
+
+      issued.lock().unwrap().pop().expect("a record was issued")
+    }
+  };
+
+  let person = issue("u8").await;
+
+  assert_eq!(person["ownerAccount"], "8", "{person}");
+  assert_eq!(person["runner"], json!({ "socket": runner_socket }), "{person}");
+
+  let administrators = json!({ "command": [
+    ground.roots.deploy.join("bin").join("node-link"),
+    "runner",
+    "--root",
+    ground.roots.data.join("personal-tools"),
+    "--owner",
+    "9",
+  ] });
+
+  for agent in ["u9", "keeper"] {
+    let record = issue(agent).await;
+
+    assert_eq!(record["ownerAccount"], "9", "{agent}: {record}");
+    assert_eq!(record["runner"], administrators, "{agent}: {record}");
+  }
+
+  let stray = issue("stray").await;
+
+  assert!(stray.get("ownerAccount").is_none() && stray.get("runner").is_none(), "{stray}");
+
+  // A PC whose link runs no single account's personal tools names its person no runner.
+  std::fs::write(&spec_path, spec(None)).unwrap();
+
+  let shared = issue("u8").await;
+
+  assert_eq!(shared["ownerAccount"], "8", "{shared}");
+  assert!(shared.get("runner").is_none(), "{shared}");
+}

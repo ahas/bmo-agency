@@ -100,6 +100,24 @@ its own, not a folder here.
   fact the chat line's policy words for it, naming the apps turned off and on, so the session does not reach for a
   tool it no longer has. It carries no instruction.
 
+
+## The owner and the runner a record names
+
+- **Every record agency issues names the account its caller acts for,** `ownerAccount` (the tool host's
+  `docs/api.md`, 「The session record」): the account a person's caller acts for (`docs/person-nodes.md`, 「Who
+  reaches a node」), and the administrator's account for a caller holding the administrator's grant, a supervisor of
+  no account among them. A caller of the deployment's own that holds no grant names none. The tool host shows a
+  session the personal tools of that account alone.
+- **Beside it, the runner that account's personal tools run on,** `runner` (`docs/person-nodes.md`, 「Personal tools
+  on a PC」):
+  - the administrator's, on this machine: the command of this deployment's node link, `bin/node-link runner`, over
+    the data root's `personal-tools/` folder, for that account alone;
+  - a person's, on their PC: the runner socket of the PC's link, where the link's spec names the person as the one
+    account the PC runs personal tools for;
+  - none for an account on a shared PC, an account with no PC, or a PC whose link has no spec yet, so a call of a
+    personal tool fails saying no runner is named.
+- **It is judged as the record is issued,** as the grants are, so a session issued again reads the account and its
+  PC afresh.
 ## The procedures
 
 - **`tools/procedures`** serves each document under `prompts/agents/chat/procedures/` as a resource,

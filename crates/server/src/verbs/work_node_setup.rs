@@ -127,6 +127,10 @@ pub struct SetupOutcome {
   pub herdr_socket: Option<String>,
   /// Whether this run laid the deploy tree's copy over the node's, so the node now holds the deployed commit.
   pub copied: bool,
+  /// On a person's PC, why its personal tools cannot run confined, where they cannot: bubblewrap not on the PC, or
+  /// one that makes no namespace there (docs/person-nodes.md, 「Personal tools on a PC」). None where they can, and on
+  /// every other node.
+  pub confinement: Option<String>,
 }
 
 /// The crates a node builds its own binaries from, each by its folder in the repository, which it keeps in
@@ -359,6 +363,7 @@ pub async fn set_up_workplace(
       missing: vec![format!("login: {}", said.unwrap_or("the node did not answer"))],
       herdr_socket: None,
       copied: false,
+      confinement: None,
     };
   }
 
@@ -421,6 +426,13 @@ pub async fn set_up_workplace(
       Some(_) => format!("{}: not installed; run the setup with --install", tool.name),
     });
   }
+
+  // A person's PC runs its owner's personal tools confined by bubblewrap, which is the machine's to have: installed
+  // with --install where the PC's own package manager may be asked without a password, and tried once it stands.
+  let confinement = match place.far_end {
+    Some(_) => confinement(shell, &root, hands).await,
+    None => None,
+  };
 
   // Bun, and every Claude Code release built on it, needs a processor with AVX: on one without, as a
   // virtual machine on a generic processor type is, it crashes on its first line.
@@ -812,5 +824,45 @@ pub async fn set_up_workplace(
     missing,
     herdr_socket,
     copied,
+    confinement,
   }
+}
+
+/// The command bubblewrap is tried with: every namespace its own, as a personal tool's run takes them, running
+/// nothing but `true` over the machine's own filesystem read alone.
+pub const CONFINEMENT_TRY: &str = "bwrap --ro-bind / / --unshare-all --die-with-parent true";
+
+/// Why a person's PC cannot run its owner's personal tools confined, or none where it can: bubblewrap looked for,
+/// installed through the package manager where the setup may install and the PC lets it without a password, and
+/// tried (docs/person-nodes.md, 「Personal tools on a PC」).
+pub async fn confinement(shell: &dyn SetupShell, root: &str, hands: &dyn SetupHands) -> Option<String> {
+  let mut standing = match looked(shell, root, "bwrap").await {
+    Ok(standing) => standing,
+    Err(why) => return Some(format!("bubblewrap could not be looked for on the PC: {why}")),
+  };
+
+  if !standing && hands.install() {
+    hands.say("installing bubblewrap");
+
+    let installed = shell
+      .run("sudo -n apt-get install -y -q bubblewrap </dev/null || sudo -n dnf install -y -q bubblewrap </dev/null")
+      .await;
+
+    standing = installed.code == 0 && found(shell, root, "bwrap").await;
+  }
+
+  if !standing {
+    return Some(
+      "bubblewrap (bwrap) is not on the PC, and its personal tools run confined or not at all: install the bubblewrap package in its Linux shell (sudo apt install bubblewrap), or run the setup with --install where sudo asks no password".to_owned(),
+    );
+  }
+
+  let tried = shell.run(&with_path(root, CONFINEMENT_TRY)).await;
+
+  (tried.code != 0).then(|| {
+    format!(
+      "bubblewrap makes no namespace on the PC, so its personal tools cannot run: {}",
+      last_lines(&format!("{}{}", tried.stdout, tried.stderr), 2)
+    )
+  })
 }

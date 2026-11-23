@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use bmo_pocket_client::{Failure, Granted, Pocket, SessionRequest};
+use bmo_pocket_client::{Failure, Granted, Pocket, Runner, SessionRequest};
 use policy::roles::ROLES;
 use policy::run_lines::RUN_LINES;
 use serde_json::{Map, Value, json};
@@ -249,6 +249,9 @@ fn record(
     variables_file: None,
     // Named by the issue that resolves the apps the record's person reaches, where it acts for one.
     withheld_apps_file: None,
+    // Named by the issue that judges the account its caller acts for (「owned」).
+    owner_account: None,
+    runner: None,
     labels,
     ttl_ms,
   }
@@ -269,6 +272,59 @@ async fn withhold(
 
   crate::apps::write_for(ground, &file, &person).await;
   request.withheld_apps_file = Some(file);
+}
+
+// The record named the account its caller acts for and the runner that account's personal tools run on
+// (docs/tools.md, 「The owner and the runner a record names」): the account a person's caller acts for, and the
+// administrator's for a supervisor holding the administrator's grant; none for the deployment's own callers. The
+// administrator's tools run on this machine, under this deployment's node link; a person's on their PC, through its
+// link's runner socket, where the PC's link spec names the account as the one it runs personal tools for; and an
+// account on a shared PC or with no PC is named no runner.
+async fn owned(ground: &Ground, request: &mut SessionRequest, caller: Caller<'_>) -> Result<(), Refusal> {
+  let acting = acting_for(&ground.db, &ground.roots.data, caller).await?;
+  let account = match (acting.account, acting.administrator) {
+    (Some(account), _) => account,
+    (None, true) => match crate::account_isolation::administrator(&ground.db).await? {
+      Some(account) => account,
+      None => return Ok(()),
+    },
+    (None, false) => return Ok(()),
+  };
+
+  request.runner = runner_of(ground, &account).await?;
+  request.owner_account = Some(account);
+  Ok(())
+}
+
+/// The runner an account's personal tools run on (docs/person-nodes.md, 「Personal tools on a PC」): the
+/// administrator's on this machine, as a command of this deployment's node link over the data root's own folder of
+/// them; a person's through the runner socket of their PC's link, where its spec names them as the one account it
+/// runs personal tools for; none otherwise.
+pub async fn runner_of(ground: &Ground, account: &str) -> Result<Option<Runner>, Refusal> {
+  let roots = &ground.roots;
+
+  if crate::account_isolation::owners_own(&ground.db, account).await? {
+    let words = [
+      roots.deploy.join("bin").join("node-link").to_string_lossy().into_owned(),
+      "runner".to_owned(),
+      "--root".to_owned(),
+      roots.data.join(node_link::runner::PERSONAL_TOOLS).to_string_lossy().into_owned(),
+      "--owner".to_owned(),
+      account.to_owned(),
+    ];
+
+    return Ok(Some(Runner::Command(words.to_vec())));
+  }
+
+  let Some(node) = crate::person_nodes::node_of(&ground.db, account).await? else {
+    return Ok(None);
+  };
+  let spec = node_link::spec::Spec::read(&roots.spec_path(&node)).ok();
+
+  Ok(spec.and_then(|spec| match (spec.runner, spec.runner_owner) {
+    (Some(socket), Some(owner)) if owner == account => Some(Runner::Socket(socket)),
+    _ => None,
+  }))
 }
 
 /// A token for a resident program of `line` standing in `place` for `agent` and working in `checkout`, or
@@ -326,7 +382,7 @@ pub async fn issue(
   let grants = granted(ground, caller).await?;
   let person = crate::apps::person_of(ground, caller).await?;
 
-  if let Some(role) = role {
+  if let Some(role) = &role {
     labels.insert("role".to_owned(), json!(role));
   }
 
@@ -334,6 +390,7 @@ pub async fn issue(
 
   let mut request = record(line, agent, capabilities, grants, variables, labels, None);
 
+  owned(ground, &mut request, caller).await?;
   withhold(ground, &mut request, person, || crate::apps::place_file(place)).await;
   issue_record(ground, &request).await.map(Some)
 }
@@ -491,7 +548,7 @@ pub async fn issue_for_run(
   labels.insert("checkout".to_owned(), json!(cwd));
   labels.insert("archive".to_owned(), json!(crate::archive_place(&ground.roots.data)));
 
-  if let Some(role) = role {
+  if let Some(role) = &role {
     labels.insert("role".to_owned(), json!(role));
   }
 
@@ -516,6 +573,8 @@ pub async fn issue_for_run(
     labels,
     Some(deadline.saturating_sub(now)),
   );
+
+  owned(ground, &mut request, caller).await?;
 
   withhold(ground, &mut request, person, || match place {
     Some(place) => crate::apps::place_file(Path::new(&place)),

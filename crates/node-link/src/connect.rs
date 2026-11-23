@@ -348,6 +348,99 @@ pub async fn dial_home(
   Ok(())
 }
 
+/// One call of a personal tool asked on the runner's socket here (docs/person-nodes.md, 「Personal tools on a PC」):
+/// its first line read, and refused where it is for an account other than the one the spec says the PC runs
+/// personal tools for, or where it names none; otherwise a new stream opened to the far end's mirror port, its
+/// greeting read, the passage named for that owner on it, the call's line sent and the two joined. The caller's
+/// connection ending first ends the stream, which ends the run on the PC; the stream ending first ends the
+/// connection.
+pub async fn carry_run(spec_path: &Path, client: tokio::net::UnixStream) {
+  let (reading, mut writing) = client.into_split();
+  let mut reading = BufReader::new(reading);
+  let mut first = String::new();
+
+  if !matches!(reading.read_line(&mut first).await, Ok(read) if read > 0) {
+    return;
+  }
+
+  let refuse = |why: String| crate::runner::Answered::Refused { why }.line();
+  let asked_for = serde_json::from_str::<Value>(&first)
+    .ok()
+    .and_then(|asked| asked.get("owner").and_then(Value::as_str).map(str::to_owned));
+  let spec = Spec::read(spec_path);
+  let carried = match (&spec, &asked_for) {
+    (Err(why), _) => Err(why.clone()),
+    (_, None) => Err("the call names no owner".to_owned()),
+    (Ok(spec), Some(owner)) => match (&spec.jake, &spec.runner_owner) {
+      (Some(jake), Some(runs_for)) if runs_for == owner => Ok((jake.clone(), owner.clone())),
+      (Some(_), Some(_)) => Err(format!("{} runs no personal tool of the account {owner}", spec.node)),
+      (Some(_), None) => Err(format!(
+        "{} runs no personal tools: it is shared by several accounts, or owned by none",
+        spec.node
+      )),
+      (None, _) => Err(format!("{} is no person's PC, and runs no personal tools", spec.node)),
+    },
+  };
+  let (jake, owner) = match carried {
+    Ok(carried) => carried,
+    Err(why) => {
+      let _ = writing.write_all(refuse(why).as_bytes()).await;
+      return;
+    }
+  };
+  let mut command = match jake_command(&jake, jake.mirror_port) {
+    Ok(command) => command,
+    Err(why) => {
+      let _ = writing
+        .write_all(refuse(format!("the PC could not be reached: {why}")).as_bytes())
+        .await;
+      return;
+    }
+  };
+  let mut child = match command.stderr(Stdio::null()).spawn() {
+    Ok(child) => child,
+    Err(why) => {
+      let program = command.as_std().get_program().to_string_lossy().into_owned();
+      let _ = writing.write_all(refuse(format!("{program}: {why}")).as_bytes()).await;
+      return;
+    }
+  };
+  let (Some(mut input), Some(output)) = (child.stdin.take(), child.stdout.take()) else {
+    return;
+  };
+  let mut output = BufReader::new(output);
+  let mut greeting = String::new();
+
+  match tokio::time::timeout(DIAL_WAIT, output.read_line(&mut greeting)).await {
+    Ok(Ok(read)) if read > 0 && matches!(Frame::read(&greeting), Some(Frame::Hello { .. })) => {}
+    _ => {
+      let _ = writing
+        .write_all(refuse("the PC's far end did not greet the stream".to_owned()).as_bytes())
+        .await;
+      let _ = child.start_kill();
+      return;
+    }
+  }
+
+  let named = format!("{}{first}", Frame::Run { owner }.line());
+
+  if input.write_all(named.as_bytes()).await.is_err() {
+    let _ = writing.write_all(refuse("the stream to the PC closed".to_owned()).as_bytes()).await;
+    let _ = child.start_kill();
+    return;
+  }
+
+  tokio::select! {
+    _ = tokio::io::copy(&mut reading, &mut input) => {}
+    _ = tokio::io::copy(&mut output, &mut writing) => {
+      let _ = writing.flush().await;
+    }
+  }
+
+  let _ = child.start_kill();
+  let _ = child.wait().await;
+}
+
 // One connection here carried to a port on the PC through the hub's connect program.
 async fn carry_over_jake(client: tokio::net::UnixStream, jake: &crate::spec::Jake, port: u16) {
   let mut command = match jake_command(jake, port) {
@@ -878,6 +971,21 @@ pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
     bind_mode(&spec.bridge, bridge_mode).map_err(|error| format!("{}: {error}", spec.bridge.display()))?;
 
   tokio::spawn(control(control_listener, current.clone(), spec.state.clone()));
+
+  // On a person's PC, each call of a personal tool asked here carried to the PC's runner over a stream of its own.
+  if let (Some(_), Some(socket)) = (&spec.jake, &spec.runner) {
+    let listener = bind(socket).map_err(|error| format!("{}: {error}", socket.display()))?;
+    let spec_path = spec_path.clone();
+
+    tokio::spawn(async move {
+      loop {
+        let Ok((stream, _)) = listener.accept().await else { continue };
+        let spec_path = spec_path.clone();
+
+        tokio::spawn(async move { carry_run(&spec_path, stream).await });
+      }
+    });
+  }
 
   {
     let spec_path = spec_path.clone();

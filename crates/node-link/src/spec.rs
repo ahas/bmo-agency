@@ -76,6 +76,14 @@ pub struct Spec {
   /// (docs/account-isolation.md); none for any other node.
   #[serde(default)]
   pub local: Option<Local>,
+  /// On a person's PC: the socket here a personal tool's call is asked on, carried to a runner on the PC
+  /// (docs/person-nodes.md, 「Personal tools on a PC」); none for any other node.
+  #[serde(default)]
+  pub runner: Option<PathBuf>,
+  /// The one account whose personal tools the PC runs; none where several accounts share it or none owns it, and
+  /// the runner's socket refuses every call.
+  #[serde(default)]
+  pub runner_owner: Option<String>,
 }
 
 /// How the link reaches a node on this machine that runs as a user of its own: the words its far end is started

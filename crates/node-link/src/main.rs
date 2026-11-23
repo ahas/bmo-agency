@@ -25,6 +25,17 @@ enum Verb {
     #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
     args: Vec<String>,
   },
+  /// One call of a personal tool, asked on standard input and answered on standard output: the owner's tool run
+  /// confined by bubblewrap to its version's folder and its own data folder (docs/person-nodes.md, 「Personal tools
+  /// on a PC」).
+  Runner {
+    /// The folder the owners' tools stand in.
+    #[arg(long)]
+    root: PathBuf,
+    /// The one account whose tools this runner runs; any where none is named.
+    #[arg(long)]
+    owner: Option<String>,
+  },
   /// The far end, on the node: watch, send, write and signal over standard input and output.
   Serve {
     /// The workplace's root on the node.
@@ -78,6 +89,13 @@ async fn main() -> ExitCode {
       .await;
 
       ExitCode::from(u8::try_from(code).unwrap_or(1))
+    }
+    Verb::Runner { root, owner } => {
+      let bwrap = std::env::var(node_link::runner::BWRAP_VARIABLE).unwrap_or_else(|_| "bwrap".to_owned());
+      let runner = node_link::runner::Runner { root, owner, bwrap };
+
+      node_link::runner::run(runner, tokio::io::stdin(), tokio::io::stdout()).await;
+      ExitCode::SUCCESS
     }
     Verb::Serve {
       root,

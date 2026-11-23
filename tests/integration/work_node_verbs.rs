@@ -10,8 +10,8 @@ use agency_server::verbs::work_node::{
   WorkNodeVerb, far_end_taken, refused_listens, work_node_on, work_refusal,
 };
 use agency_server::verbs::work_node_setup::{
-  FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace,
-  SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
+  CONFINEMENT_TRY, FAR_END_UNIT, FarEnd, NODE_CRATES, SetupCheckout, SetupHands, SetupLogin, SetupOutcome,
+  SetupPlace, SetupShell, ShellRun, far_end_unit, session_socket, set_up_workplace,
 };
 use common::Scratch;
 use futures_util::future::BoxFuture;
@@ -247,6 +247,7 @@ async fn a_node_whose_login_fails_names_that_alone() {
       missing: vec!["login: ssh: connect to host n1.example port 22: No route to host".into()],
       herdr_socket: None,
       copied: false,
+      confinement: None,
     }
   );
 }
@@ -467,6 +468,61 @@ async fn a_pc_s_far_end_is_written_as_a_user_service_and_started_again_after_the
       .missing
       .contains(&format!("far end: {FAR_END_UNIT} does not run on the node; run the setup"))
   );
+}
+
+// "a PC's setup looks for bubblewrap and tries it, saying why its personal tools cannot run confined, and a node that
+// is no PC is asked neither"
+#[tokio::test]
+async fn a_pc_s_setup_looks_for_bubblewrap_and_tries_it() {
+  let pc = || SetupPlace {
+    far_end: Some(PC_PORTS),
+    checkouts: vec![],
+    ..place(true)
+  };
+  let tried = |shell: &StandIn| shell.ran().iter().any(|command| command.contains(CONFINEMENT_TRY));
+
+  let shell = StandIn::new(&[HOME, HERDR_LISTING]);
+  let outcome = set_up_workplace(&shell, &pc(), &hands(true)).await;
+
+  assert_eq!(outcome.confinement, None);
+  assert!(tried(&shell));
+  assert!(
+    outcome.missing.iter().all(|line| !line.contains("bubblewrap")),
+    "it holds nothing else back"
+  );
+
+  let shell = StandIn::new(&[HOME, HERDR_LISTING, (r"command -v 'bwrap'|command -v bwrap\b", 1, "", "")]);
+  let outcome = set_up_workplace(&shell, &pc(), &hands(true)).await;
+
+  assert!(
+    outcome
+      .confinement
+      .as_deref()
+      .is_some_and(|why| why.contains("bubblewrap (bwrap) is not on the PC"))
+  );
+  assert!(!tried(&shell));
+
+  let shell = StandIn::new(&[
+    HOME,
+    HERDR_LISTING,
+    (r"bwrap --ro-bind", 1, "", "bwrap: setting up uid map: Permission denied\n"),
+  ]);
+  let outcome = set_up_workplace(&shell, &pc(), &hands(true)).await;
+
+  assert!(
+    outcome
+      .confinement
+      .as_deref()
+      .is_some_and(|why| why.contains("makes no namespace") && why.contains("uid map")),
+    "{:?}",
+    outcome.confinement
+  );
+
+  let shell = StandIn::new(&[HOME, HERDR_LISTING]);
+  let outcome = set_up_workplace(&shell, &place(true), &hands(true)).await;
+
+  assert_eq!(outcome.confinement, None);
+  assert!(!tried(&shell));
 }
 
 // "the far end's unit runs the serve program on the PC's loopback ports and stops alone"

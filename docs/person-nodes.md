@@ -89,6 +89,59 @@ desktop coding agent whose models and tools are served from elsewhere.
   reach, places and records of an account's own — and a setup that installs bubblewrap on the PC and checks its
   user namespaces; it is left (「What stands and what is left」).
 
+## Personal tools on a PC
+
+A person's personal tools — tools of their own, which their BMO writes for them — are built, kept and run on their
+PC; the tool host at home keeps a copy of each one's description alone and relays each call (the tool host's
+`docs/mcp-host.md`, 「Personal tools」).
+
+- **They stand under the workplace's data root,** `<node root>/data/personal-tools/owners/<account>/`, in the layout
+  the tool host keeps an owner's registry in (the tool host's `docs/registry.md`, 「Personal tools」): a pointer per
+  tool, `registry/<name>.json`, naming the version it points at; each placed version in `tools/<name>/<version>/`;
+  and beside them the data folder each tool writes, `data/<name>/`, made by the runner the first time it runs the
+  tool, readable by the PC's user alone.
+- **The runner is `node-link runner`,** the far end's own binary, built on the PC with it: started for one call, it
+  speaks the tool host's runner passage on its standard input and output (the tool host's `docs/api.md`, 「The
+  runner」), runs the version of the tool the call names, which stands there, under the run words it is given, and
+  answers each line the tool writes on its errors and how it ended. It runs the tools of the one account it is
+  started for, and refuses a call of another, a name that is no folder's, a version not placed and a run command
+  naming nothing.
+- **It runs a tool confined by bubblewrap, or not at all:**
+  - every namespace the tool's own, the network among them, so it reaches no address; ended with the runner; in a
+    session of its own;
+  - a clean environment: the search path of the machine's own programs, its data folder as its home, a scratch
+    folder of its own, and nothing of the runner's, so no token or key reaches it;
+  - the machine's `/usr`, its links or folders `/bin`, `/sbin` and `/lib*`, and the files the dynamic loader and the
+    clock read, read alone; a process table and devices of its own;
+  - its version folder read alone at `/tool`, where it starts, and its data folder written at `/data`; nothing else
+    of the PC — the home, the CLI's records, the workplace's data root, the link's tool token and the gateway's key
+    files, another tool's folders — stands inside;
+  - a call-back socket into the host, a helper and a secret are given no call yet.
+  Where bubblewrap is not on the machine, the runner refuses the call saying so.
+- **A call reaches the PC over a passage of its own:**
+  - the near end listens on the link's runner socket, `runner.sock` in the node's folder here, readable by this
+    machine's user alone, where the link's spec names one, as it does for every PC;
+  - each connection there is one call: its first line names the account, and the near end refuses it where the spec
+    does not name that account as the one the PC runs personal tools for;
+  - otherwise it opens a new byte stream to the far end's mirror port, as it dials a connection home (「The link over
+    jake」), names the passage on it with a `run` frame for that account, and joins the two;
+  - the far end starts a runner of its own binary for that account in a process group of its own and joins the
+    stream to it;
+  - the caller's connection closing ends the stream, the stream ending ends the runner's whole group, and the runner
+    whose input closes before the tool has answered ends the tool, so a call whose caller is gone ends on the PC.
+- **A PC runs the personal tools of one account alone:** the spec names the account whose record names the PC, where
+  it is the only one and its record is not shared. A PC several accounts share runs none, since no account's tool is
+  yet kept from another's there (「Several accounts on one node」), and the records of its accounts name no runner.
+- **The administrator's account has no PC:** its personal tools stand under this machine's data root,
+  `personal-tools/`, and run under the same runner and confinement as this machine's user, its records naming the
+  runner of this deployment's node link as a command (`docs/tools.md`, 「The owner and the runner a record names」).
+  An account on its isolation node has no runner yet.
+- **The setup looks for bubblewrap on a PC and tries it:** `bwrap` looked for, installed with `--install` through the
+  Linux shell's package manager where `sudo` asks no password, and tried by making every namespace over the machine's
+  filesystem read alone. What it found is said beside the setup's answer, as `personal tools: …`, and kept in the
+  node's setup record as `confinement`, `ready` or why not. It holds nothing else of the workplace back: the PC's
+  BMO runs as before, and its personal tools are refused until bubblewrap confines there.
+
 ## Who reaches a node
 
 - **An agent runs a command on a node through the node service's tool alone,** the tool host's `bmo/node_exec`
@@ -170,6 +223,9 @@ desktop coding agent whose models and tools are served from elsewhere.
   jake — the tools, herdr, the programs and the data root — as setup lays one down on an SSH node.
 - **A user manager of its own that runs while nobody is logged in:** systemd in the Linux shell, with lingering on
   for the person's account, since every long step and the far end run as units of it.
+- **bubblewrap in the Linux shell,** for the person's personal tools alone (「Personal tools on a PC」): the
+  `bubblewrap` package, which the setup installs where `sudo` asks no password, with unprivileged user namespaces on,
+  as WSL and most distributions have them.
 - **jake's agent offering the link's two ports to stream to:** the far end's mirror and herdr ports among its
   stream ports, which are agency's policy (`policy/person-nodes.toml`). The agent listens on nothing for the link:
   the ports a program on the PC reaches home through are the far end's own (「The link over jake」).
@@ -243,6 +299,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the tool host's port | PC → here | the far end listens on the port at the PC's loopback; each connection is dialed home over a byte stream of its own to the mirror port, joined here to the tool host |
 | the model gateway's port | PC → here | the same way, each connection joined here to the gateway (`docs/work-nodes.md`, 「The model gateway on a node」) |
 | the home bridge's socket | PC → here | the same way from the node's bridge socket, each connection joined here to the bridge's socket |
+| a personal tool's call | here → PC | a byte stream of its own to the far end's mirror port for each call asked on the link's runner socket, named `run`, joined there to a runner (「Personal tools on a PC」) |
 
 - **The far end stands on the PC as a service of the person's own,** started by the workplace's setup and kept
   running there: the link's serve program, listening at the PC's loopback alone, inside the Linux shell beside the
@@ -311,5 +368,6 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | an account's runs on its PC | agency's record of an account's node, set by the binding service or the verb; the spec writer writes a jake spec for a PC; an account's supervisors' sessions and its role agents' runs placed on its node alone, waiting while the node's link is not heard, the wait typed `node-link`, ended by a stop and bounded by the policy, and neither counted by the quiet nor lost silently across a restart | — |
 | who reaches a node | the administrator's grant written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
 | several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
+| personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | placing a version on the PC and its description at home, the network and secrets during a call, a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
 | a check on a real PC | a PC attached as a jake agent with its stream ports set; its workplace ready, set up through the hub and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

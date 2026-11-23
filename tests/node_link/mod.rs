@@ -8,5 +8,6 @@ mod jake;
 mod link;
 mod node_build;
 mod rewrite;
+mod runner;
 mod serve;
 mod spec;

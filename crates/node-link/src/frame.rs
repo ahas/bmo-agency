@@ -113,6 +113,10 @@ pub enum Frame {
   /// The first words of the near end on a stream it opened to dial a held connection home: the stream is that
   /// connection's from here on.
   Back { id: u64 },
+  /// The first words of the near end on a stream it opened for one call of a personal tool of the account named
+  /// (docs/person-nodes.md, 「Personal tools on a PC」): the stream is that call's passage to a runner from here on,
+  /// and its end the call's caller gone.
+  Run { owner: String },
 }
 
 /// What a connection the far end took reaches at home.

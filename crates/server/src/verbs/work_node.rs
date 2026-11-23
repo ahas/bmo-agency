@@ -713,6 +713,10 @@ async fn stand(
       .collect();
 
     notes = door.wsl_networking(&far_ports).await;
+    notes.push(match &outcome.confinement {
+      Some(why) => format!("personal tools: {why}"),
+      None => "personal tools: confined by bubblewrap".to_owned(),
+    });
   }
 
   // A path written from the node's home reads as the node's own from now on, so every lock, record and
@@ -748,6 +752,11 @@ async fn stand(
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
     let mut record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
+
+    // On a PC, whether its personal tools run confined, and why not where they cannot.
+    if place.far_end.is_some() {
+      record["confinement"] = json!(outcome.confinement.as_deref().unwrap_or("ready"));
+    }
 
     // The machine a PC's Linux shell reads, by which another workplace tells whether this one holds the PC's far end.
     if let Some(Ok(machine)) = &machine {

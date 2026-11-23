@@ -211,9 +211,10 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
     (Some(address), Some(carrier)) => {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
       let mirror = Arc::new(Mirror::default());
+      let tools = Arc::new(options.root.join("data").join(crate::runner::PERSONAL_TOOLS));
       loop {
         let (socket, _) = listener.accept().await?;
-        tokio::spawn(connection(socket, carrier.clone(), mirror.clone()));
+        tokio::spawn(connection(socket, carrier.clone(), mirror.clone(), tools.clone()));
       }
     }
     _ => {
@@ -253,9 +254,15 @@ fn hello() -> Frame {
 }
 
 // One connection on a person's PC, greeted, then told apart by the near end's first words: a stream dialing a held
-// connection home, joined to it, or a mirror session of the node it names, which ends that node's session before it
-// and takes its turn once it has. A session that names no node is the nameless node's.
-async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror: Arc<Mirror>) {
+// connection home, joined to it; a passage for one call of a personal tool, handed to a runner; or a mirror session
+// of the node it names, which ends that node's session before it and takes its turn once it has. A session that names
+// no node is the nameless node's.
+async fn connection(
+  socket: tokio::net::TcpStream,
+  carrier: Arc<Carrier>,
+  mirror: Arc<Mirror>,
+  tools: Arc<PathBuf>,
+) {
   let (reader, mut writer) = socket.into_split();
 
   if writer.write_all(hello().line().as_bytes()).await.is_err() {
@@ -276,6 +283,7 @@ async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror
         let _ = tokio::io::copy_bidirectional(&mut stream, &mut held).await;
       }
     }
+    Some(Frame::Run { owner }) => run_tool(reader, writer, &tools, &owner).await,
     first => {
       let (node, first) = match first {
         Some(Frame::Near { node }) => (node, None),
@@ -287,6 +295,58 @@ async fn connection(socket: tokio::net::TcpStream, carrier: Arc<Carrier>, mirror
       session(reader, writer, Greeting::Said(first), Some(carrier), superseded).await;
     }
   }
+}
+
+/// One call's passage handed to a runner of this far end's own binary, run for the one owner the near end named,
+/// in a process group of its own (docs/person-nodes.md, 「Personal tools on a PC」): what the stream says goes to the
+/// runner's input, and what the runner answers back on the stream. The stream ending first is the call's caller gone,
+/// and ends the runner's whole group, the confined tool with it; the runner answering first ends the stream.
+pub async fn run_tool(
+  mut reader: impl tokio::io::AsyncRead + Unpin,
+  mut writer: impl tokio::io::AsyncWrite + Unpin,
+  tools: &Path,
+  owner: &str,
+) {
+  let mut command = tokio::process::Command::new("/proc/self/exe");
+
+  command
+    .arg("runner")
+    .arg("--root")
+    .arg(tools)
+    .args(["--owner", owner])
+    .stdin(std::process::Stdio::piped())
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::null())
+    .process_group(0)
+    .kill_on_drop(true);
+
+  let Ok(mut child) = command.spawn() else {
+    let refused = crate::runner::Answered::Refused {
+      why: "the PC's runner could not be started".to_owned(),
+    };
+    let _ = writer.write_all(refused.line().as_bytes()).await;
+    return;
+  };
+  let group = child.id().and_then(|pid| i32::try_from(pid).ok());
+  let (Some(mut input), Some(mut output)) = (child.stdin.take(), child.stdout.take()) else {
+    return;
+  };
+
+  tokio::select! {
+    _ = tokio::io::copy(&mut reader, &mut input) => {
+      if let Some(group) = group {
+        // SAFETY: a signal to the runner's own process group, which this far end started and has not waited on.
+        unsafe { libc::killpg(group, libc::SIGKILL) };
+      }
+    }
+    _ = tokio::io::copy(&mut output, &mut writer) => {
+      let _ = writer.flush().await;
+      let _ = writer.shutdown().await;
+    }
+  }
+
+  let _ = child.start_kill();
+  let _ = child.wait().await;
 }
 
 /// The mirror sessions of one far end (docs/person-nodes.md, 「The link over jake」), by the node each names: one at a
