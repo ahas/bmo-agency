@@ -371,6 +371,9 @@ whose data stays on that PC. Nothing of it reaches another company.
   `catalogue review`, or the review written failed with why. It decides nothing by itself.
 - **Who sees an app:** its maker and its owner, the heads of the maker's home unit, whoever one of its targets takes
   in, and whoever holds a copy. Everyone else of the company, and everyone of another company, never meets it.
+- **The administrator is a member of their own company's catalogue:** reading the company their home unit stands in,
+  they install, update, drop and adopt a copy there as any member does, on the runner their records name, besides
+  recalling at the platform; in any other company they see every app and install nothing.
 - **Installing one,** by the receiver: the app seen, not withdrawn, its newest version approved where a head must
   approve it, offered to them on the chain and installing allowed them. The catalogue's source is read checked
   against its hash, handed to the runner to receive under the app's name, placed, put at home with `put --owner

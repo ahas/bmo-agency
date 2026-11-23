@@ -1589,7 +1589,9 @@ where the shell stands in an agent's program, else the owner.
 - **Who acts:** as for 「personal-apps」, a caller naming a person with `Owner-Key` acts for that person's account
   alone; a caller of the deployment's own names the account, as the console does for the person signed in. The
   administrator's account reads any company's catalogue by `company`, an empty one where it names none, and recalls
-  at the platform; `GET /catalogue-promotions` answers the administrator's account and the deployment's own callers
+  at the platform; in the company its home unit stands in it is a member as well, installing, updating, dropping and
+  adopting a copy there as any member does, and in any other company it holds no copy, 403 `forbidden`;
+  `GET /catalogue-promotions` answers the administrator's account and the deployment's own callers
   alone, 403 otherwise.
 - **The listing** answers `company`; `ceiling`, the targets the account may share with; `apps`, each `id`, `key`,
   `name`, `title`, `description`, `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,

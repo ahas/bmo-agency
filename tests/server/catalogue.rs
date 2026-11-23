@@ -616,3 +616,58 @@ async fn a_head_turns_an_app_on_for_their_unit_and_a_copy_is_dropped_or_adopted(
     Err(Fault::Withdrawn(_))
   ));
 }
+
+// "the administrator is a member of their own company's catalogue: they install a copy there on the runner their
+// records name, as any member does, and keep recalling at the platform; in another company they install nothing"
+#[tokio::test]
+async fn the_administrator_installs_in_their_own_company_alone() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+  let own_pc = stood.pc(STRANGER).await;
+  let other_pc = stood.pc(MAKER).await;
+  // The administrator's runner is this deployment's node link, standing in the deploy tree.
+  let bin = ground.roots.deploy.join("bin");
+
+  std::fs::create_dir_all(&bin).unwrap();
+  std::os::unix::fs::symlink(crate::support::binary::path("node-link"), bin.join("node-link")).unwrap();
+
+  // An app of the administrator's own company, and one of another.
+  app(&own_pc, "daily", "Says the day.");
+  personal_apps::put(ground, &STRANGER.to_string(), "daily").await.unwrap();
+  catalogue::share(ground, &reader(&stood, STRANGER).await, "daily", &[]).await.unwrap();
+  app(&other_pc, "weekly", "Sums up the week.");
+  personal_apps::put(ground, &MAKER.to_string(), "weekly").await.unwrap();
+  catalogue::share(ground, &reader(&stood, MAKER).await, "weekly", &[]).await.unwrap();
+
+  let own = catalogue::reader(ground, ADMINISTRATOR, Some(5)).await.unwrap();
+  let other = catalogue::reader(ground, ADMINISTRATOR, Some(3)).await.unwrap();
+
+  assert!(own.member().is_some(), "their home unit stands in company 5");
+  assert!(other.member().is_none());
+
+  // In another company: every app seen and recalled at the platform, none installed.
+  let weekly = catalogue::entry(ground, &other, "17-weekly").await.unwrap();
+
+  assert!(!weekly.may.install);
+  assert_eq!(weekly.may.recall, vec!["platform".to_owned()]);
+  assert!(matches!(
+    catalogue::install(ground, &other, "17-weekly").await,
+    Err(Fault::Forbidden(_))
+  ));
+
+  // In their own company: installed as a member, received into their own 'my apps' and put home for them.
+  let daily = catalogue::entry(ground, &own, "51-daily").await.unwrap();
+
+  assert!(daily.may.install);
+  assert_eq!(daily.may.recall, vec!["platform".to_owned()]);
+
+  let installed = catalogue::install(ground, &own, "51-daily").await.unwrap();
+
+  assert_eq!(installed.installed.as_ref().unwrap().how, "self");
+  assert!(installed.may.uninstall && installed.may.clone);
+  assert!(
+    ground.roots.data.join("my-apps/daily/main.py").exists(),
+    "the source reaches the administrator's runner"
+  );
+  assert_eq!(home_pointer(&stood, 1, "daily").unwrap()["app"], "shared-5-51-daily");
+}

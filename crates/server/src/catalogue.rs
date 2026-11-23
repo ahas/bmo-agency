@@ -212,14 +212,28 @@ impl Place {
   }
 }
 
-/// Who reads a catalogue: a person of the company, or the administrator, naming the company.
+/// Who reads a catalogue: a person of the company, or the administrator, naming the company, and a member of it as
+/// well where it is the company their home unit stands in, `member` their place there.
 #[derive(Clone, Debug)]
 pub enum Reader {
   Person(Place),
-  Administrator { account: i64, company: i64 },
+  Administrator {
+    account: i64,
+    company: i64,
+    member: Option<Place>,
+  },
 }
 
 impl Reader {
+  /// Where the reader stands as a member of the company read: a person's place, or the administrator's in their own
+  /// company; none for the administrator reading another.
+  pub fn member(&self) -> Option<&Place> {
+    match self {
+      Self::Person(place) => Some(place),
+      Self::Administrator { member, .. } => member.as_ref(),
+    }
+  }
+
   fn company(&self) -> i64 {
     match self {
       Self::Person(place) => place.company,
@@ -286,12 +300,19 @@ pub async fn reader(ground: &Ground, account: &str, company: Option<i64>) -> Res
     .await
     .map_err(|_| Fault::Unchecked)?
   {
-    // The administrator belongs to no company: a company named is read, and none named reads as an empty one.
+    // A company named is read, and none named reads as an empty one; where it is the company the administrator's home
+    // unit stands in, they read it as a member of it as well.
     let company = company.unwrap_or(0);
+    let member = if company == 0 {
+      None
+    } else {
+      place_of(ground, person).await.ok().filter(|place| place.company == company)
+    };
 
     return Ok(Reader::Administrator {
       account: person,
       company,
+      member,
     });
   }
 
@@ -515,7 +536,7 @@ async fn view(
   let open = app.withdrawn.is_none() && latest.approved();
   let mut may = CatalogueMay::default();
 
-  if !administrator {
+  if reader.member().is_some() {
     let install = asked.flag(ground, person, ORGANISATION.personal_apps.install.key.as_str(), true).await;
     let offered = asked.flag(ground, person, &app.setting("offered"), true).await;
 
@@ -523,6 +544,9 @@ async fn view(
     may.update = update_waiting && latest.approved();
     may.uninstall = copy.is_some();
     may.clone = copy.is_some();
+  }
+
+  if !administrator {
     may.approve = latest.approval.required && latest.approval.by.is_none() && heads_maker;
     may.promote = app.maker == account || app.owner == account || heads_maker;
   }
@@ -1128,8 +1152,10 @@ async fn own_is_open(ground: &Ground, app: &Kept, person: i64) -> Result<(), Fau
 
 /// The app's newest version installed for the reader.
 pub async fn install(ground: &Ground, reader: &Reader, id: &str) -> Result<CatalogueApp, Fault> {
-  let Reader::Person(place) = reader else {
-    return Err(Fault::Forbidden("the administrator installs no shared app".to_owned()));
+  let Some(place) = reader.member() else {
+    return Err(Fault::Forbidden(
+      "the administrator installs no shared app of a company they are no member of".to_owned(),
+    ));
   };
   let (app, view) = seen_app(ground, reader, id).await?;
   let latest = app.latest().ok_or_else(|| Fault::NotFound(format!("the app {id} has no version")))?;
@@ -1168,8 +1194,10 @@ pub async fn install(ground: &Ground, reader: &Reader, id: &str) -> Result<Catal
 
 /// The reader's copy moved onto the newest version, what it asks for confirmed by asking.
 pub async fn update(ground: &Ground, reader: &Reader, id: &str) -> Result<CatalogueApp, Fault> {
-  let Reader::Person(place) = reader else {
-    return Err(Fault::Forbidden("the administrator holds no copy".to_owned()));
+  let Some(place) = reader.member() else {
+    return Err(Fault::Forbidden(
+      "the administrator holds no copy in a company they are no member of".to_owned(),
+    ));
   };
   let (app, _) = seen_app(ground, reader, id).await?;
   let account = reader.account();
@@ -1192,8 +1220,10 @@ pub async fn update(ground: &Ground, reader: &Reader, id: &str) -> Result<Catalo
 
 /// The reader's copy dropped, their own link of the app's `on` turned off so a unit's turning on brings it not back.
 pub async fn uninstall(ground: &Ground, reader: &Reader, id: &str) -> Result<CatalogueApp, Fault> {
-  let Reader::Person(place) = reader else {
-    return Err(Fault::Forbidden("the administrator holds no copy".to_owned()));
+  let Some(place) = reader.member() else {
+    return Err(Fault::Forbidden(
+      "the administrator holds no copy in a company they are no member of".to_owned(),
+    ));
   };
   let (app, _) = seen_app(ground, reader, id).await?;
   let account = reader.account();
@@ -1210,8 +1240,10 @@ pub async fn uninstall(ground: &Ground, reader: &Reader, id: &str) -> Result<Cat
 
 /// The reader's copy adopted as their own personal app: no update reaches it again.
 pub async fn adopt(ground: &Ground, reader: &Reader, id: &str) -> Result<CatalogueApp, Fault> {
-  let Reader::Person(place) = reader else {
-    return Err(Fault::Forbidden("the administrator holds no copy".to_owned()));
+  let Some(place) = reader.member() else {
+    return Err(Fault::Forbidden(
+      "the administrator holds no copy in a company they are no member of".to_owned(),
+    ));
   };
   let (app, _) = seen_app(ground, reader, id).await?;
   let account = reader.account();
