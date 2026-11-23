@@ -111,7 +111,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
   approval, the worker's run and its close, the work tree's notices and the day's collection, host work,
-  the fast track, a secret asked for and used by its
+  the fast track and a need that comes back made a hosted tool, a secret asked for and used by its
   name, images read and drawn, a document
   filed for a person and the pictures that stand in its body, a line for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
@@ -247,9 +247,9 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   none, and never by a form they asked not to be called. The receiver owns the questions, the review round
   among them; the manual only tells the agent what an answer to each is.
 - **The procedure documents:** how to do what is needed only at the moment it is done — filing and
-  running the queue, a fast-track tool, asking for a secret, and a run past its clock — is in
-  `prompts/agents/chat/procedures/`, one document each, which the session reads right before doing
-  it.
+  running the queue, a fast-track tool and keeping one as a hosted tool, asking for a secret, and a run
+  past its clock — is in `prompts/agents/chat/procedures/`, one document each, which the session reads
+  right before doing it.
   - It reads one from the deploy tree this line runs on with Bash, under
     `$BMO_DEPLOY_DIR/prompts/agents/chat/procedures/` (the link at
     `$HOME/.local/share/bmo-agency/deploy` holds the same tree where the variable is unset), never

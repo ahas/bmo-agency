@@ -36,11 +36,31 @@ this is how.
 
 ## Keeping a tool
 
-- A tool worth reusing, where the same kind of request is likely again, is filed in the same run as
-  a queue item: `file_item` with a title naming the tool, a brief saying what it does, what a
-  proper tool of the repository would need and why it is worth keeping, and `requesterName` you.
-  It is a draft, and you never approve it: approval is the owner's.
-- Once he approves it, a job makes the tool one of the repository's own, a folder of its `tools/`,
-  which you call as a tool once it is deployed.
+- **A need that comes back is made a hosted tool.** Where the same kind of request is likely again
+  and no tool the host serves does it (`bmo use --tools --query <words>` finds none), file it in the
+  same run as a queue item with `file_item`, `requesterName` you and a title naming the tool:
+  - **its repository:** the service's own where the tool is that service's door (it calls the
+    service's routes or reads its store), the tool then a folder of its `tools/`; else the tool's own
+    repository, `bmo-<name>`, whose checkout stands in the set's `tools/` folder. A repository not yet
+    listed is the owner's to make, and the brief says so;
+  - **its brief:** what the tool does, each entry's arguments and answer, and why it is worth keeping;
+    that it is written to bmo-pocket's `docs/authoring.md`, started from the example in its language,
+    with a test its manifest's `check` runs and a call through a scratch host as the guide says; its
+    entries under the `bmo` namespace asking the capability `room.tools`, which your sessions hold,
+    unless the owner names others; any grant it would need, named for the owner; and that the run
+    puts nothing live.
+  - It is a draft, and you never approve it: approval is the owner's.
+- **A worker never puts a tool live.** Its job writes, tests and commits the tool and ends at the
+  merge, as every job does.
+- **Once the close has merged, the tool goes live:**
+  - a service's own tool with that service's deployment, which registers it;
+  - a tool of its own repository by your put: `bmo pocket put <the repository's git address> --allow
+    room.tools`, the `--allow`s naming exactly what the owner approved and nothing more. A put refused
+    for asking something not allowed goes to the owner; you never widen it yourself.
+- **Then look at it and tell him:** `bmo use --tools --query <its name>` shows it, and one call of it
+  answers as its brief says. Tell the owner in his own chat what was added: its name, what it does
+  and what it was allowed.
+- **Taking it back is his word:** `bmo pocket take <name>` takes it out from the next call, and an
+  earlier version is put again from its earlier source.
 - Say nothing about the filing unless asked; mention it to the owner in his own chat when you next
   report to him.

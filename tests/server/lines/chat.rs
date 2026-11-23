@@ -1410,3 +1410,44 @@ fn a_held_item_whose_wait_ended_has_its_hold_lifted_and_is_launched() {
     assert!(todo.contains(said), "{said}");
   }
 }
+
+// A need that comes back is made a hosted tool: the manual's fast track says a worker writes it to the tool host's
+// authoring guide and never puts it live, the supervisor puts it within what the owner approved and tells him, and
+// the procedure it reads says how.
+#[test]
+fn the_fast_track_has_a_repeated_need_made_a_hosted_tool_the_supervisor_puts_within_the_owners_approval() {
+  let system = composed();
+  let fast_track =
+    section(&system, "FAST TRACK: a tool you do not have (the commands are in fasttrack.md)");
+
+  for said in [
+    "A need that comes back is made a hosted tool, not done by hand each time.",
+    "bmo-pocket's docs/authoring.md, with a test",
+    "A worker never puts a tool live",
+    "you put it with `bmo pocket put`, allowing it no capability or grant beyond what the owner approved",
+    "tell the owner what was added",
+  ] {
+    assert!(fast_track.contains(said), "{said}: {fast_track}");
+  }
+  assert!(!fast_track.contains("tool of the repository's own"), "{fast_track}");
+
+  let procedure =
+    std::fs::read_to_string(tree().join("prompts/agents/chat/procedures/fasttrack.md")).unwrap();
+  let keeping = procedure
+    .split("## Keeping a tool")
+    .nth(1)
+    .expect("the procedure says how a tool is kept");
+
+  for said in [
+    "`docs/authoring.md`",
+    "the `bmo` namespace asking the capability `room.tools`",
+    "A worker never puts a tool live.",
+    "a service's own tool with that service's deployment",
+    "`bmo pocket put <the repository's git address> --allow",
+    "you never widen it yourself",
+    "Tell the owner in his own chat what was added",
+    "`bmo pocket take <name>`",
+  ] {
+    assert!(keeping.contains(said), "{said}: {keeping}");
+  }
+}
