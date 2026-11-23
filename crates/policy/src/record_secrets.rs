@@ -6,8 +6,6 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordSecrets {
-  /// The receiver's secret shapes, as a path under the home.
-  pub receiver_shapes: String,
   /// The words a saved value's key ends in, alone or after `api`, where the value is a secret's.
   pub secret_words: Vec<String>,
   /// The fewest characters a saved value counts at.

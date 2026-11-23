@@ -31,8 +31,9 @@ them.
   the provider orders and the routes with the control routes, so a crate boundary between them would be a
   cycle.
 - **No other service's code.** Among other repositories only the base libraries `bmo-chat`,
-  `bmo-chat-client` and `bmo-ui` may be depended on or imported, and the Rust side may also build on the
-  published clients and libraries of the upstreams it reaches (`docs/api.md`, 「Calls agency makes」);
+  `bmo-chat-client`, `bmo-secret-shapes` and `bmo-ui` may be depended on or imported, and the Rust side may
+  also build on the published clients and libraries of the upstreams it reaches (`docs/api.md`, 「Calls
+  agency makes」);
   the testbed's `dependencies` check and `tests/packages/dependencies.test.ts` fail on any other. Another service is
   reached through its API; a call upward is an event agency publishes or a hook the consumer registers,
   with a default that does nothing; data a higher service holds is handed in by the caller.

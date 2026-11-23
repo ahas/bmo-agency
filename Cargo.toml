@@ -39,6 +39,7 @@ hmac = "0.12.1"
 bmo-brain-client = { path = "../brain/crates/client" }
 bmo-cache-warmer-schedule = { path = "../cache-warmer/schedule" }
 bmo-chat = { path = "../../base/chat/provider" }
+bmo-secret-shapes = { path = "../../base/chat/secret-shapes" }
 bmo-gate-client = { path = "../gate/crates/client" }
 bmo-node-client = { path = "../node/crates/client" }
 bmo-pocket-client = { path = "../pocket/client" }

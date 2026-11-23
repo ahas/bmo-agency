@@ -536,27 +536,24 @@ surface in the pane its run opens. The surface answers, in the provider's own te
       process of its own: a file over 64 KiB is passed over, as no saved secret's, and the walk stops at
       1,000 files and says so on the error stream. The words, the length and both bounds stand in
       `policy/record-secrets.toml`.
-    - **The receiver's secret shapes,** as the receiver's deploy tree holds them in its
-      `policy/secret-shapes.toml` (the receiver's `docs/messages.md`, 「Secrets taken out」): each shape in
-      the order the file lists it, over what the shapes before it left, its `secret` part alone replaced
-      where it names one, and a run lying wholly inside a run one of its spared patterns finds left as it
-      stands. Agency keeps no copy of them, so the records follow the receiver's shapes as it deploys them.
-      The file is the one `AGENCY_SECRET_SHAPES` names, else the path under the home
-      `policy/record-secrets.toml` gives. A file that is missing or does not read costs the records these
-      shapes, and a shape that does not compile costs them that shape; each is said on the error stream.
-    - **Agency's own token shapes,** which stand whether the receiver's file reads or not: sixty-four
-      hexadecimal digits standing alone, a key beginning `sk-`, and the word after `Bearer`, which keeps
-      its `Bearer`.
+    - **The secret shapes** of the base library `bmo-secret-shapes` (bmo-chat's `docs/secret-shapes.md`), the
+      ones the receiver reads a message's words for: each shape in the order the library lists it, over
+      what the shapes before it left, its `secret` part alone replaced where it names one, and a run lying
+      wholly inside a run one of its spared patterns finds left as it stands. Agency keeps no shape of its
+      own among them; the records follow the library's list as agency is built on it.
+    - **Agency's own token shapes,** a little wider than the library's: sixty-four hexadecimal digits
+      standing alone, a key beginning `sk-` with sixteen or more characters after it, and the word after
+      `Bearer`, sixteen or more characters, which keeps its `Bearer`.
 
     The processes that append, the hook command and the server (which writes a stopped task's mark), are
-    each told the data root and the home as they start, and read the saved values and the shapes once, on
-    the first line they write; a process told neither, a test's own, reads only agency's token shapes.
-    The records written before are read the same way by `bmo-agency redact-records`, which reads the saved
-    values and the shapes as it starts and goes through every place under the data root. It rewrites a
+    each told the data root as they start, and read the saved values once, on the first line they write; a
+    process never told, a test's own, reads the secret shapes and agency's token shapes alone. The records
+    written before are read the same way by `bmo-agency redact-records`, which reads the saved values as it
+    starts and goes through every place under the data root. It rewrites a
     record only where one of its lines changed, a line at a time, keeps every line that did not change
     byte for byte along with the record's permissions, and prints how many records and lines it changed
     and how many runs each source took out, so a false find can be judged without the words: a saved
-    value by the file under `env/` it stands in, a receiver shape by its name, and agency's token shapes
+    value by the file under `env/` it stands in, a secret shape by its name, and agency's token shapes
     as one. It prints nothing of what it took out. A line the program appends while its record is rewritten is carried
     into the rewritten record, read through the same readings.
   - **The place's records are read from their end.** Each call is one line appended to the place's

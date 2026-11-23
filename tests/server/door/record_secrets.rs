@@ -1,7 +1,7 @@
 //! What an agent place's records are read for before a line is written (docs/agent-control.md, 「A record
-//! holds no secret」): the saved values the data root's `env/` holds, shapes declared as the receiver declares
-//! them, and agency's own token shapes; a record's keys and the fields its readers take left whole; and a
-//! record written before rewritten line by line.
+//! holds no secret」): the saved values the data root's `env/` holds, the shared secret shapes, and agency's own
+//! token shapes; a record's keys and the fields its readers take left whole; and a record written before
+//! rewritten line by line.
 
 use std::os::unix::fs::PermissionsExt as _;
 
@@ -9,38 +9,15 @@ use agency_server::door::place_run::{read_hooks, redact_record};
 use agency_server::door::record_secrets::{Readings, Saved, Source, Tally, names_secret, saved_values};
 use serde_json::json;
 
-// Shapes in the receiver's form: a key, a bearer token's secret part, a long run sparing a link, and a named
-// value. The marker is the receiver's; a record writes agency's own.
-const SHAPES: &str = r#"
-marker = "<redacted-secret>"
-
-[[shapes]]
-name = "sk-key"
-pattern = '''(?-u:\b)sk-[A-Za-z0-9_-]{20,}'''
-
-[[shapes]]
-name = "bearer-token"
-pattern = '''(?i)(?-u:\b)bearer[ \t]+(?P<secret>[A-Za-z0-9._~+/-]{20,}=*)'''
-
-[[shapes]]
-name = "session-string"
-pattern = '''(?-u:\b)[A-Za-z0-9_-]{300,}={0,2}'''
-spared = ['''(?i)https?://(?:[^\s"'<>]|<redacted-secret>)+''']
-
-[[shapes]]
-name = "named-value"
-pattern = '''(?i)(?-u:\b)(?:[a-z0-9]+[_.-])*(?:api)?(?:key|token|secret|password|passwd)["']?[ \t]*[=:][ \t]*["']?(?P<secret>[^\s"'<>]{12,})'''
-"#;
-
 const BEARER: &str = "abcdefghijklmnopqrstuvwxyz0123";
 const SAVED: &str = "saved-0123456789-abcdef";
 
 #[test]
 fn a_shape_takes_out_its_secret_part_and_leaves_what_it_spares_and_ordinary_words() {
-  let readings = Readings::of(vec![], SHAPES);
+  let readings = Readings::shapes_only();
   let long = "A".repeat(320);
 
-  // A lowercase bearer is the receiver's shape alone: agency's own reads `Bearer`.
+  // A lowercase bearer is the secret shapes' alone: agency's own reads `Bearer`.
   assert_eq!(
     readings.text(&format!("curl -H 'authorization: bearer {BEARER}'")),
     "curl -H 'authorization: bearer [redacted]'"
@@ -58,20 +35,18 @@ fn a_shape_takes_out_its_secret_part_and_leaves_what_it_spares_and_ordinary_word
 }
 
 #[test]
-fn shapes_that_do_not_read_cost_only_themselves_and_agency_s_token_shapes_stand() {
-  let broken = SHAPES.replace(r"(?-u:\b)sk-[A-Za-z0-9_-]{20,}", r"sk-(");
-  let readings = Readings::of(vec![], &broken);
+fn agency_s_token_shapes_read_after_the_secret_shapes_and_count_as_one_source() {
+  let readings = Readings::shapes_only();
+  let mut tally = Tally::default();
 
-  assert_eq!(readings.text("key sk-or-v1-0123456789abcdef0123"), "key [redacted]");
+  // A key of sixteen characters after `sk-` is agency's own shape alone; a lowercase bearer is the secret
+  // shapes'.
   assert_eq!(
-    readings.text(&format!("authorization: bearer {BEARER}")),
-    "authorization: bearer [redacted]"
+    readings
+      .text_tallied(&format!("key sk-0123456789abcdef and authorization: bearer {BEARER}"), &mut tally),
+    "key [redacted] and authorization: bearer [redacted]"
   );
-
-  let unread = Readings::of(vec![], "shapes = [");
-
-  assert_eq!(unread.text(&format!("Bearer {BEARER}")), "Bearer [redacted]");
-  assert_eq!(unread.text("api_key=key0123456789abcd"), "api_key=key0123456789abcd");
+  assert_eq!(tally.lines(), ["secret shape bearer-token: 1", "agency token shape: 1"]);
 }
 
 #[test]
@@ -156,7 +131,7 @@ fn the_saved_values_are_the_secret_ones_under_env_a_login_home_and_a_large_file_
 
 #[test]
 fn a_record_keeps_its_keys_and_the_fields_its_readers_take() {
-  let readings = Readings::of(vec![Saved::new(SAVED, "one.token")], SHAPES);
+  let readings = Readings::of(vec![Saved::new(SAVED, "one.token")]);
   let session = "5f27643e-ae81-4401-83a3-bc4d195ba48b";
   let transcript = format!("/data/claude/projects/-data-agent-places-worker/{session}.jsonl");
   let mut record = json!({
@@ -201,7 +176,7 @@ fn a_record_keeps_its_keys_and_the_fields_its_readers_take() {
 fn a_record_written_before_is_rewritten_where_a_line_changed_and_kept_byte_for_byte_elsewhere() {
   let place = tempfile::tempdir().unwrap();
   let hooks = place.path().join("hooks.jsonl");
-  let readings = Readings::of(vec![Saved::new(SAVED, "one.token"), Saved::new(SAVED, "copy.env")], SHAPES);
+  let readings = Readings::of(vec![Saved::new(SAVED, "one.token"), Saved::new(SAVED, "copy.env")]);
   let ordinary =
     r#"{"at":1,  "kind":"submit","payload":{"session_id":"s","prompt":"https://example.com/a?b=c"}}"#;
   let secret = format!(
@@ -219,8 +194,8 @@ fn a_record_written_before_is_rewritten_where_a_line_changed_and_kept_byte_for_b
     tally.lines(),
     [
       "saved value in one.token, copy.env: 1",
-      "receiver shape bearer-token: 1",
-      "receiver shape named-value: 1",
+      "secret shape bearer-token: 1",
+      "secret shape named-value: 1",
     ]
   );
   assert_eq!(tally.of(&Source::Agency), 0);
