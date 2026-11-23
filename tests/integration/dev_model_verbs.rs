@@ -369,6 +369,9 @@ impl DevVerb {
       std::process::Command::new(binary::path("bmo-agency"))
         .args(["dev-server", action, worker])
         .env("HOME", data_root)
+        // herdr's socket is read under XDG_CONFIG_HOME before HOME: the verb's dev pane stands in no herdr of
+        // the machine running the tests, so none is left behind in it.
+        .env("XDG_CONFIG_HOME", data_root.join(".config"))
         .env("BMO_DATA_DIR", data_root)
         .env("BMO_ARCHIVE_URL", scratch.address())
         .env_remove("BMO_HOME_BRIDGE")
