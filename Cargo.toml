@@ -21,6 +21,7 @@ members = [
   "tools/deepseek_top_up",
   "tools/procedures",
   "tools/relay",
+  "tools/room_grant",
   "tools/worker_ask",
 ]
 resolver = "3"
@@ -245,6 +246,7 @@ procfs.workspace = true
 deepseek-top-up-tool = { path = "tools/deepseek_top_up" }
 procedures-tool = { path = "tools/procedures" }
 relay-tool = { path = "tools/relay" }
+room-grant-tool = { path = "tools/room_grant" }
 worker-ask-tool = { path = "tools/worker_ask" }
 regex.workspace = true
 reqwest.workspace = true

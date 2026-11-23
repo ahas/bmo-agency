@@ -75,6 +75,7 @@ binaries = [
   "procedures-tool",
   "worker-ask-tool",
   "relay-tool",
+  "room-grant-tool",
   "deepseek-top-up-tool",
 ]
 
@@ -237,6 +238,17 @@ rm -rf tools/relay/.placed
 mkdir -p tools/relay/.placed
 cp bin/relay-tool tools/relay/tool.toml tools/relay/relay.json tools/relay/chat.json tools/relay/.placed/
 bmo-pocket put tools/relay/.placed --placed --service agency --allow room.tools
+'''
+
+[[deploy.step]]
+id = "place-room-grant"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/room_grant/.placed
+mkdir -p tools/room_grant/.placed
+cp bin/room-grant-tool tools/room_grant/tool.toml tools/room_grant/room_grant.json tools/room_grant/.placed/
+bmo-pocket put tools/room_grant/.placed --placed --service agency --allow room.tools
 '''
 
 [[deploy.step]]

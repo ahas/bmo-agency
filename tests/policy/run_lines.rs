@@ -54,6 +54,10 @@ fn only_the_worker_runner_and_chat_lines_show_their_most_called_entries_by_name(
   assert!(RUN_LINES.shows("chat", "bmo/brain_similar"));
   assert!(!RUN_LINES.shows("chat", "bmo/memory_add"));
   assert!(RUN_LINES.shows("chat", "bmo/say"));
+  assert!(
+    RUN_LINES.shows("chat", "bmo/room_grant"),
+    "a room's permission is saved where its turns read it"
+  );
   for gone in ["bmo/task", "bmo/running", "bmo/todo_add", "bmo/todo_append", "bmo/todo_approve"] {
     assert!(!RUN_LINES.shows("chat", gone), "{gone}: the registry holds no such entry");
   }

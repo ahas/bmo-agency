@@ -1,6 +1,6 @@
 //! Agency's tools (docs/tools.md): their side of the tool host's call protocol, the procedures, the
-//! worker's ask, the relay and the DeepSeek top-up, each held to its manifest, and each executable answering a
-//! request as the tool host hands it one.
+//! worker's ask, the relay, the room grants and the DeepSeek top-up, each held to its manifest, and each
+//! executable answering a request as the tool host hands it one.
 
 use std::sync::{Arc, Mutex};
 
@@ -13,6 +13,7 @@ mod deepseek_top_up_payment;
 mod manifests;
 mod procedures;
 mod relay;
+mod room_grant;
 mod worker_ask;
 
 /// The token the data root's `env/agency.env` names in `agency_named_by_its_file`, written quoted.

@@ -3,9 +3,10 @@
 The tools agency itself provides to the tool host: each a folder of its own under `tools/`, with its
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
-to a run of the worker role, let one BMO hand a line to another person's BMO and open a chat into that person's room, and let
-the platform's supervisor ask for a DeepSeek top-up. A tool that
-belongs to no one service is a repository of its own, not a folder here.
+to a run of the worker role, let one BMO hand a line to another person's BMO and open a chat into that
+person's room, let a supervisor save what the owner allows in a room as the room's grants, and let the
+platform's supervisor ask for a DeepSeek top-up. A tool that belongs to no one service is a repository of
+its own, not a folder here.
 
 ## A tool's folder
 
@@ -132,6 +133,36 @@ belongs to no one service is a repository of its own, not a folder here.
 - **It reaches agency's control port as every tool of agency's does,** the address and token from its own
   environment or the server's env file under the data root, and it reaches no other unit. A call waits for the
   receiving BMO's turn to end, however long it takes: no timeout of the tool's own cuts it.
+
+## The room grants
+
+- **`tools/room_grant`** declares `bmo/room_grant` to a session holding `room.tools`: a supervisor reads, makes
+  and takes back the grants standing in the room its turn answers, on the account service (bmo-web's
+  `docs/accounts.md`, 「Grants」). They are the record the receiver composes the room's GRANTS IN FORCE from, so
+  what the owner allows a person or the room's members there is saved where every later turn reads it.
+- **The room is the turn's own,** read afresh from the record as the owner's gate reads it (`docs/launch-lines.md`,
+  「The owner's gate」): the room the turn answers, the messages it answers and whether the receiver marked every
+  one of them the owner's. A call standing in no room's turn is refused; no call names another room.
+- **Its arguments:** `action`, one of `list`, `grant` and `revoke`; for a grant or a revocation the `relation` and
+  one holder, a `sender` by the sender id the room's record shows or the room's `members`; for a grant the owner's
+  `words` beside it, which a standing rule (`rule`) must carry, and `until`, an RFC 3339 time it lapses at; and
+  the `message` it is made on. A call naming no relation, no holder or both holders, a rule with no words, a lapse
+  that does not read as a time, or words or a lapse on a revocation is refused before the service is asked.
+- **A grant is made on a message the turn answers,** so the account service judges the granter by that message's
+  sender and nobody gives what they do not hold. The message named must be one of the turn's; where none is named
+  it is the turn's one message, or its newest where the receiver marked every message the owner's, and a turn
+  answering several messages not all the owner's must name one. The tool keeps no check of its own on who may
+  grant: the service's refusal is answered as it gave it, its status, code and sentence.
+- **What was done is read back before it is answered.** A grant is answered with the account service's answer and
+  the row `GET /grants` then carries for its relation and holder; a revocation with the service's answer and the
+  room's grants as they stand after it. A grant the room's grants do not carry afterwards, a revocation that
+  took nothing back or whose grant still stands, and a change made but not read back are answered as failures
+  saying so, so nothing is said to be in force that the record does not show.
+- **`list` answers the room's grants** as the service keeps them: each its relation, its subject, its lapse and the
+  words beside it, and, for a user holding one, the sender ids linked to that user, which a holder is matched by.
+- **It reaches the account service as the owner's gate does,** at the address and with the token `WEB_ADDRESS` and
+  `WEB_TOKEN` name in its own environment or in the web unit's `env/web.env` under the record's data root, and it
+  reaches no other unit. A service not named, not reached or not in force is answered as a failure saying so.
 
 ## The DeepSeek top-up
 

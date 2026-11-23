@@ -123,7 +123,7 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **Every other capability stands for the tool host's entries that ask it,** reached through the tool host's
   namespaces in the chat configuration, and its grant lock refuses an entry whose capability the session record
   does not hold. `room.chat` is the brain's tools and the supervisor's records; `room.tools` carries, among
-  others, `bmo/worker_ask`; `web.read` is the tool host's web search and page fetch.
+  others, `bmo/worker_ask` and `bmo/room_grant`; `web.read` is the tool host's web search and page fetch.
 - **The program's own web search and fetch, its subagents and its schedulers stand under no capability.** The
   chat line denies the web tools and the schedulers to every supervisor (`WebSearch`, `WebFetch`, `Monitor`,
   the cron and wake-up tools) and leaves it its subagents (`Agent`, `Task`), for reading and searching
