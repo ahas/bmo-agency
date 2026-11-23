@@ -26,6 +26,8 @@ pub struct Words {
   pub no_order: String,
   /// With `{provider}`.
   pub no_lendable: String,
+  /// With `{provider}`.
+  pub shared_node: String,
   /// With `{model}`.
   pub owned: String,
   /// With `{source}`.
@@ -57,6 +59,7 @@ pub struct ClosedWords {
   pub no_organisation: String,
   pub organisation_refused: String,
   pub no_lendable: String,
+  pub shared_node: String,
   pub owned: String,
   pub refused: String,
   pub ran_out: String,

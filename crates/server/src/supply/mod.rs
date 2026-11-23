@@ -134,6 +134,9 @@ pub enum Shortfall {
   OrganisationRefused,
   /// No Claude account marked lendable answers for other people's runs.
   NoLendable,
+  /// The person's node is one other accounts share, where no login is lent (docs/supply.md, 「The lendable
+  /// accounts」).
+  SharedNode,
   /// The run's model is another person's own.
   Owned,
   /// The hook refused a reservation of a platform source.
@@ -153,6 +156,7 @@ impl Shortfall {
       Self::NoOrganisation => "no-organisation",
       Self::OrganisationRefused => "organisation-refused",
       Self::NoLendable => "no-lendable",
+      Self::SharedNode => "shared-node",
       Self::Owned => "owned",
       Self::Refused => "refused",
       Self::RanOut => "ran-out",
@@ -171,6 +175,7 @@ impl Shortfall {
       Self::NoOrganisation => &words.no_organisation,
       Self::OrganisationRefused => &words.organisation_refused,
       Self::NoLendable => &words.no_lendable,
+      Self::SharedNode => &words.shared_node,
       Self::Owned => &words.owned,
       Self::Refused => &words.refused,
       Self::RanOut => &words.ran_out,
@@ -597,7 +602,14 @@ pub async fn next_source(
     }
 
     if !platform_open(ground, account, &chosen.provider, &chosen.model).await? {
-      let (why, reason) = if chosen.provider == CLAUDE_CODE {
+      let shared = chosen.provider == CLAUDE_CODE
+        && crate::person_nodes::shared_node(&ground.db, &account.to_string()).await?.is_some();
+      let (why, reason) = if shared {
+        (
+          Shortfall::SharedNode,
+          fill_marks(&SUPPLY.words.shared_node, &[("provider", &chosen.provider)]),
+        )
+      } else if chosen.provider == CLAUDE_CODE {
         (
           Shortfall::NoLendable,
           fill_marks(&SUPPLY.words.no_lendable, &[("provider", &chosen.provider)]),

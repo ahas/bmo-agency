@@ -1041,13 +1041,21 @@ impl From<Option<i64>> for Carrying {
 }
 
 /// The logins a run may go out on for whom it carries, whether or not they answer now, in the order the
-/// road takes them: one person's own logins alone, the lendable ones of others, or for no person the
-/// platform's own work's.
+/// road takes them: one person's own logins alone, the lendable ones of others — none for a person whose node
+/// other accounts share (docs/supply.md, 「The lendable accounts」) — or for no person the platform's own work's.
 pub async fn carried_for_user(
   db: &DatabaseConnection,
   user: impl Into<Carrying>,
 ) -> Result<Vec<Account>, Refused> {
   let carrying = user.into();
+
+  // A login lent to a person whose node others share would stand where their programs read it, so none is.
+  if let Carrying::Lent(borrower) = carrying
+    && crate::person_nodes::shared_node(db, &borrower.to_string()).await?.is_some()
+  {
+    return Ok(Vec::new());
+  }
+
   let administrator = if carrying == Carrying::Platform { administrator(db).await? } else { None };
   let carries = |account: &Account| match carrying {
     Carrying::Own(user) => account.user_id == Some(user),

@@ -141,6 +141,21 @@ platform pays for takes it.
   borrower's run stands on, its token for the nodes with it (`docs/person-nodes.md`), so marking an account
   lendable is the administrator's explicit choice to hand that login to whoever the supply order lets take a
   platform source, and the account's owner is not asked.
+- **A lent login is never sent to a node several accounts share.** Where the borrower's node is one another
+  account's record names too (`docs/person-nodes.md`, 「Several accounts on one node」), every program there runs as
+  the node's one user and reads the others' places, environments and records, so a token placed there would be
+  every sharing account's to take. So:
+  - such a borrower walks no lendable account at all: a platform source on Claude Code is passed over, and a run
+    left with no other source ends `shared-node` (「Why none is left」), telling the person to add their own login
+    or ask for a PC of their own;
+  - the links' pass, once a minute, lets go every program standing on such a node on a login lent to its
+    account — the place's program file removed here, which the link says gone on the node, and the program there
+    ended through the link — between that program's turns, so a token already placed leaves the node without a
+    person's hand (`docs/work-nodes.md`, 「The link」). The configuration directory the setup marked for the login
+    on the node holds no token, since a program signs in from its environment and writes no login there
+    (`docs/work-nodes.md`, 「The logins on a node」);
+  - the person's own login, signed in on their node by their own choice, and their organisation's are not lent
+    and stay as they are.
 - **Who borrows it is the supply order's:** a lendable account goes out only for a run whose order reaches a
   platform source and whose reservation the hook accepts (「Choosing a source as a run starts」), as every
   platform source does.
@@ -278,6 +293,8 @@ platform pays for takes it.
     with when they reopen where the hook names a moment;
   - `no-lendable`: no Claude account is marked lendable (「The lendable accounts」) — add their own Claude login, or ask
     the platform's administrator; no credits ran out, so nothing says to top up;
+  - `shared-node`: the person's node is shared with other accounts, where no login is lent (「The lendable
+    accounts」) — add their own Claude login, or ask the platform's administrator for a PC of their own;
   - `owned`: the run's model is another person's own — choose another model;
   - `refused`: the hook refused a reservation of a platform source — the source ran out, with when it reopens where
     the hook names a moment, and to top up or change the supply order;

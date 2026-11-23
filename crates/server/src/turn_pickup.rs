@@ -256,8 +256,10 @@ fn standing_on_hooks(place: &Place, turn: &InFlight) -> Standing {
       .rev()
       .find_map(|hook| hook.payload.get(key).and_then(Value::as_str).map(str::to_owned))
   };
+  let session = named("session_id").unwrap_or_default();
   let lines = named("transcript_path")
-    .and_then(|transcript| transcript_since(std::path::Path::new(&transcript), run.started_at))
+    .map(|transcript| transcript_here(place, &transcript, &session))
+    .and_then(|transcript| transcript_since(&transcript, run.started_at))
     .unwrap_or_default();
   let failure = latest_failure(&place.path, run.started_at).map(|failure| failure.failure());
 
@@ -267,7 +269,28 @@ fn standing_on_hooks(place: &Place, turn: &InFlight) -> Standing {
     Notices::Joined
   };
 
-  Standing::Ended(came_of(&lines, &named("session_id").unwrap_or_default(), failure, notices))
+  Standing::Ended(came_of(&lines, &session, failure, notices))
+}
+
+/// The transcript a Claude Code pane in a place writes its turn into, as this machine holds it: the one its hooks
+/// name, where the place stands here; and for a place on a node, whose hooks name the node's path, that session's
+/// record under the configuration directory and folder of the place's program as this machine reads them, where
+/// the link brings the node's transcript back (docs/sessions.md, 「A restart hands the session over」).
+pub fn transcript_here(place: &Place, named: &str, session: &str) -> PathBuf {
+  let on_node = place.node().is_some() && !session.is_empty();
+  let mirrored = on_node.then(|| place.program()).flatten().and_then(|program| {
+    let config = program.command.env.get("CLAUDE_CONFIG_DIR").filter(|dir| !dir.is_empty())?;
+
+    harness_providers::claude_code::ClaudeCode::records_under(
+      Path::new(config),
+      &program.command.cwd,
+      session,
+    )
+    .into_iter()
+    .next()
+  });
+
+  mirrored.unwrap_or_else(|| PathBuf::from(named))
 }
 
 // How a Claude Code turn came out, read from its transcript's lines since it went in: its error, the
@@ -769,8 +792,13 @@ fn claude_place(place: &Place, turn: &InFlight) -> Option<(PathBuf, i64)> {
     .iter()
     .rev()
     .find_map(|hook| hook.payload.get("transcript_path").and_then(Value::as_str))?;
+  let session = hooks
+    .iter()
+    .rev()
+    .find_map(|hook| hook.payload.get("session_id").and_then(Value::as_str))
+    .unwrap_or_default();
 
-  Some((PathBuf::from(transcript), run.started_at))
+  Some((transcript_here(place, transcript, session), run.started_at))
 }
 
 /// Every turn the process before this one left in flight, read at start from the place its program carries

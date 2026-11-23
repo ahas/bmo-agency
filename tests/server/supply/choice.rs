@@ -439,11 +439,85 @@ async fn a_closed_run_names_the_reason_the_last_source_failed_in_a_sentence_of_i
     &SUPPLY.words.closed.no_organisation,
     &SUPPLY.words.closed.organisation_refused,
     &SUPPLY.words.closed.no_lendable,
+    &SUPPLY.words.closed.shared_node,
     &SUPPLY.words.closed.owned,
     &SUPPLY.words.closed.refused,
     &SUPPLY.words.closed.ran_out,
   ];
 
   assert_eq!(sentences.iter().collect::<std::collections::BTreeSet<_>>().len(), sentences.len());
+  consumer.down().await;
+}
+
+// A login lent to a person whose PC other accounts share would stand where their programs read it, so none is lent
+// there, and the run is told why; on a PC of their own the same account is lent again.
+#[tokio::test(flavor = "multi_thread")]
+async fn no_login_is_lent_to_a_person_whose_node_other_accounts_share() {
+  use agency_server::person_nodes;
+
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground_on(scratch.db().clone(), home.path());
+  let consumer = Consumer::stand().await;
+  let login = home.path().join("login");
+  let person = PERSON.to_string();
+
+  std::fs::create_dir_all(&login).unwrap();
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts"
+           ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at", "user_id")
+         VALUES ('owner', 'owner', 1, 1, 'directory', $1, 0, 1)"#,
+      vec![login.to_string_lossy().into_owned().into()],
+    )
+    .await;
+  scratch
+    .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '1')"#, vec![])
+    .await;
+  set_lendable(scratch.db(), "owner", true).await.unwrap();
+  consumer.register(&ground);
+  consumer.answers("order", json!({ "sources": ["global"] }));
+  consumer.answers(
+    "reserve:global",
+    json!({ "accepted": true, "reservation": "r-global", "amountUsd": 1.0 }),
+  );
+
+  // Declared shared but alone on it, the person is lent the login.
+  person_nodes::set(scratch.db(), &person, "pc-shared", true).await.unwrap().unwrap();
+  assert_eq!(person_nodes::shared_node(scratch.db(), &person).await.unwrap(), None);
+  assert_eq!(carried(&scratch, Carrying::Lent(PERSON)).await, ["owner"]);
+
+  // Another account on the same PC, and nothing is lent to either.
+  person_nodes::set(scratch.db(), "8", "pc-shared", true).await.unwrap().unwrap();
+  assert_eq!(
+    person_nodes::shared_node(scratch.db(), &person).await.unwrap().as_deref(),
+    Some("pc-shared")
+  );
+  assert!(carried(&scratch, Carrying::Lent(PERSON)).await.is_empty());
+  assert!(carried(&scratch, Carrying::Lent(8)).await.is_empty());
+  // The owner's own runs, and the platform's, still carry it.
+  assert_eq!(carried(&scratch, Carrying::Platform).await, ["owner"]);
+
+  match choose(&ground, &asked(Some(PERSON), "claude-code")).await.unwrap() {
+    Choice::Closed(closed) => {
+      assert_eq!(closed.why, Shortfall::SharedNode);
+      assert_eq!(closed.why.word(), "shared-node");
+      assert_eq!(closed.reason, fill_marks(&SUPPLY.words.shared_node, &[("provider", "claude-code")]));
+      assert_eq!(
+        closed.sentence,
+        fill_marks(&SUPPLY.words.closed.shared_node, &[("settings", &SUPPLY.words.settings_section)])
+      );
+    }
+    Choice::Go(chosen) => panic!("no lent login goes to a shared PC: {chosen:?}"),
+  }
+
+  // The other account moved to a PC of its own, the person's PC is theirs alone again.
+  person_nodes::set(scratch.db(), "8", "pc-eight", false).await.unwrap().unwrap();
+
+  let chosen = going(choose(&ground, &asked(Some(PERSON), "claude-code")).await.unwrap());
+
+  assert_eq!(carrying(Some(&chosen)), Carrying::Lent(PERSON));
+  assert_eq!(carried(&scratch, Carrying::Lent(PERSON)).await, ["owner"]);
   consumer.down().await;
 }

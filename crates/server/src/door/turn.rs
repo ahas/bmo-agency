@@ -755,30 +755,37 @@ impl<W: Watch> Door<'_, W> {
   }
 
   // What the record's account line written after `from` says the run spent, written as the program of a
-  // pane closed ends: waited for until it comes or herdr says the pane is gone, and read once more then;
-  // none where it never came.
-  async fn account_line(&mut self, pane: &str, from: usize) -> Option<Vec<ModelSpend>> {
+  // pane closed ends: waited for until it comes, herdr says the pane is gone or the resident turn's bound on
+  // the reading after a turn has passed, and read once more then, empty where it never came; none at all
+  // where a stop stood over the run meanwhile, which ends the turn stopped.
+  async fn account_line(&mut self, pane: &str, from: usize) -> Option<Option<Vec<ModelSpend>>> {
     let written = |records: &[Value]| {
       records
         .iter()
         .skip(from)
         .any(|record| record.get("type").and_then(Value::as_str) == Some(COST_STATE))
     };
+    let by = tokio::time::Instant::now() + Duration::from_millis(RESIDENT_TURN.status_after_ms);
 
     loop {
       let records = self.lines();
 
       if written(records) {
-        return spend_since(records, from);
+        return Some(spend_since(records, from));
+      }
+
+      if self.cancelled().await {
+        return None;
       }
 
       // herdr saying the pane is gone, or the program's own process gone, is the program done writing.
       if pane_listed(self.herdr, pane).await == Some(false)
         || matches!(own_peer(self.program.as_ref()), Peer::Gone(_))
+        || tokio::time::Instant::now() >= by
       {
         let records = self.lines();
 
-        return written(records).then(|| spend_since(records, from)).flatten();
+        return Some(written(records).then(|| spend_since(records, from)).flatten());
       }
 
       tokio::time::sleep(Duration::from_millis(100)).await;
@@ -2627,7 +2634,9 @@ async fn watch_turn<W: Watch>(
     // price.
     let _ = door.herdr.call("pane.close", json!({ "pane_id": pane }), None).await;
 
-    let spend = door.account_line(pane, records.len()).await;
+    let Some(spend) = door.account_line(pane, records.len()).await else {
+      return Ok(stopped_after_end(door, pane, ending).await);
+    };
 
     door.close("exited").await;
 
@@ -2649,11 +2658,24 @@ async fn watch_turn<W: Watch>(
     .rev()
     .find(|hook| hook.ends_turn())
     .map_or_else(now_ms, |hook| hook.at);
-  let standing = door.standing.as_ref().map(|(standing, _)| standing);
-  let around = status_after_turn(&place, prompted_at, stopped_at, Some(&turn.session), every, || {
-    standing.is_some_and(|standing| standing.program_alive().is_some())
-  })
+  let asked: &Door<'_, W> = door;
+  let standing = asked.standing.as_ref().map(|(standing, _)| standing);
+  let bound = Duration::from_millis(RESIDENT_TURN.status_after_ms);
+  let around = status_after_turn(
+    &place,
+    prompted_at,
+    stopped_at,
+    Some(&turn.session),
+    every,
+    bound,
+    || standing.is_some_and(|standing| standing.program_alive().is_some()),
+    || asked.cancelled(),
+  )
   .await;
+  // A stop that came while the reading was waited on ends the turn stopped, as one that came while it worked does.
+  let Some(around) = around else {
+    return Ok(stopped_after_end(door, pane, ending).await);
+  };
   // The windows are the login's that made the reading, named by the reading itself; a reading that
   // names no registered login is written under nobody.
   let data = &door.ground.roots.data;
@@ -2694,4 +2716,16 @@ async fn watch_turn<W: Watch>(
     reply: Box::new(reply),
     records: records.len(),
   })
+}
+
+// A turn its record had closed, ended stopped all the same: a stop stood over its run while the reading of its
+// price after its end was waited on, and its caller asked for the turn to be over (docs/agent-control.md,
+// 「Telling that a turn's program is gone」). The program is at rest or gone, so nothing is cut.
+async fn stopped_after_end<W: Watch>(door: &mut Door<'_, W>, pane: &str, ending: &mut End) -> Ending {
+  *ending = End::Cancelled;
+
+  let shown = door.screen(pane).await;
+  let screen = door.kept_screen(&DOOR_WORDS.screens.stopped, shown).await;
+
+  Ending::Stopped { screen }
 }

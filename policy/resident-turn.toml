@@ -53,6 +53,12 @@ gone_gap_ms = 500
 # the place still names it and reads it alive (docs/agent-control.md, 「Stopping, falling back and
 # standing up again」).
 end_poll_ms = 20
+# How long a turn whose record has closed it waits for the reading of its price that follows its end: the status
+# line's call after the turn, or the account line a program of the turn's own writes as its pane closes
+# (docs/agent-control.md, 「What a resident turn reads」). The program makes the call about a second after the end;
+# one through a node's home bridge can be lost with the link and is never made again. Past it the turn ends answered
+# with the transcript's tokens and no price. It cuts no turn: the turn is already over.
+status_after_ms = 10000
 
 # How full a session's context may be, as a share of its window, before it is folded once the turn that
 # found it so is over, where neither the fold-ratio table holds a row for the session's provider and tier

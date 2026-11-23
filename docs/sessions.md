@@ -92,7 +92,11 @@ statements below about either are kept for a rollback to the road a deployment l
       began (`docs/agent-control.md`, 「What a resident turn reads」): a run naming the turn that the
       program took — a `submit` since the run began — and that stands open is going; one the hooks have
       closed, which they do once a stop or a failure ends the round, has ended, and its answer or its
-      error is read from the session's own record, the transcript the hooks name, from the run's start;
+      error is read from the session's own record, the transcript the hooks name, from the run's start.
+      A program on a node names the node's path for it, which this machine does not hold, so for a place
+      on a node the record read is that session's under the configuration directory and folder of the
+      place's program as this machine reads them, where the link brings the node's transcript back
+      (`docs/work-nodes.md`, 「The link」), as the live turn reads it;
       a run naming another turn, or one the program never took, does not name this one;
     - on a Claude Code pane of the turn's own, in no agent's place — a role's turn on Claude Code's own
       provider, a job's among them (`docs/agents.md`, 「A run in a pane of its own」) — through the

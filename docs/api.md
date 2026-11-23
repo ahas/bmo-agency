@@ -697,7 +697,8 @@ interrupt and the words pushed into a turn act on the turn going now. Each answe
 carries no turn of that id.
 
 **The interrupt says whether the turn has ended.** It stands a stop over the turn's run, which the turn reads
-wherever it stands — waiting for its card or its node, or in its program — and waits for the turn to end, up to
+wherever it stands — waiting for its card or its node, in its program, or after its program's end while the
+reading of its price is waited on — and waits for the turn to end, up to
 the interrupt's bound (`policy/run-stop.toml`). A turn that has ended within it is answered `200` with `state`
 `interrupted` and `outcome` `stopped`; one still going is answered `202` with `state` `running`, `outcome` null
 and what it waits for in `waiting`: the stop still stands over it, and its end comes as `turn.ended`. So no

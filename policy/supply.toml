@@ -19,6 +19,9 @@ no_personal = "no credential of the person's own answers {provider} now"
 no_order = "the supply order named no source for this run"
 # Why a platform source is passed over on Claude Code: no platform account lent to other people's runs answers.
 no_lendable = "no platform login lent to other people's runs answers {provider} now"
+# Why a platform source is passed over on Claude Code where the person's node is one other accounts share: a lent
+# login is never placed where other accounts' programs read it (docs/supply.md, 「The lendable accounts」).
+shared_node = "no platform login is lent to a node other accounts share, so none answers {provider} there"
 # Why a platform source is passed over on a gateway road or the registry: the run's model is a person's own.
 # With {model}.
 owned = "{model} is a person's own, which no platform source carries"
@@ -57,6 +60,8 @@ no_organisation = "No supply is left for this run: your organisation holds no op
 organisation_refused = "No supply is left for this run: your organisation's credits ran out{reopens}. Ask your organisation's administrator to grant more."
 # No platform Claude account is lent to other people's runs now.
 no_lendable = "No supply is left for this run: no Claude account is marked lendable for other people's runs now. Add your own Claude login in your settings ({settings}), or ask the platform's administrator."
+# The person's node is one other accounts share, where no platform Claude login is lent.
+shared_node = "No supply is left for this run: your PC is shared with other accounts, and the platform's Claude logins are not lent to a shared PC. Add your own Claude login in your settings ({settings}), or ask the platform's administrator for a PC of your own."
 # The run's model is another person's own, which no platform source carries.
 owned = "No supply is left for this run: its model is another person's own, which no platform supply carries. Choose another model for the agent."
 # The hook refused a reservation of a platform source: the person's credits are spent.

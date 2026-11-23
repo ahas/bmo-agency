@@ -415,12 +415,23 @@ surface in the pane its run opens. The surface answers, in the provider's own te
     - A turn's money is the reading after its end minus the reading before its start: the whole
       turn, with no split by model.
     - The reader waits after the turn's end for the status-line call that follows it, until it
-      comes or the program is no longer alive. Following it means stamped later than the end: a
+      comes, the program is no longer alive, a stop stands over the run, or the bound the resident
+      turn's policy names has passed since the wait began (`policy/resident-turn.toml`,
+      `status_after_ms`, ten seconds). Following it means stamped later than the end: a
       reading stamped in the same millisecond as the `Stop` hook may be the program's call at
       startup or one inside the turn, and such a reading, with no windows in it or an earlier
-      total, is never the one after the turn. Where the program is gone before that call comes, or
-      where it and the `Stop` hook name different sessions, the transcript's tokens stand and the
-      turn's money is left empty rather than guessed.
+      total, is never the one after the turn. Where the program is gone before that call comes, where
+      the bound passes without it, or where it and the `Stop` hook name different sessions, the
+      transcript's tokens stand and the turn's money is left empty rather than guessed.
+    - The bound cuts no turn: the record has already closed the turn and its answer is read from the
+      transcript, so only the reading of its price is given up. A call can be made and never reach the
+      place: a program on a node answers its status line through the home bridge, over the node's link
+      (`docs/person-nodes.md`, 「Which node is a person's」), and a call made while that link is down or
+      being made again is lost, since the bridge sends nothing again and the program makes its next call
+      only with its next turn.
+    - A stop standing over the run — the interrupt (`docs/api.md`, 「sessions」) or `bmo-agency run stop` —
+      ends this wait as it ends every other wait of the turn: the turn ends `stopped` and its run is closed
+      as cancelled, so the session takes its next turn.
     - The split by model is the `cost-state` line, which the program writes when its session
       changes or the program ends — at `/clear`, at `/exit`, on SIGTERM and as a pane closed — and
       never at `/cost`, at `/compact` or on an Escape that interrupts a turn (measured). It settles
@@ -2653,8 +2664,10 @@ The measured, fixed order.
    answer it wrote kept, and one that wrote none ends `program-lost`.
 6. Read the answer and the tokens from the transcript and the money and windows from the status line,
    and leave the program standing for the next turn. The status line's reading after the turn is waited
-   for until it is written or the program is no longer alive; the program makes it about a second after
-   the turn's end.
+   for until it is written, the program is no longer alive, a stop stands over the run, or the bound the
+   resident turn's policy names has passed; the program makes it about a second after the turn's end, and
+   a reading that does not come within the bound leaves the turn answered with no price (「What a resident
+   turn reads」).
 
 ### How a command of the program's own ends
 
@@ -2724,7 +2737,11 @@ reads it.
     `blocked`, or back at rest with no turn-end after the words were seen taken, and between two such
     looks in a row the record did not grow and the place took neither a status-line call nor a hook
     event — `silent-peer`;
-  - **a stop,** as every wait of the turn ends on one.
+  - **a stop,** as every wait of the turn ends on one: before the words go in, while the program works,
+    in the wait for the end line after rest, in the wait for the turns it still owes, and in the wait for
+    the status line's reading after the turn's end. A stop read after the record closed the turn ends it
+    `stopped` all the same, since its caller asked for the turn to be over and nothing more of it is
+    waited on.
 - **Where each is read.** Every look of the main wait reads the program first, before herdr, so a program
   gone ends the turn while herdr does not answer as well. The wait for the end line after rest, the
   wait for the turns a program still owes and the submit wait between its presses of `enter` read it too.

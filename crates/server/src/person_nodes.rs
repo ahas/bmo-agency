@@ -160,6 +160,23 @@ pub async fn shares<C: ConnectionTrait>(db: &C, account: &str, node: &str) -> Re
   Ok(row.is_some())
 }
 
+/// The node an account's record names where another account's record names it too: a node several accounts share,
+/// where every program runs as the node's one user and reads what every other program there holds, so no login
+/// lent to the account is ever placed there (docs/supply.md, 「The lendable accounts」); none where the account's
+/// node is its own.
+pub async fn shared_node<C: ConnectionTrait>(db: &C, account: &str) -> Result<Option<String>, Refusal> {
+  let row = one(
+    db,
+    r#"SELECT p."node" FROM "person_nodes" p
+       WHERE p."owner_account" = $1
+         AND EXISTS (SELECT 1 FROM "person_nodes" o WHERE o."node" = p."node" AND o."owner_account" <> p."owner_account")"#,
+    vec![account.into()],
+  )
+  .await?;
+
+  Ok(row.map(|row| row.try_get("", "node")).transpose()?)
+}
+
 /// Each supervisor of an account whose record names `node` shared, with that account, by name: the supervisors whose
 /// folders stand under their account's root on the node.
 pub async fn sharing_supervisors<C: ConnectionTrait>(

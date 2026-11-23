@@ -291,14 +291,85 @@ async fn the_reading_before_a_turn_is_found_however_far_back_and_the_one_after_a
       append_lines(&path, &[reading(ended_at + 800, "other", 8), after]);
     })
   };
-  let around =
-    status_after_turn(dir.path(), started_at, ended_at, Some("s"), Duration::from_secs(1), || true).await;
+  let around = status_after_turn(
+    dir.path(),
+    started_at,
+    ended_at,
+    Some("s"),
+    Duration::from_secs(1),
+    Duration::from_secs(10),
+    || true,
+    || std::future::ready(false),
+  )
+  .await
+  .expect("no stop stood over the run");
 
   arriving.await.unwrap();
 
   assert_eq!(around.before.map(|before| before["cost"]["total_cost_usd"].clone()), Some(1.into()));
   assert_eq!(around.after.map(|after| after["cost"]["total_cost_usd"].clone()), Some(3.into()));
   assert_eq!(around.login.map(|login| login.config_dir), Some("/home/tester/.claude".to_owned()));
+}
+
+// A program standing on a node answers its status line through the home bridge, and a call made while the node's
+// link was being made again never reaches the place: the turn the record closed is not held on it.
+#[tokio::test(start_paused = true)]
+async fn a_reading_that_never_follows_a_turn_s_end_is_given_up_at_the_bound_with_the_program_alive() {
+  let dir = place();
+  let (started_at, ended_at) = (10_000_000, 10_000_100);
+  let reading = |at: i64, total: i64| serde_json::json!({ "at": at, "payload": { "session_id": "s", "cost": { "total_cost_usd": total } } });
+
+  write_lines(&status_file(dir.path()), &[reading(started_at - 10, 1), reading(started_at + 50, 2)]);
+
+  let began = tokio::time::Instant::now();
+  let around = status_after_turn(
+    dir.path(),
+    started_at,
+    ended_at,
+    Some("s"),
+    Duration::from_secs(1),
+    Duration::from_secs(10),
+    || true,
+    || std::future::ready(false),
+  )
+  .await
+  .expect("no stop stood over the run");
+
+  assert_eq!(around.before.map(|before| before["cost"]["total_cost_usd"].clone()), Some(1.into()));
+  assert_eq!(around.after, None, "no reading followed the turn's end");
+  assert_eq!(
+    began.elapsed(),
+    Duration::from_secs(10),
+    "the wait ends at its bound, not before and not later"
+  );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stop_ends_the_wait_for_the_reading_after_a_turn_whatever_the_program_does() {
+  let dir = place();
+  let stopped = std::sync::atomic::AtomicBool::new(false);
+  let began = tokio::time::Instant::now();
+  let waited = status_after_turn(
+    dir.path(),
+    10_000_000,
+    10_000_100,
+    Some("s"),
+    Duration::from_secs(1),
+    Duration::from_secs(600),
+    || true,
+    || {
+      // The stop stands from the third look on.
+      let now = began.elapsed() >= Duration::from_secs(2);
+
+      stopped.store(now, std::sync::atomic::Ordering::SeqCst);
+      std::future::ready(now)
+    },
+  )
+  .await;
+
+  assert_eq!(waited, None, "a stop ends the wait and the turn ends stopped");
+  assert!(stopped.load(std::sync::atomic::Ordering::SeqCst));
+  assert!(began.elapsed() < Duration::from_secs(4), "{:?}", began.elapsed());
 }
 
 #[test]

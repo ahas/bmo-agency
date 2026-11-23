@@ -224,6 +224,7 @@ mod slot_events;
 mod streaming;
 mod supply;
 mod translate;
+mod turn_close;
 mod turn_keys;
 mod turn_pickup;
 mod turn_pickup_clocks;

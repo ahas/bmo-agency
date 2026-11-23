@@ -23,7 +23,7 @@ use serde_json::Value;
 use store::{all, one};
 
 use crate::Refusal;
-use crate::control::claude_accounts::accounts;
+use crate::control::claude_accounts::{Account, accounts};
 use crate::peers::node::{HubReach, NodeService};
 
 /// The place files that go to the node: what the launcher writes and the program on the node reads.
@@ -404,6 +404,9 @@ pub struct Settled {
   pub setting_up: Vec<String>,
   /// The workplaces not ready whose check was started again (docs/work-nodes.md, 「The workplace on a node」).
   pub checking: Vec<String>,
+  /// The agents whose program stood on a node several accounts share on a login lent to their account, let go
+  /// (docs/supply.md, 「The lendable accounts」).
+  pub withdrawn: Vec<String>,
   pub skipped: Vec<Skipped>,
 }
 
@@ -532,6 +535,71 @@ async fn placed_agents(
   }
 
   Ok(placed)
+}
+
+/// The account a program on `config_dir` goes out on where that login is lent to `owner`'s account: neither the
+/// owner's own nor an organisation's, so the platform's or another person's that the walk lent (docs/supply.md,
+/// 「The lendable accounts」); none where the directory is no account's or the login is the owner's own.
+pub fn lent_login(held: &[Account], config_dir: &Path, owner: i64) -> Option<String> {
+  held
+    .iter()
+    .filter(|account| account.credential.own_home() == Some(config_dir))
+    .find(|account| account.user_id != Some(owner) && account.unit_id.is_none())
+    .map(|account| account.id.clone())
+}
+
+/// Every agent's program standing on a node several accounts share on a login lent to the agent's account, let go
+/// between its turns: the place's program file removed here, which the link then says gone on the node, and the
+/// program standing there ended through the link, so the lent token stays on neither (docs/supply.md, 「The lendable
+/// accounts」). A program with a turn going is left to that turn and let go at a later pass. The agents let go.
+pub async fn withdraw_lent(db: &DatabaseConnection, roots: &Roots) -> Result<Vec<String>, Refusal> {
+  let mut withdrawn = Vec::new();
+  let mut held: Option<Vec<Account>> = None;
+  let marked = std::fs::read_dir(roots.data.join(PLACES_DIR)).into_iter().flatten().flatten();
+
+  for entry in marked {
+    let agent = entry.file_name().to_string_lossy().into_owned();
+    let place = crate::lines::place::Place::of(&roots.data, &agent);
+    let Some(node) = place.node() else { continue };
+    let Some(program) = place.program() else { continue };
+    let Some(config) = program.command.env.get("CLAUDE_CONFIG_DIR").filter(|dir| !dir.is_empty()) else {
+      continue;
+    };
+
+    if crate::door::place_run::read_run(&place.path).is_some_and(|run| run.ended_at.is_none()) {
+      continue;
+    }
+
+    let caller = crate::person_nodes::Caller {
+      agent: &agent,
+      role: None,
+      checkout: None,
+    };
+    let acting = crate::person_nodes::acting_for(db, &roots.data, caller).await?;
+    let Some(owner) = acting.account.as_deref().and_then(|account| account.parse::<i64>().ok()) else {
+      continue;
+    };
+
+    if crate::person_nodes::shared_node(db, &owner.to_string()).await?.as_deref() != Some(node.as_str()) {
+      continue;
+    }
+
+    if held.is_none() {
+      held = Some(accounts(db).await.map_err(|refused| crate::lines::fault(refused.error))?);
+    }
+
+    let Some(login) = lent_login(held.as_deref().unwrap_or_default(), Path::new(config), owner) else {
+      continue;
+    };
+
+    place.release().await;
+    println!(
+      "{agent}: its program on {node} went out on {login}, a login lent to account {owner}, and is let go, since other accounts share the node"
+    );
+    withdrawn.push(agent);
+  }
+
+  Ok(withdrawn)
 }
 
 /// The directories every account keeps its records under, as this machine reads them, each once.
@@ -973,6 +1041,9 @@ pub async fn settle(
       mark_place_on(&place, node.as_deref(), &folder.display().to_string())?;
     }
   }
+
+  // A login lent to an account is never left standing on a node other accounts share.
+  settled.withdrawn = withdraw_lent(db, roots).await.map_err(refused)?;
 
   // An account placed on its isolation node whose workplace is not ready is stood up apart from the server: at once
   // where it has none, and again once a while has passed since its last setup said what it missed

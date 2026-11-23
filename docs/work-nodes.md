@@ -336,6 +336,12 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **A turn waits for the link** however long the node's herdr does not answer, as a turn here waits
   for a silent herdr; the mirror catches the transcript up when the link is back, and the turn reads on
   from where it stood. It ends on the link's answer — its own end, its pane gone — or on a stop.
+- **What the program says through the home bridge while the link is down is lost.** Its hooks and its status
+  line are calls the bridge runs here, not files the mirror carries, and nothing sends a lost call again. So the
+  turn's end is read from its transcript, which the mirror catches up, never from a hook alone, and the status
+  line's reading after the turn is waited for within its bound only (`docs/agent-control.md`, 「What a resident
+  turn reads」): a turn whose program ended it while its node's link was being made again ends answered, with
+  no price.
 - **A program on a node that does not take its turn is not waited on for ever.** A program can stand on a
   node and never come to take its words — one with no road to its model, one stuck on a screen it cannot
   pass — while the link answers for it as standing. So the time a turn waits for its program to come up,

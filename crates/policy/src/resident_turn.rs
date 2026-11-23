@@ -24,6 +24,9 @@ pub struct ResidentTurn {
   pub gone_looks: u32,
   pub gone_gap_ms: u64,
   pub end_poll_ms: u64,
+  /// How long a turn its record closed waits for the reading of its price after its end, before it ends with
+  /// none.
+  pub status_after_ms: u64,
   /// How full a session's context may be before it is folded once its turn is over, where neither the
   /// fold-ratio table nor the session's provider names a share.
   pub fold_ratio: f64,

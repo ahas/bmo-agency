@@ -7,8 +7,8 @@ use std::sync::Mutex;
 use agency_server::peers::Asking;
 use agency_server::peers::node::{HubReach, NodeRow, NodeService};
 use agency_server::watches::links::{
-  LinkUnits, Roots, Skipped, deployed_commit, link_unit, loopback_port, mark_place_node, node_path,
-  place_node, program_records, project_dir, settle,
+  LinkUnits, Roots, Skipped, deployed_commit, link_unit, loopback_port, mark_place_node, mark_place_on,
+  node_path, place_node, program_records, project_dir, settle, withdraw_lent,
 };
 use node_link::spec::{Spec, rewrite};
 
@@ -442,4 +442,88 @@ async fn each_account_sharing_a_node_keeps_its_supervisors_folders_under_a_root_
   // The places stay in the node's data root, which every account on it shares.
   assert!(pc.pull.iter().any(|landing| landing.local == roots.place("u8-bmo")
     && landing.pull.remote == "/home/tester/node-root/data/agent-places/u8-bmo"));
+}
+
+// A login lent to an account never stays on a PC other accounts share: the program standing there on it is let go
+// between its turns, its program file removed so the link says it gone on the node, while a program on the account's
+// own login, one on a PC of its own and one with a turn going are left as they are.
+#[tokio::test]
+async fn a_program_on_a_lent_login_is_let_go_from_a_node_other_accounts_share_between_its_turns() {
+  use agency_server::door::place_run::{begin_run, end_run};
+  use agency_server::person_nodes;
+
+  let scratch = Scratch::new().await;
+  let trees = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    data: trees.path().join("data"),
+    deploy: trees.path().join("agency/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
+    agents: trees.path().join("agents"),
+    home: trees.path().to_path_buf(),
+    mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
+    jake_hub: None,
+    config_dir: trees.path().join(".claude"),
+    path: "/usr/bin:/bin".into(),
+    bun: "bun".into(),
+  };
+  let lent = roots.data.join("env/lent-login");
+  let own = roots.data.join("env/own-login");
+  let db = scratch.db();
+
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts"
+           ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at", "user_id", "lendable")
+         VALUES ('lent', 'lent', 1, 1, 'directory', $1, 0, 1, true),
+                ('seven', 'seven', 2, 1, 'directory', $2, 0, 7, false)"#,
+      vec![lent.to_string_lossy().into_owned().into(), own.to_string_lossy().into_owned().into()],
+    )
+    .await;
+
+  for (account, node, shared) in
+    [("7", "pc-shared", true), ("8", "pc-shared", true), ("9", "pc-nine", false)]
+  {
+    person_nodes::set(db, account, node, shared).await.unwrap().unwrap();
+  }
+
+  for (name, owner) in [("u7", 7i64), ("u7-own", 7), ("u8", 8), ("u9", 9)] {
+    crate::support::rows::supervisor(db, name, &[("owner_account", owner.into())]).await;
+  }
+
+  let placed = |name: &str, node: &str, login: &Path| {
+    let place = roots.data.join("agent-places").join(name);
+
+    std::fs::create_dir_all(&place).unwrap();
+    mark_place_on(&place, Some(node), "/folder").unwrap();
+    std::fs::write(
+      place.join("program.json"),
+      serde_json::json!({ "identity": name, "restart": null, "command": {
+        "args": [], "cwd": "/folder", "env": { "CLAUDE_CONFIG_DIR": login } } })
+      .to_string(),
+    )
+    .unwrap();
+    place
+  };
+  let u7 = placed("u7", "pc-shared", &lent);
+  let u7_own = placed("u7-own", "pc-shared", &own);
+  let u8 = placed("u8", "pc-shared", &lent);
+  let u9 = placed("u9", "pc-nine", &lent);
+
+  // u8's program is in a turn.
+  begin_run(&u8, "chat:-8:1", "a turn", 1, Default::default()).unwrap();
+
+  assert_eq!(withdraw_lent(db, &roots).await.unwrap(), ["u7"]);
+  assert!(!u7.join("program.json").exists(), "the lent login's program is let go");
+  assert!(u7_own.join("program.json").exists(), "the account's own login stays");
+  assert!(u8.join("program.json").exists(), "a program with a turn going is left to its turn");
+  assert!(u9.join("program.json").exists(), "a PC of the account's own keeps what it was lent");
+
+  end_run(&u8, 2).unwrap();
+
+  assert_eq!(withdraw_lent(db, &roots).await.unwrap(), ["u8"]);
+  assert!(!u8.join("program.json").exists());
+  assert!(withdraw_lent(db, &roots).await.unwrap().is_empty());
 }

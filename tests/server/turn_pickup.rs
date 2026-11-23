@@ -855,6 +855,52 @@ fn a_claude_code_pane_s_turn_stands_as_its_place_s_run_and_hooks_say() {
   assert_eq!(standing(&place, &other), Standing::Lost, "the place's run is another turn's");
 }
 
+#[test]
+fn a_supervisor_s_turn_on_a_node_is_read_from_the_transcript_the_link_brought_back() {
+  let data = tempfile::tempdir().unwrap();
+  let place = Place::of(data.path(), "a-supervisor");
+  let turn = InFlight {
+    session: "a-supervisor@-5".into(),
+    ..in_flight("chat:-5:1", "a-supervisor", 1, Some(-5), None, None)
+  };
+  let began = now_ms() - 5_000;
+  let config = data.path().join("env").join("a-login");
+  let folder = data.path().join("supervisor-homes").join("a-supervisor");
+  // The hooks run here through the home bridge with the program's own payload, which names the node's path.
+  let on_node = "/node-root/data/env/a-login/projects/-node-root-folder/s.jsonl";
+  let payload = json!({ "session_id": "s", "transcript_path": on_node });
+  let mirrored =
+    harness_providers::claude_code::ClaudeCode::records_under(&config, &folder, "s").swap_remove(0);
+
+  std::fs::create_dir_all(mirrored.parent().unwrap()).unwrap();
+  std::fs::create_dir_all(&place.path).unwrap();
+  agency_server::watches::links::mark_place_on(&place.path, Some("pc-1"), &folder.to_string_lossy())
+    .unwrap();
+  std::fs::write(
+    place.path.join("program.json"),
+    json!({ "identity": "one", "restart": null, "command": {
+      "args": [], "cwd": folder, "env": { "CLAUDE_CONFIG_DIR": config } } })
+    .to_string(),
+  )
+  .unwrap();
+  agency_server::door::place_run::begin_run(&place.path, "chat:-5:1", "a turn", began, Default::default())
+    .unwrap();
+  agency_server::door::place_run::record_call(&place.path, "submit", &payload, began + 1, false, None)
+    .unwrap();
+  assert_eq!(
+    transcript_here(&place, on_node, "s"),
+    mirrored,
+    "a node's path is read where the link lands it"
+  );
+
+  claude_code_answers(&place, &mirrored, &payload, "The room's answer.");
+
+  match standing(&place, &turn) {
+    Standing::Ended(Came::Answered(reply)) => assert_eq!(reply.text, "The room's answer."),
+    other => panic!("the answer the program wrote on the node is handed back: {other:?}"),
+  }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_job_s_turn_on_a_claude_code_pane_is_adopted_across_the_start_and_ends_through_the_job_s_end() {
   let scratch = Scratch::new().await;

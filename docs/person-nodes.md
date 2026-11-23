@@ -24,8 +24,8 @@ desktop coding agent whose models and tools are served from elsewhere.
     provider, its place opened on the node, its folder read as the node reads this machine's roots. On Claude
     Code the program in that place is Claude Code on the run's line, on the login its supply source takes
     (`docs/supply.md`, 「Choosing a source as a run starts」): the person's own login signed in on the node, their
-    own `api-key` account, or the token for the nodes of the first lendable login the walk offers among those
-    that run on a node (`docs/work-nodes.md`, 「The logins on a node」). On another provider it is that road's own
+    own `api-key` account, or, on a node the account shares with no other, the token for the nodes of the first
+    lendable login the walk offers among those that run on a node (`docs/work-nodes.md`, 「The logins on a node」). On another provider it is that road's own
     program, on the account's call key;
   - the link mirrors each of these places as it mirrors a worker's: its program and settings sent, its running
     record and its transcripts brought back;
@@ -77,6 +77,10 @@ desktop coding agent whose models and tools are served from elsewhere.
 - **The node tool runs an owner's command inside that owner's root.** The access read answers `root`, the node
   path of the caller's account's root where its record names the node shared, null otherwise (`docs/api.md`,
   「person-nodes」). Confining the command to it is the node service's tool's.
+- **No login lent to an account is placed on a node it shares.** Since every account's programs there read every
+  other's, a platform login lent to a sharing account would be the others' too; a run of such an account on Claude
+  Code goes out on its own login, its organisation's or none, and a program already standing there on a lent login
+  is let go between its turns (`docs/supply.md`, 「The lendable accounts」).
 - **One account's programs still read every other account's root on the node.** No launch wrap hides them, since
   one that hid `<node root>/accounts` alone would not confine a program running as the node's one user:
   - every program of that user that stands outside the wrap — the herdr session, the agent host, the far end —

@@ -913,24 +913,41 @@ impl StatusRecord {
   }
 }
 
-/// The readings either side of a turn, waiting for the one after it until it comes or `alive` says the
-/// program is gone: the program makes that call about a second after the turn's end, and the reader goes
-/// without where the program ended before it.
+/// The readings either side of a turn, waiting for the one after it until it comes, `alive` says the program
+/// is gone, `bound` has passed or `stopped` says a stop stands over the run: the program makes that call about a
+/// second after the turn's end, the reader goes without where the program ended before it or the call never
+/// arrives — one made through a node's home bridge while its link was down is lost — and none is answered where
+/// the run was stopped meanwhile, which ends the turn stopped.
 /// The reading before is read once; each later look reads back no further than a crossing's while
 /// before the turn's end.
-pub async fn status_after_turn(
+#[allow(clippy::too_many_arguments)]
+pub async fn status_after_turn<Stopped>(
   place: &Path,
   started_at: i64,
   ended_at: i64,
   session: Option<&str>,
   every: Duration,
+  bound: Duration,
   alive: impl Fn() -> bool,
-) -> StatusAround {
+  stopped: impl Fn() -> Stopped,
+) -> Option<StatusAround>
+where
+  Stopped: std::future::Future<Output = bool>,
+{
   let path = status_file(place);
   let mut around = status_around(records_back(&path), started_at, ended_at, session);
+  let by = tokio::time::Instant::now() + bound;
 
-  while around.after.is_none() && alive() {
-    tokio::time::sleep(every).await;
+  while around.after.is_none() {
+    if stopped().await {
+      return None;
+    }
+
+    if !alive() || tokio::time::Instant::now() >= by {
+      break;
+    }
+
+    tokio::time::sleep(every.min(by.saturating_duration_since(tokio::time::Instant::now()))).await;
 
     let after = records_back(&path)
       .take_while(|record: &StatusRecord| record.at > ended_at.saturating_sub(CROSSED_MS))
@@ -940,7 +957,7 @@ pub async fn status_after_turn(
     around.take_after(after);
   }
 
-  around
+  Some(around)
 }
 
 /// Whether the program standing in the place has drawn itself since its loop started it: a status-line
