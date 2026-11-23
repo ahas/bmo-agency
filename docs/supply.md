@@ -150,8 +150,8 @@ platform pays for takes it.
     or ask for a PC of their own;
   - the links' pass, once a minute, lets go every program standing on such a node on a login lent to its
     account — the place's program file removed here, which the link says gone on the node, and the program there
-    ended through the link — between that program's turns, so a token already placed leaves the node without a
-    person's hand (`docs/work-nodes.md`, 「The link」). The configuration directory the setup marked for the login
+    ended through the link — between that program's turns, once the end of the turn it last carried has reached
+    its caller, so a token already placed leaves the node without a person's hand (`docs/work-nodes.md`, 「The link」). The configuration directory the setup marked for the login
     on the node holds no token, since a program signs in from its environment and writes no login there
     (`docs/work-nodes.md`, 「The logins on a node」);
   - the person's own login, signed in on their node by their own choice, and their organisation's are not lent

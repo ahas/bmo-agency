@@ -551,7 +551,8 @@ pub fn lent_login(held: &[Account], config_dir: &Path, owner: i64) -> Option<Str
 /// Every agent's program standing on a node several accounts share on a login lent to the agent's account, let go
 /// between its turns: the place's program file removed here, which the link then says gone on the node, and the
 /// program standing there ended through the link, so the lent token stays on neither (docs/supply.md, 「The lendable
-/// accounts」). A program with a turn going is left to that turn and let go at a later pass. The agents let go.
+/// accounts」). A program with a turn going, or whose last turn's end has not yet reached its caller, is left to
+/// that turn and let go at a later pass. The agents let go.
 pub async fn withdraw_lent(db: &DatabaseConnection, roots: &Roots) -> Result<Vec<String>, Refusal> {
   let mut withdrawn = Vec::new();
   let mut held: Option<Vec<Account>> = None;
@@ -566,7 +567,17 @@ pub async fn withdraw_lent(db: &DatabaseConnection, roots: &Roots) -> Result<Vec
       continue;
     };
 
-    if crate::door::place_run::read_run(&place.path).is_some_and(|run| run.ended_at.is_none()) {
+    // A turn going, or one whose end has not yet reached its caller — a turn the pickup at start still reads
+    // through the place's program — keeps the program until a later pass.
+    let run = crate::door::place_run::read_run(&place.path);
+
+    if run.as_ref().is_some_and(|run| run.ended_at.is_none()) {
+      continue;
+    }
+
+    if let Some(name) = run.as_ref().and_then(|run| run.name.as_deref())
+      && crate::turn_pickup::kept(db, name).await
+    {
       continue;
     }
 

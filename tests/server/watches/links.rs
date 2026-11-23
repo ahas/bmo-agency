@@ -450,7 +450,7 @@ async fn each_account_sharing_a_node_keeps_its_supervisors_folders_under_a_root_
 #[tokio::test]
 async fn a_program_on_a_lent_login_is_let_go_from_a_node_other_accounts_share_between_its_turns() {
   use agency_server::door::place_run::{begin_run, end_run};
-  use agency_server::person_nodes;
+  use agency_server::{person_nodes, turn_pickup};
 
   let scratch = Scratch::new().await;
   let trees = tempfile::tempdir().unwrap();
@@ -512,8 +512,32 @@ async fn a_program_on_a_lent_login_is_let_go_from_a_node_other_accounts_share_be
   let u8 = placed("u8", "pc-shared", &lent);
   let u9 = placed("u9", "pc-nine", &lent);
 
-  // u8's program is in a turn.
+  // u8's program is in a turn, and u7's last turn ended in its program but its end has not reached its caller.
   begin_run(&u8, "chat:-8:1", "a turn", 1, Default::default()).unwrap();
+  begin_run(&u7, "chat:-7:1", "a turn", 1, Default::default()).unwrap();
+  end_run(&u7, 2).unwrap();
+
+  let kept = turn_pickup::InFlight {
+    session: "u7@-7".into(),
+    turn: 1,
+    run: "chat:-7:1".into(),
+    key: None,
+    agent: "u7".into(),
+    chat_id: Some(-7),
+    ledger: None,
+    job: None,
+    started_at: 1,
+  };
+
+  turn_pickup::keep(db, &kept).await;
+
+  assert!(
+    withdraw_lent(db, &roots).await.unwrap().is_empty(),
+    "every turn is left to reach its caller"
+  );
+  assert!(u7.join("program.json").exists());
+
+  turn_pickup::forget(db, "chat:-7:1", "its end reached its caller").await;
 
   assert_eq!(withdraw_lent(db, &roots).await.unwrap(), ["u7"]);
   assert!(!u7.join("program.json").exists(), "the lent login's program is let go");
