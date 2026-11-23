@@ -143,6 +143,11 @@ side of a remote agent, the rotation, and what a dropped node does.
     to the unit carrying it. A person's PC asks it for the verbs agency's policy names alone
     (`docs/person-nodes.md`, 「Who reaches a node」);
   - the mirror, spoken with a serve program started at the far end.
+- **A program on the node calls `bmo` as a program here does.** The node holds no CLI of its own, so the far end
+  writes, as it starts, a `bmo` into the workplace's own binaries — on the search path every program there runs
+  with — that hands its whole call to the home bridge (`node-link home bin/bmo`). A supervisor's `bmo use`, a
+  hook's status reading and every other verb so run here under the bridge's rules, and a verb the node may not
+  ask for is refused by the bridge with why. A `bmo` installed into the account's own tools stands ahead of it.
 - **The far end makes sure of what stands on the node** whether a link holds it or not: the agent host
   of the node's data root, which the heads there ask, and the herdr session, each started apart from
   the connection where it does not stand.

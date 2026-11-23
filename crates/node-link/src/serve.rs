@@ -131,6 +131,38 @@ fn make_standing(options: &Serve) {
   }
 }
 
+/// The name the CLI's verbs are called by on the node, written beside the link's own binary.
+pub const VERBS_NAME: &str = "bmo";
+
+/// The CLI's `bmo` on the node (docs/work-nodes.md, 「The link」): a script in the workplace's own binaries, which
+/// every program there finds on its search path, handing its whole call to the home bridge through the link's
+/// binary beside it. Written afresh, by a rename over whatever stood, so a program calling it never reads half a
+/// script; answered with where it stands.
+pub fn place_verbs(root: &Path) -> std::io::Result<PathBuf> {
+  let bin = root.join("deploy").join("bin");
+  let link = bin.join("node-link");
+  let script = format!(
+    "#!/bin/sh\n# The CLI's verbs on this node, each asked of the home bridge.\nexec {} home {} \"$@\"\n",
+    shell_quoted(&link.to_string_lossy()),
+    crate::bridge::VERBS_BINARY
+  );
+  let path = bin.join(VERBS_NAME);
+  let fresh = bin.join(format!(".{VERBS_NAME}.{}", std::process::id()));
+
+  fs::create_dir_all(&bin)?;
+  fs::write(&fresh, script)?;
+  fs::set_permissions(&fresh, fs::Permissions::from_mode(0o755))?;
+  fs::rename(&fresh, &path)?;
+
+  Ok(path)
+}
+
+/// A word a POSIX shell reads back as exactly this text: single-quoted, each single quote closed, escaped and
+/// opened again. Writing a quoted word needs no parser, and no shell-quoting library is a dependency of the link.
+fn shell_quoted(text: &str) -> String {
+  format!("'{}'", text.replace('\'', r"'\''"))
+}
+
 /// Where the home bridge stands on the node: one name every program is handed, pointing at the socket
 /// this session's forward made, which carries the session's own name so no earlier session's leftover
 /// stands in its way.
@@ -155,6 +187,12 @@ fn point_bridge(root: &Path, bridge: &Path) {
 pub async fn serve(options: Serve) -> std::io::Result<()> {
   if let Some(bridge) = &options.bridge {
     point_bridge(&options.root, bridge);
+  }
+
+  // Every far end points a bridge, its own or the one its near end forwards, so its programs' `bmo` asks there.
+  // A workplace whose binaries cannot be written still serves; its programs reach the bridge by the link alone.
+  if let Err(error) = place_verbs(&options.root) {
+    eprintln!("node-link: the node's bmo could not be written: {error}");
   }
 
   // On a person's PC the far end carries home what the programs reach there: the ports the near end names, at the

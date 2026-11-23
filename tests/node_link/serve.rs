@@ -406,3 +406,43 @@ async fn a_watch_list_numbered_by_none_is_sent_from_nothing_as_it_changes() {
 
   assert_eq!(again, (1, 0, None));
 }
+
+// "a program on the node calls bmo, and the far end's bmo hands the whole call to the home bridge"
+#[test]
+fn the_node_s_bmo_hands_its_whole_call_to_the_home_bridge_through_the_link_beside_it() {
+  use std::os::unix::fs::PermissionsExt;
+
+  let dir = tempfile::tempdir().expect("dir");
+  // A root whose path a shell would split or unquote, so the script's own quoting is what holds it.
+  let root = dir.path().join("work place's root");
+  let bin = root.join("deploy").join("bin");
+  let link = bin.join("node-link");
+
+  fs::create_dir_all(&bin).expect("bin");
+  fs::write(&link, "#!/bin/sh\nfor word in \"$@\"; do printf '[%s]' \"$word\"; done\n").expect("link");
+  fs::set_permissions(&link, fs::Permissions::from_mode(0o755)).expect("link mode");
+  fs::write(bin.join(VERBS_NAME), "stale").expect("an earlier bmo");
+
+  let placed = place_verbs(&root).expect("placed");
+
+  assert_eq!(placed, bin.join(VERBS_NAME));
+  assert_eq!(fs::metadata(&placed).expect("bmo").permissions().mode() & 0o777, 0o755);
+
+  let output = std::process::Command::new(&placed)
+    .args(["use", "bmo/task", "--input", "{\"title\": \"a 'quoted' $word\"}"])
+    .output()
+    .expect("bmo runs");
+
+  assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+  assert_eq!(
+    String::from_utf8_lossy(&output.stdout),
+    "[home][bin/bmo][use][bmo/task][--input][{\"title\": \"a 'quoted' $word\"}]"
+  );
+  assert!(
+    fs::read_dir(&bin)
+      .expect("bin")
+      .flatten()
+      .all(|entry| !entry.file_name().to_string_lossy().starts_with('.')),
+    "no half-written script is left beside it"
+  );
+}
