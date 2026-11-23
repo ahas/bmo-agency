@@ -415,3 +415,43 @@ async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tool
   assert_eq!(shared["ownerAccount"], "8", "{shared}");
   assert!(shared.get("runner").is_none(), "{shared}");
 }
+
+// "A company may choose not to read the platform's base": a record issued for a person whose chain resolves
+// `brain.global` false names `BMO_BRAIN_BASE` `off` for the brain's tool (docs/tools.md, 「A tool's folder」); one whose
+// chain reads it, and the deployment's own, name none.
+#[tokio::test]
+async fn a_person_whose_chain_turns_the_base_off_has_their_record_say_so() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let issued = issuing_host(&socket);
+  let held = table();
+
+  held.lock().unwrap().insert(("brain.global".to_owned(), OTHER_PERSON.to_owned()), false);
+
+  let address = account_service(held).await;
+  let more = BTreeMap::from([
+    ("WEB_ADDRESS".to_owned(), address),
+    ("WEB_TOKEN".to_owned(), "chain-token".to_owned()),
+    ("BMO_MCP_HOST_SOCKET".to_owned(), socket.to_string_lossy().into_owned()),
+    ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
+  ]);
+  let ground = seeded_with(db, home.path(), &more).await;
+
+  rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
+  rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;
+  rows::supervisor(db, "keeper", &[]).await;
+
+  for (agent, said) in [("u8", Some("off")), ("u7", None), ("keeper", None)] {
+    let env = BTreeMap::from([("BMO_TURN_AGENT".to_owned(), agent.to_owned())]);
+
+    agency_server::lines::token::issue_for_run(&ground, "chat", agent, "/tmp", &env, None, u64::MAX)
+      .await
+      .unwrap();
+
+    let record = issued.lock().unwrap().pop().expect("a record was issued");
+
+    assert_eq!(record["variables"]["BMO_BRAIN_BASE"].as_str(), said, "{agent}: {record}");
+  }
+}

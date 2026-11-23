@@ -60,6 +60,12 @@ its own, not a folder here.
 - **The apps the record withholds** stand in the file its `withheldAppsFile` names, on the record of every session
   agency issues for a caller acting for a person's account other than the administrator's (「The apps a person
   reaches」); a record of the deployment's own, and one holding the administrator's grants, names none.
+- **The platform's base is turned off** for the brain tools of a record issued for a person's account where the
+  delegation chain's `brain.global` resolves false for that person (`GET /chain/kinds/brain.global/resolve?person=`;
+  the brain's `docs/design.md`, 「The layers a reading takes」): the record's `BMO_BRAIN_BASE` is `off`, and the
+  brain's tool then answers `brain_list` and `brain_similar` from the agent's own brain alone. It is resolved as the
+  record is issued; where it resolves true, where the kind is not declared, for a record of the deployment's own
+  and where the account service cannot be asked, the record names no such variable and the base is read.
 - **The turn a request is made in** is read afresh from the record: the run the agent's place names
   in its `run.json` — none for a person's turn — or else the run's own variables. Its variables are
   `BMO_TURN_AGENT`, the agent the turn is; `BMO_TURN_BEGAN`, when it took its words, in epoch

@@ -257,6 +257,39 @@ fn record(
   }
 }
 
+/// The variable a record turns the platform's base off by for its brain tools' readings (the brain's
+/// `docs/boundary-api.md`, 「Its tool」).
+pub const BRAIN_BASE: &str = "BMO_BRAIN_BASE";
+
+/// The delegation chain's kind saying whether the platform's base is read for a person, which the brain's
+/// deployment declares (the brain's `docs/design.md`, 「The layers a reading takes」).
+const BASE_LAYER: &str = "brain.global";
+
+// The record's variables told to turn the base off where it acts for a person whose chain says the base is not read
+// for them (docs/tools.md, 「A tool's folder」); nothing where it reads, where the kind is not declared or
+// where the account service cannot be asked.
+async fn base_off(ground: &Ground, person: Option<&str>, variables: &mut BTreeMap<String, String>) {
+  let Some(person) = person.and_then(|person| person.parse::<i64>().ok()) else {
+    return;
+  };
+
+  match crate::chain::resolve(
+    &crate::apps::service(ground),
+    BASE_LAYER,
+    crate::chain::Subject::Person(person),
+  )
+  .await
+  {
+    Ok(answer) if !crate::chain::flag(answer.as_ref(), true) => {
+      variables.insert(BRAIN_BASE.to_owned(), "off".to_owned());
+    }
+    Ok(_) => {}
+    Err(why) => {
+      eprintln!("agency: whether account {person} reads the platform's base was not resolved: {why}")
+    }
+  }
+}
+
 // The record named the file its person's withheld apps stand in, written first, where it acts for a person's
 // account (docs/tools.md, 「The apps a person reaches」).
 async fn withhold(
@@ -387,6 +420,7 @@ pub async fn issue(
   }
 
   reads_label(ground, road, standing, &mut labels).await;
+  base_off(ground, person.as_deref(), &mut variables).await;
 
   let mut request = record(line, agent, capabilities, grants, variables, labels, None);
 
@@ -561,6 +595,7 @@ pub async fn issue_for_run(
   }
 
   reads_label(ground, road, standing, &mut labels).await;
+  base_off(ground, person.as_deref(), &mut variables).await;
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
   let place = given("BMO_AGENT_PLACE");
