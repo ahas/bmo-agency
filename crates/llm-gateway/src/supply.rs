@@ -31,13 +31,17 @@ impl Payer {
   }
 }
 
-/// One person's own key for a gateway road, a row of personal supply.
+/// One person's or one organisation unit's own key for a gateway road, a row of personal supply.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PersonalKey {
   pub id: i64,
-  pub user_id: i64,
+  /// The person whose key it is, where a person's.
+  pub user_id: Option<i64>,
+  /// The organisation unit whose key it is, where a unit's.
+  pub unit_id: Option<i64>,
   pub road: String,
-  /// The secret's name under the person's folder, `users/<user_id>/` under the data root's `env/`.
+  /// The secret's name under its owner's folder, `users/<user_id>/` or `units/<unit_id>/` under the data root's
+  /// `env/`.
   pub secret: String,
   /// Its place among the person's keys of the road, the lowest taken first.
   pub place: i64,
@@ -47,6 +51,15 @@ pub struct PersonalKey {
 }
 
 impl PersonalKey {
+  /// Whose key it is: the person's or the unit's, none for a row that names neither.
+  pub fn owner(&self) -> Option<crate::table::Owner> {
+    match (self.user_id, self.unit_id) {
+      (Some(user), _) => Some(crate::table::Owner::Personal(user)),
+      (None, Some(unit)) => Some(crate::table::Owner::Organisation(unit)),
+      (None, None) => None,
+    }
+  }
+
   /// Whether the key may be served: switched on and not found refused.
   pub fn open(&self) -> bool {
     self.enabled && self.refused_at.is_none()
@@ -97,8 +110,8 @@ async fn read_on(store: &mut AnyConnection) -> Result<Reading, sqlx::Error> {
     .map(|row| Ok((row.try_get::<String, _>("key_hash")?, row.try_get::<i64, _>("account")?)))
     .collect::<Result<HashMap<_, _>, sqlx::Error>>()?;
   let personal = sqlx::query(
-    "SELECT id, user_id, road, secret, place, enabled, refused_at FROM personal_supply \
-     ORDER BY user_id, road, place, id",
+    "SELECT id, user_id, unit_id, road, secret, place, enabled, refused_at FROM personal_supply \
+     ORDER BY user_id, unit_id, road, place, id",
   )
   .fetch_all(&mut *store)
   .await?
@@ -107,6 +120,7 @@ async fn read_on(store: &mut AnyConnection) -> Result<Reading, sqlx::Error> {
     Ok(PersonalKey {
       id: row.try_get("id")?,
       user_id: row.try_get("user_id")?,
+      unit_id: row.try_get("unit_id")?,
       road: row.try_get("road")?,
       secret: row.try_get("secret")?,
       place: row.try_get("place")?,
@@ -172,6 +186,23 @@ async fn supplied_now(address: &str, account: i64) -> Result<Option<Option<i64>>
   read
 }
 
+/// Whether the account holds an open, unexpired reservation on the unit's own supply, as the store says now.
+async fn unit_supplied_now(address: &str, account: i64, unit: i64) -> Result<bool, sqlx::Error> {
+  let mut store = open_read(address).await?;
+  let read = sqlx::query(
+    "SELECT 1 AS held FROM supply_reservations WHERE account = $1 AND unit_id = $2 AND state = 'open' \
+     AND (expires_at IS NULL OR expires_at > $3) LIMIT 1",
+  )
+  .bind(account)
+  .bind(unit)
+  .bind(now_ms())
+  .fetch_optional(&mut store)
+  .await
+  .map(|row| row.is_some());
+  let _ = store.close().await;
+  read
+}
+
 /// The last reading the front judges its requests by, and the store it looks a miss up in.
 pub struct Supply {
   /// The store's address, where a miss is looked up.
@@ -219,6 +250,20 @@ impl Supply {
   /// The account that administers the platform, as the last reading names it.
   pub fn administrator(&self) -> Option<i64> {
     self.held.lock().unwrap().administrator
+  }
+
+  /// Whether the account may reach an organisation unit's own members: only on an open reservation of that
+  /// unit's supply, looked up in the store each time, since such a request is rare beside the platform's.
+  pub async fn supplied_by_unit(&self, account: i64, unit: i64) -> bool {
+    match unit_supplied_now(&self.address, account, unit).await {
+      Ok(supplied) => supplied,
+      Err(fault) => {
+        eprintln!(
+          "llm-gateway: the supply of account {account} on unit {unit} could not be looked up: {fault}; it is refused"
+        );
+        false
+      }
+    }
   }
 
   /// Whether the account may reach platform supply: only on an open reservation, looked up in the store once

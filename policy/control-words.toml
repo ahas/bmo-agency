@@ -70,6 +70,9 @@ base_prompt = "There is no base prompt {name} for the account to name."
 secret_needed = "An api-key account needs the name of the secret its key sits in."
 secret_name = "A secret is named by one plain file name in the secret store."
 not_lendable = "{name} is a person's own account, which is never lent."
+not_unit_owned = "{name} is a person's own account, which no organisation can own."
+unit_owner = "Which organisation an account belongs to is the owner's alone to set."
+unit_named = "An organisation is named by its unit's number, or null to give the account back to the platform."
 platform_only = "Ordering or choosing the platform's accounts is the owner's alone."
 
 # A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the console」):
@@ -102,6 +105,18 @@ enabled = "A key's switch is true or false."
 nothing = "Give the key's place or its switch."
 off_boarding = "Off-boarding is the deployment's own call."
 taken = "That secret already stands as your key for {road}."
+
+# An organisation's own supply (docs/supply.md, 「Organisation supply」): a caller who heads no such unit, the
+# account service out of reach, a unit whose chain leaves organisation supply closed, a key {id} of no such unit's,
+# a switch that is not true or false, and a secret the unit already holds as its key for {road}.
+[organisation_supply]
+not_head = "Only a head of the unit, or the owner, manages its own supply."
+unchecked = "Whether you head the unit could not be checked: the account service did not answer."
+closed = "The unit's supply is closed: the platform has not opened organisation supply to its company, or a unit above closed it."
+unknown = "There is no supply {id} of the unit's."
+enabled = "A switch is true or false."
+taken = "That secret already stands as the unit's key for {road}."
+no_person = "Only a signed-in person reads the sources their organisations leave open."
 
 # A worker brought back to this machine with no path of this machine, and a worker's own sampling: an
 # {agent} not known, one whose {label} is no worker's or a support worker's that follows its base, a save

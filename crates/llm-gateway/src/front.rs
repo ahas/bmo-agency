@@ -424,6 +424,12 @@ impl Front {
   // hook stands.
   async fn withheld(&self, payer: Payer, model: &str) -> Option<Response> {
     let owner = self.owner_of(model);
+    if let Some(Owner::Organisation(unit)) = owner {
+      return match payer {
+        Payer::Account(account) if self.supply.supplied_by_unit(account, unit).await => None,
+        _ => Some(not_yours()),
+      };
+    }
     if owner.is_some_and(|owner| !owner.admits(payer, self.supply.administrator())) {
       return Some(not_yours());
     }

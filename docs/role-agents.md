@@ -235,6 +235,34 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A role's own routes carry no road.** `POST /roles` and `PATCH /roles/{roleName}` take no order, no cap
   and no forced provider, and refuse one named; `GET /roles` answers each role's agents beside it.
 
+## The agents an account is given
+
+- **A setting of the delegation chain,** the kind `signup.composition`: a JSON object, `nearest`, held at the
+  platform's link, a unit's and a person's, a head writing a unit's and a person's, a lock keeping the links
+  below from changing it. Agency declares it with its other kinds (`docs/prompt-layers.md`, 「The settings
+  agency declares」) and judges and writes its value itself.
+- **A composition names roles under `roles`,** each with `off`, whether the people under the link may not use
+  the role, and `agents`, the roads of the agents a person is given of it, each a `provider`, a `model` and an
+  `effort`, at most the policy's number of them (`policy/organisation.toml`). A role named nowhere stands as the
+  platform's own rule gives it: one agent on the road of the role's agent of no account that is on, none where
+  the role holds no such agent. With nothing set anywhere, every person is given what that rule gives.
+- **What stands for a person:** a role is off where any link of their chain still read says so; its agents are
+  those of the nearest link naming them. A lock cuts the chain as for every kind.
+- **`POST /composed-agents/{ownerAccount}`**, the deployment's own call, makes them as the account is made
+  ready (the web's `docs/web.md`, 「The join page」): for each role the person holds no agent of and that does
+  not stand off, the agents it names, named `<role>-u<user>` and then numbered, each carrying the settings of the
+  role's agent of no account where there is one and on the road the composition names, else on that agent's. A
+  road the role's line refuses is said to the log and left out. It answers the agents made; asked again, it
+  makes none twice.
+- **A role off for a person takes no agent of theirs:** a member's `POST /role-agents` for it is refused 403
+  `role-off`. Where the account service does not answer, the role stands on.
+- **`GET /signup-composition`** with `unit` or `person` answers what stands for the subject, each role with
+  `off`, `agents` and `from`, the link that said them, and, for a caller the console names, the subject's own
+  link as the chain answers it to them. **`PUT /signup-composition/{link}`** with `value` judges a composition
+  — its shape, every role one the store holds, every road against its role's line — and writes it on the chain
+  in the caller's name, null following the link above; the chain's answer, its refusal among them, is the
+  route's.
+
 ## The roles the policy seeds
 
 - **A role the policy seeds is seeded with its agents:** as many as its declaration's count, each on the road

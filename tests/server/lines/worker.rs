@@ -86,6 +86,7 @@ fn account(id: &str, credential: Credential, base_prompt: Option<&str>) -> Accou
     credential,
     needs_login_at: None,
     user_id: None,
+    unit_id: None,
     node: None,
     lendable: false,
     base_prompt: base_prompt.map(str::to_owned),

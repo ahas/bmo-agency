@@ -1068,6 +1068,59 @@ export interface paths {
         patch: operations["changePersonalSupply"];
         trace?: never;
     };
+    "/organisation-supply/{unit}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An organisation unit's own keys and Claude accounts, and whether its supply stands open. */
+        get: operations["listOrganisationSupply"];
+        put?: never;
+        /** Add a key of an organisation unit's for a gateway road, or an Anthropic API key. */
+        post: operations["createOrganisationSupply"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/organisation-supply/{unit}/{supplyId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one of an organisation unit's keys or accounts. */
+        delete: operations["deleteOrganisationSupply"];
+        options?: never;
+        head?: never;
+        /** Turn one of an organisation unit's keys or accounts on or off. */
+        patch: operations["changeOrganisationSupply"];
+        trace?: never;
+    };
+    "/supply-sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The supply sources the signed-in person's delegation chain leaves open. */
+        get: operations["supplySources"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/people/{user}/off-boarding": {
         parameters: {
             query?: never;
@@ -1711,6 +1764,57 @@ export interface paths {
         put?: never;
         /** Add an agent to a role. */
         post: operations["createRoleAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/composed-agents/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Make a person's agents as the sign-up composition resolved for them says. */
+        post: operations["composeAgents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/signup-composition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The sign-up composition standing for a unit or a person, and the subject's own link. */
+        get: operations["signupComposition"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/signup-composition/{link}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Judge a link's sign-up composition and write it on the delegation chain in the caller's name. */
+        put: operations["setSignupComposition"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3289,6 +3393,11 @@ export interface components {
              */
             userId: number | null;
             /**
+             * Format: int64
+             * @description The organisation unit it belongs to in place of a person, where one does.
+             */
+            unitId?: number | null;
+            /**
              * @description The node a person's login stands on, or null.
              * @default null
              */
@@ -3358,6 +3467,12 @@ export interface components {
             basePrompt?: string | null;
             /** @description Whether the platform's account goes out for another person's run; refused for a person's account. */
             lendable?: boolean | null;
+            /**
+             * Format: int64
+             * @description `update-account`: the organisation unit a platform account is given to, null to give it back; the owner's
+             *     alone.
+             */
+            unitId?: number | null;
             key?: string | null;
             mode?: string | null;
             /**
@@ -3782,6 +3897,59 @@ export interface components {
             /** Format: int64 */
             place?: number | null;
             enabled?: boolean | null;
+        };
+        /** @description An organisation unit's own supply as its heads read it. */
+        OrganisationSupplyPage: {
+            /** Format: int64 */
+            unit: number;
+            /** @description Whether organisation supply stands open for the unit on the delegation chain. */
+            open?: boolean | null;
+            items: components["schemas"]["OrganisationSupplyItem"][];
+        };
+        /**
+         * @description One item of an organisation unit's own supply: a key for a gateway road, or an Anthropic API key standing as a
+         *     Claude account of the unit's, `claude-code` its road.
+         */
+        OrganisationSupplyItem: {
+            /** @description `key-<n>` for a gateway key, `account-<id>` for a Claude account. */
+            id: string;
+            road: string;
+            /** @description The secret's name in the unit's space of the secret store; its value is never reported. */
+            secret: string;
+            /** @description The Claude account's name, for an account. */
+            name?: string | null;
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description epoch milliseconds: when its provider refused it, or the account was found waiting.
+             */
+            refusedAt: number | null;
+        };
+        /**
+         * @description A key of an organisation unit's added: a gateway road and a secret of the unit's space, or `claude-code` for an
+         *     Anthropic API key.
+         */
+        OrganisationSupplyAsk: {
+            road: string;
+            /** @description One plain file name in the unit's space of the secret store. */
+            secret: string;
+        };
+        /** @description One of an organisation unit's keys or accounts turned on or off. */
+        OrganisationSupplyChange: {
+            enabled: boolean;
+        };
+        /** @description The supply sources the signed-in person's delegation chain leaves open. */
+        SupplySources: {
+            /** @description Their own login or key. */
+            personal: boolean;
+            /** @description The platform's supply. */
+            platform: boolean;
+            /** @description Their organisation's own supply. */
+            organisation: boolean;
+            /** @description Whether a unit on their path holds supply of its own that is on. */
+            organisationSupply: boolean;
+            /** @description Whether their own login or key is all that can carry their runs. */
+            personalOnly: boolean;
         };
         /** @description What a person's off-boarding turned off. */
         OffBoarded: {
@@ -4718,6 +4886,44 @@ export interface components {
         RoleAgentPage: {
             items: components["schemas"]["RoleAgent"][];
         };
+        /** @description The agents made for a person by their composition. */
+        ComposedAgents: {
+            items: components["schemas"]["RoleAgent"][];
+        };
+        /**
+         * @description A sign-up composition as it stands for a unit or a person, with the subject's own link where the caller reads
+         *     it.
+         */
+        SignupComposition: {
+            /** @description `unit:<id>` or `person:<user>`. */
+            subject: string;
+            roles: components["schemas"]["CompositionRole"][];
+            /**
+             * @description The subject's own link as the delegation chain answers it to the caller: its `value`, `delegation`,
+             *     `lockedBy` and `writable`.
+             */
+            own: unknown;
+        };
+        /** @description What stands of one role in a sign-up composition for a subject. */
+        CompositionRole: {
+            role: string;
+            /** @description Whether the role is off for the people under the subject. */
+            off: boolean;
+            /** @description The roads of the agents a person is given of it, none for the platform's rule. */
+            agents: components["schemas"]["CompositionRoad"][] | null;
+            /** @description The link that said the agents, where one did. */
+            from: string | null;
+        };
+        /** @description One agent's road in a sign-up composition. */
+        CompositionRoad: {
+            provider: string;
+            model: string;
+            effort?: string | null;
+        };
+        /** @description A link's sign-up composition written: `{ roles: { <role>: { off, agents } } }`, or null to follow above. */
+        SignupCompositionAsk: {
+            value: unknown;
+        };
         /** @description RoleAgentAsk: the body that adds an agent to a role; every field but the role is optional. */
         RoleAgentAsk: {
             role: string;
@@ -4784,6 +4990,11 @@ export interface components {
             icon: string | null;
             /** Format: int64 */
             ownerAccount: number | null;
+            /**
+             * Format: int64
+             * @description The organisation unit it belongs to in place of an account, whose people's agents alone work on it.
+             */
+            ownerUnit?: number | null;
             path: string;
             nodeName: string | null;
             supportCount: components["schemas"]["SupportCount"];
@@ -4866,6 +5077,11 @@ export interface components {
             label?: string | null;
             /** Format: int64 */
             ownerAccount?: number | null;
+            /**
+             * Format: int64
+             * @description The organisation unit an added repository is filed under in place of an account, by a head of the unit.
+             */
+            ownerUnit?: number | null;
             path?: string | null;
             nodeName?: string | null;
             supportCount?: components["schemas"]["SupportCount"] | null;
@@ -5263,6 +5479,15 @@ export interface components {
         };
     };
     responses: {
+        /** @description access-unchecked */
+        AccessUnchecked: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description agent-busy */
         AgentBusy: {
             headers: {
@@ -5292,6 +5517,15 @@ export interface components {
         };
         /** @description awaits-owner */
         AwaitsOwner: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description bad-composition */
+        BadComposition: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5364,6 +5598,15 @@ export interface components {
         };
         /** @description gone */
         Gone: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description locked */
+        Locked: {
             headers: {
                 [name: string]: unknown;
             };
@@ -5571,6 +5814,15 @@ export interface components {
         };
         /** @description not-this-job */
         NotThisJob: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description organisation-supply-closed */
+        OrganisationSupplyClosed: {
             headers: {
                 [name: string]: unknown;
             };
@@ -8042,6 +8294,142 @@ export interface operations {
             404: components["responses"]["UnknownSupply"];
         };
     };
+    listOrganisationSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganisationSupplyPage"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    createOrganisationSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganisationSupplyAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganisationSupplyItem"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            422: components["responses"]["UnknownRoad"];
+        };
+    };
+    deleteOrganisationSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit: number;
+                supplyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownSupply"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    changeOrganisationSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                unit: number;
+                supplyId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganisationSupplyChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganisationSupplyPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownSupply"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    supplySources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplySources"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
     offBoardPerson: {
         parameters: {
             query?: never;
@@ -9520,6 +9908,85 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             409: components["responses"]["Conflict"];
             422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    composeAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComposedAgents"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    signupComposition: {
+        parameters: {
+            query?: {
+                unit?: number;
+                person?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignupComposition"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    setSignupComposition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                link: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupCompositionAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["BadComposition"];
         };
     };
     deleteRoleAgent: {

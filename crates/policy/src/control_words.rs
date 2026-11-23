@@ -68,6 +68,19 @@ pub struct PersonalSupplyWords {
   pub taken: String,
 }
 
+/// An organisation's own supply (docs/supply.md, 「Organisation supply」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OrganisationSupplyWords {
+  pub not_head: String,
+  pub unchecked: String,
+  pub closed: String,
+  pub unknown: String,
+  pub enabled: String,
+  pub taken: String,
+  pub no_person: String,
+}
+
 /// The Claude accounts.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -107,6 +120,9 @@ pub struct AccountsWords {
   pub secret_needed: String,
   pub secret_name: String,
   pub not_lendable: String,
+  pub not_unit_owned: String,
+  pub unit_owner: String,
+  pub unit_named: String,
   pub platform_only: String,
 }
 
@@ -354,6 +370,7 @@ pub struct ControlWords {
   pub accounts: AccountsWords,
   pub logins: LoginsWords,
   pub personal_supply: PersonalSupplyWords,
+  pub organisation_supply: OrganisationSupplyWords,
   pub workers: WorkersWords,
   pub agents: AgentsWords,
   pub agent_roles: AgentRolesWords,

@@ -12,10 +12,14 @@ platform pays for takes it.
 - **Personal supply:** the person's own credential, a Claude login or an API key of theirs, paid by them to the
   provider directly. It runs out when the provider refuses it: a window full, a key refused or a
   balance spent.
+- **Organisation supply:** the credential of an organisation unit on the person's path, the keys and Claude
+  accounts the unit registers (「Organisation supply」), paid by the unit to the provider and counted as
+  organisation credits by the consumer. Its source word is `organisation`.
 - **A platform source:** the platform's credential, its Claude logins lent for the purpose and the gateway
-  members and registrations no person owns (「Owned supply」), paid as the consumer answers: the plan's included
-  supply, an organisation's credits or the person's own credits are each a platform source of the consumer's
-  naming. Every platform source goes out on the same credentials, so moving between them changes only who pays.
+  members and registrations no person and no organisation owns (「Owned supply」), paid as the consumer answers:
+  the plan's included supply, an organisation's credits or the person's own credits are each a platform source
+  of the consumer's naming. Every platform source goes out on the same credentials, so moving between them
+  changes only who pays.
 - **Stop:** nothing left. A run waits or ends saying so (「Running out mid-turn」).
 - **The owner's and the deployment's own runs** — a run of no account or of the administrator's account
   (`docs/account-isolation.md`, 「The scope」) — go out as every run went before there were sources: on the
@@ -67,6 +71,62 @@ platform pays for takes it.
   opened again by their next sign-in, not by a file this machine reads.
 - **A person with no node attached cannot sign in yet:** the start is refused 409 `node-not-attached`.
 
+## The sources a person's chain leaves open
+
+- **Three settings of the account service's delegation chain** (the web's `docs/accounts.md`, 「The delegation
+  chain」), each a flag that narrows down the chain, so a link only turns a source off for everyone below it and
+  never turns one on that a link above turned off:
+  - `supply.platform`: whether the person may run on the platform's supply. On by default; held at the
+    platform's link, a unit's and a person's.
+  - `supply.organisation`: whether the person may run on their organisation's own supply. Off by default, and
+    a unit's word alone never opens it: it stands open only where the platform's own link says it is open for
+    the person — its value, or a rule naming them, a group of theirs or a unit on their path, as the platform
+    administrator opens it for one company — and no link below closes it. Held at the platform's link and a
+    unit's.
+  - `supply.personal`: whether the person may run on their own login or key. On by default; held at the
+    platform's link, a unit's and a person's.
+  A head writes a unit's link and a person's, with rules for a person, a group or a unit; a lock keeps the
+  links below from narrowing further. Agency declares the three as its server stands, with its other kinds
+  (`docs/prompt-layers.md`, 「The settings agency declares」).
+- **Resolved for the person every run serves,** afresh as the run starts, beside the hook's order. Where the
+  account service does not answer, what this process last read for the person stands, else the defaults; where
+  it says nothing — none named, a person it does not hold — the defaults stand. The defaults leave every order
+  as the hook answers it.
+- **The order a run walks keeps a fixed shape:** personal supply, the organisation's, the platform's.
+  - personal supply is left out of the hook's order where `supply.personal` is off;
+  - every platform source is left out where `supply.platform` is off;
+  - `organisation` is placed before every platform source — so after personal supply wherever the order puts
+    that first — where `supply.organisation` stands open on a unit of the person's path; a hook that names it
+    itself is not followed.
+  Nothing else of the hook's order moves, so a person's own reordering of the platform's sources stands.
+- **`GET /supply-sources`** answers the signed-in person what their chain leaves open — `personal`, `platform`,
+  `organisation` — whether a unit of their path holds supply of its own that is on, and `personalOnly`, whether
+  their own login or key is all that can carry their runs, which the console reads to ask a new person for one
+  (the web's `docs/web.md`, 「The join page」).
+
+## Organisation supply
+
+- **An organisation unit owns supply as a person does:** a key for a gateway road, a row of the store's
+  `personal_supply` naming the unit in place of a person, its secret in the unit's space of the console's secret
+  store, `units/<unit>/<name>` under the data root's `env/`; and a Claude account naming the unit in place of a
+  person, an `api-key` account its heads register on its Anthropic API key, or any account of no person's the
+  owner gives the unit (`docs/api.md`, 「accounts, rest and usage」).
+- **Only the people of its path take it.** A run of a person whose chain leaves organisation supply open takes
+  the supply of the nearest unit of their path that holds an open credential for the road's provider: a Claude
+  account of the unit's that can answer now on Claude Code, an open key of the unit's on a gateway road; the
+  registry's provider has none. Nobody else's run goes out on it, the platform's own runs among them.
+- **It is reserved through the hook as a platform source is,** under the source `organisation`, the
+  reservation naming the unit, so the consumer counts its cost and the gateway lets the person's call key reach
+  that unit's members while it is open (`docs/own-llm.md`, 「Personal members」). A Claude account of the unit's
+  goes out on the person's node with the run, as a person's `api-key` account does.
+- **Running out:** a key of the unit's its provider refuses waits for the unit's heads, as a person's waits for
+  them, and the run goes on to the next source of its order in a new session; a reservation of it whose extension
+  is refused hands the run to no platform source, since that goes out on another credential, and the run takes
+  its unit of grace and ends there. The next run asks its order afresh.
+- **Its heads manage it** through `/organisation-supply/{unit}` (`docs/api.md`, 「accounts, rest and usage」): a
+  person is taken as a head where the chain answers them the unit's link of `supply.organisation`, which it
+  answers its writers alone, and a key is added only while organisation supply stands open for the unit.
+
 ## The lendable accounts
 
 - **A platform Claude account goes out for another person's run only where it is marked lendable.** None is
@@ -77,13 +137,15 @@ platform pays for takes it.
 
 ## Owned supply
 
-- **Each credential a road goes out on belongs to a person or to no one,** and the record of the credential
-  says which:
-  - a Claude account by its `userId` (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」);
+- **Each credential a road goes out on belongs to a person, to an organisation unit or to no one,** and the
+  record of the credential says which:
+  - a Claude account by its `userId`, or its `unitId` (`docs/cache-fallback.md`, 「The Claude Code road is a list
+    of accounts」);
   - a gateway member by the `account` the members file names for it (`docs/own-llm.md`, 「The gateway's
     members」);
   - a registration by its own `account` (`docs/own-llm.md`, 「What a registration holds」).
-- **What no person owns is the platform's,** and is the only supply a platform source goes out on.
+- **What no person and no organisation owns is the platform's,** and is the only supply a platform source goes
+  out on. What a unit owns is its organisation supply alone (「Organisation supply」).
 - **What a person owns is that person's personal supply:** their run takes it as personal supply, and nobody
   else's run goes out on it, as a platform source or any other. The gateway holds to the same line on every
   request (`docs/own-llm.md`, 「The gateway」).
@@ -102,11 +164,14 @@ platform pays for takes it.
 ## Choosing a source as a run starts
 
 - **A run whose account is a person other than the administrator** asks the supply hook for its order as it
-  starts (「The supply hook」), then walks the order within its road:
+  starts (「The supply hook」), shapes it by what the person's chain leaves open (「The sources a person's chain
+  leaves open」), then walks the order within its road:
   - **personal supply** is taken where the person holds an open credential for the road's provider: a Claude
     login or `api-key` account that can answer now for a Claude Code road, an open key of the road or a member
     of the road they own for a gateway road, a registration they own for the registry's provider. It goes out
     on that credential.
+  - **organisation supply** is taken where a unit of the person's path that the chain leaves open holds an open
+    credential for the road and the hook accepts a reservation for it first. It goes out on that credential.
   - **a platform source** is taken where the hook accepts a reservation for it first (「Reservations」). It goes
     out on the platform's credential: a lendable Claude account, the gateway's member no person owns, or a
     registration no person owns, under the person's call key. A model another person owns offers no platform
@@ -117,8 +182,8 @@ platform pays for takes it.
 - **With no hook registered, or one that does not answer,** the order is personal supply alone: the platform's
   supply is off for other people until the consumer answers for it, and a person's run never goes out on it
   without a reservation.
-- **What the run went out on is its source:** `personal`, the platform source the hook named, or `platform` for
-  a run that reserved nothing. It is kept on the run and its job (「The ledger」).
+- **What the run went out on is its source:** `personal`, `organisation`, the platform source the hook named, or
+  `platform` for a run that reserved nothing. It is kept on the run and its job (「The ledger」).
 
 ## The supply hook
 
@@ -201,5 +266,6 @@ platform pays for takes it.
 | call keys and request records | a call key per account on its nodes, the platform key here alone, each request recorded with its account, model, run and cost | — |
 | personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, the off-boarding switch | — |
 | owned supply | a Claude account's, a gateway member's and a registration's owner, the walk and the gateway holding to it, the administrator's owned supply carrying the deployment's own runs | — |
+| organisation supply | the three source settings on the chain, the order's shape, a unit's keys and Claude accounts, the walk to the nearest unit, its reservation and the gateway's members of it | a Claude subscription login of a unit's own, signed in from its screen |
 | sources and reservations | the hook, the walk at a run's start, reservations, extension, the settlement outbox, the capture after a restart | — |
 | running out | the personal pass-over, the platform hand-over, the grace unit, the job's wait and the supervisor's sentence | — |

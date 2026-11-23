@@ -72,11 +72,14 @@ pub async fn held<C: ConnectionTrait>(db: &C, id: i64) -> Result<Option<Held>, R
 }
 
 /// A reservation asked of the hook for the run's source at its next step: the store's row where it was
-/// accepted, or the moment the hook says the source reopens where it was refused.
+/// accepted, or the moment the hook says the source reopens where it was refused. A reservation of an
+/// organisation's own supply names the unit whose credential the run goes out on, which the gateway reads to let
+/// the person's call key reach that unit's members (docs/own-llm.md, 「Personal members」).
 pub async fn reserve(
   ground: &Ground,
   chosen: &mut Chosen,
   source: &str,
+  unit: Option<i64>,
 ) -> Result<Result<i64, Option<i64>>, Refusal> {
   let Some(account) = chosen.account else { return Ok(Err(None)) };
   let step = chosen.step;
@@ -109,8 +112,8 @@ pub async fn reserve(
     &ground.db,
     r#"INSERT INTO "supply_reservations"
        ("run", "opened_step", "last_step", "account", "source", "reservation", "amount_micros", "unit_micros",
-        "expires_at")
-       VALUES ($1, $2, $2, $3, $4, $5, $6, $6, $7) RETURNING "id""#,
+        "expires_at", "unit_id")
+       VALUES ($1, $2, $2, $3, $4, $5, $6, $6, $7, $8) RETURNING "id""#,
     vec![
       chosen.run.clone().into(),
       step.into(),
@@ -119,6 +122,7 @@ pub async fn reserve(
       reservation.into(),
       amount.into(),
       answer.expires_at.into(),
+      unit.into(),
     ],
   )
   .await?
@@ -357,8 +361,8 @@ pub async fn keep(ground: std::sync::Arc<Ground>) {
 
 /// The reservation a run's source holds now, where it holds one.
 pub async fn of_source(ground: &Ground, source: &Source) -> Result<Option<Held>, Refusal> {
-  match source {
-    Source::Platform { reservation, .. } => held(&ground.db, *reservation).await,
-    _ => Ok(None),
+  match source.reservation() {
+    Some(reservation) => held(&ground.db, reservation).await,
+    None => Ok(None),
   }
 }

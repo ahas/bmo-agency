@@ -98,7 +98,12 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 
 - **Agency declares both kinds on the account service** (`PUT /chain/kinds/{key}`, under the unit name
   `agency`) as its server stands, from the declarations `policy/prompt-layers.toml` holds, and again wherever a
-  resolution finds a kind undeclared. A process on a copy of the data root declares nothing as it stands.
+  resolution finds a kind undeclared. A process on a copy of the data root declares nothing as it stands. Its
+  other kinds are declared with them, from `policy/organisation.toml`: the supply sources (`docs/supply.md`,
+  「The sources a person's chain leaves open」), the sign-up composition (`docs/role-agents.md`, 「The agents an
+  account is given」) and repository management (`docs/repositories.md`, 「Who may add and change a
+  repository」). A `json` kind's value agency judges on its own route and writes on the chain naming itself the
+  kind's declarer.
 - **Every value is read afresh** as a supervisor's prompt is composed — each turn, and each read of its prompt
   on the console — with `GET /chain/kinds/{key}/resolve?person=`, both kinds side by side. A changed answer
   changes the prompt, which reaches the session as any moved prompt does (`docs/sessions.md`, 「Session

@@ -69,6 +69,9 @@ pub struct Repository {
   pub name: String,
   pub label: Option<String>,
   pub owner_account: Option<i64>,
+  /// The organisation unit it belongs to in place of an account, whose people's agents alone work on it
+  /// (docs/repositories.md, 「An organisation's repository」).
+  pub owner_unit: Option<i64>,
   /// The base checkout, where its jobs work.
   pub path: String,
   /// The work node the base checkout stands on, where it stands on one.
@@ -106,6 +109,7 @@ impl Repository {
       name: row.try_get("", "name")?,
       label: row.try_get("", "label")?,
       owner_account: row.try_get("", "owner_account")?,
+      owner_unit: row.try_get("", "owner_unit")?,
       path: row.try_get("", "path")?,
       node: row.try_get("", "node")?,
       support_count: bmo_agency_client::SupportCount::of_stored(row.try_get("", "support_count")?),

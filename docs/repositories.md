@@ -11,7 +11,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **One row of the `repositories` table a repository,** its whole declaration:
   - **its name,** the key every reader finds it by, the small alphabet a URL, a unit's name and a lock
     file's take without quoting (`policy/workers.toml`); and **its label**, what a screen shows it as;
-  - **its owner,** the login account it belongs to, or none for the administrator's;
+  - **its owner,** the login account it belongs to, or the organisation unit it belongs to (「An
+    organisation's repository」), or neither for the administrator's;
   - **its path,** the base checkout, the directory its jobs work in, which every add names: agency makes no
     checkout and no directory for a repository; and **its node,** where the base checkout stands on a work
     node that takes jobs rather than here (`docs/work-nodes.md`, 「Which nodes take jobs」);
@@ -48,6 +49,27 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A repository keeps no log of its own.** It is a place, so what ran in it is its jobs' runs, each with its
   own log; its jobs are listed by repository, newest first, and a screen shows the log of its job going, else
   of its latest.
+
+## Who may add and change a repository
+
+- **A setting of the delegation chain,** the kind `repositories.manage`: a flag, `nearest`, on by default,
+  held at the platform's link, a unit's and a person's, with rules; a head writes a unit's and a person's.
+  Agency declares it as its server stands (`docs/prompt-layers.md`, 「The settings agency declares」).
+- **A member's change of a repository needs it,** resolved for them afresh: off, every add, change and removal
+  they ask is refused 403 `repositories-withheld`, whatever their console section grants. Where the account
+  service does not answer, the change is refused 503 `access-unchecked`. The owner's and the deployment's own
+  calls are bound by none of it.
+
+## An organisation's repository
+
+- **A repository may belong to an organisation unit in place of an account.** A head of the unit adds one
+  naming `ownerUnit` where `repositories.manage` resolves true for the unit, and changes and removes it; the
+  owner adds and changes any. A head is the person the chain answers the unit's link of `repositories.manage`
+  to, which it answers its writers alone.
+- **Only the people of its path work on it:** a holder's work stands on it only where the holder is a person
+  whose chain runs through the unit, read off the chain afresh, so no other account's agents and none of the
+  platform's work there; anything else is refused 403 `foreign-repository` as every crossing of sides is
+  (`docs/api.md`, 「A repository takes the work of its own side alone」).
 
 ## What a run in a repository is handed
 

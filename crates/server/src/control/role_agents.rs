@@ -67,8 +67,8 @@ fn names(value: &Value, field: &str) -> Result<Option<Vec<String>>, Refused> {
   }
 }
 
-// The body's fields laid over an agent, each judged: its road against its role's line.
-async fn judged(
+/// The body's fields laid over an agent, each judged: its road against its role's line.
+pub(crate) async fn judged(
   ground: &Ground,
   role: &AgentRole,
   held: RoleAgent,
@@ -335,8 +335,23 @@ impl Route for RoleAgentCreate {
       follows_asker: None,
     };
     let mut agent = judged(call.ground(), &held, fresh, &body).await?;
+    let acting = Acting::of(&call)?;
 
-    filed(Acting::of(&call)?, &mut agent)?;
+    // A role the person's composition turns off takes no agent of theirs (docs/role-agents.md, 「The agents an
+    // account is given」).
+    if let Acting::Person(person) = acting
+      && crate::organisation::composition::role_off(call.ground(), person, &agent.role).await
+    {
+      return Err(
+        Refused::new(
+          StatusCode::FORBIDDEN,
+          format!("The role {} is off for the signed-in person", agent.role),
+        )
+        .with_code("role-off"),
+      );
+    }
+
+    filed(acting, &mut agent)?;
     role_agents::write(db, &agent).await?;
     seats_changed(db, call.events(), &agent.role).await?;
     queue_told(&call);

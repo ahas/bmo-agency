@@ -229,6 +229,17 @@ pub fn owning(call: &Call, method: &Method, path: &str) -> Result<Option<Owning>
 /// Whether a member's change reaches a row they may change: a row of another account or of the platform is
 /// refused, and so is every change of a role; a route naming no row the store holds goes on to answer.
 pub async fn judge(owning: Owning) -> Result<(), Refused> {
+  if owning.part == Part::Repositories {
+    crate::organisation::repositories::may_manage(&owning.ground, owning.acting).await?;
+
+    if let Some(name) = &owning.name
+      && let Some(held) = crate::repositories::named(&owning.ground.db, name).await?
+      && let Some(unit) = held.owner_unit
+    {
+      return crate::organisation::repositories::heads(&owning.ground, owning.acting, unit, name).await;
+    }
+  }
+
   match owning.part.row(&owning.ground, owning.name).await? {
     Row::Owned(kind, name, owner) => owning.acting.may_change(owner, &format!("the {kind} {name}")),
     Row::Platform => Err(forbidden(
@@ -253,6 +264,10 @@ pub async fn works_on(ground: &Ground, account: Option<i64>, repository: &str) -
   let Some(held) = crate::repositories::named(&ground.db, repository).await? else {
     return Ok(());
   };
+
+  if let Some(unit) = held.owner_unit {
+    return crate::organisation::repositories::works_on_unit(ground, account, unit, repository).await;
+  }
 
   if same_side(&ground.db, account, held.owner_account).await? {
     return Ok(());

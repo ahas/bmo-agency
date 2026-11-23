@@ -196,7 +196,7 @@ When a demotion first catches — when a healthy session first drops — two thi
     neither expires nor renews.
   - **An `api-key` account** is Claude Code on Anthropic's own API with an Anthropic API key: it names a
     configuration home of its own and the secret holding the key under the data root's `env/`, a person's
-    `users/<user>/<name>` or a plain name for the platform's. It is paid by the request, so it has no usage
+    `users/<user>/<name>`, an organisation unit's `units/<unit>/<name>` or a plain name for the platform's. It is paid by the request, so it has no usage
     windows, and its key neither expires nor renews.
 - **What is kept is where a credential is, never a credential.** No token, no key and no file body
   enters the store, a log line, a document or a report; the reader that opens a credential file keeps
@@ -213,9 +213,9 @@ When a demotion first catches — when a healthy session first drops — two thi
     authorisation token, and the model ids its map names for each family; every other credential the
     launching process carried goes with it.
   - An `api-key` account is handed its configuration home and its key as `ANTHROPIC_API_KEY`, read from its
-    secret as the run is launched; every other credential the launching process carried goes. A person's goes
-    out here or on that person's own node, carried by the link with the run's variables; the platform's never
-    goes out on a node, since its key stays on this machine.
+    secret as the run is launched; every other credential the launching process carried goes. A person's, and an
+    organisation unit's carrying a person of its path, goes out here or on that person's own node, carried by the
+    link with the run's variables; the platform's never goes out on a node, since its key stays on this machine.
   - A person's directory account signed in on their node is handed the configuration directory there, and no
     token (`docs/supply.md`, 「Signing a person's login in」).
   - **The exception:** an account may name a base prompt (`docs/base-prompts.md`), and a run on the worker

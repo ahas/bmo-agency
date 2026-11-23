@@ -1,11 +1,13 @@
 //! A person's supply inside a road (docs/supply.md): the supply hook, the source a run takes as it starts, its
 //! reservations and their settlement, the meter that extends them while the run goes and finds a source run out,
 //! and the facts told. A run of no account or of the administrator's account takes no source of a person's and is
-//! only recorded; every rule here holds for the runs of the other accounts.
+//! only recorded; every rule here holds for the runs of the other accounts. Which sources a person's
+//! organisations leave open is read off the delegation chain (`sources`).
 
 pub mod hook;
 pub mod meter;
 pub mod reservations;
+pub mod sources;
 pub mod told;
 
 use std::collections::HashMap;
@@ -13,6 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use policy::fill_marks;
+use policy::organisation::ORGANISATION;
 use policy::supply::SUPPLY;
 use store::{one, run};
 
@@ -43,6 +46,9 @@ pub enum Source {
   /// A platform source, by the name the hook gave it, with the store's row of the reservation it goes out
   /// on.
   Platform { name: String, reservation: i64 },
+  /// An organisation unit's own credential, on the person's path, with the store's row of the reservation it
+  /// goes out on (docs/supply.md, 「Organisation supply」).
+  Organisation { unit: i64, reservation: i64 },
 }
 
 impl Source {
@@ -52,8 +58,22 @@ impl Source {
       Self::Deployment => PLATFORM,
       Self::Personal | Self::Owned => PERSONAL,
       Self::Platform { name, .. } => name,
+      Self::Organisation { .. } => &ORGANISATION.sources.organisation_word,
     }
   }
+
+  /// The reservation it goes out on, where it holds one.
+  pub fn reservation(&self) -> Option<i64> {
+    match self {
+      Self::Platform { reservation, .. } | Self::Organisation { reservation, .. } => Some(*reservation),
+      _ => None,
+    }
+  }
+}
+
+/// The source word of an organisation's own credential in an order.
+pub fn organisation_word() -> &'static str {
+  &ORGANISATION.sources.organisation_word
 }
 
 /// A run's supply as it was chosen: the key its asks are made under, the person, the road and the source, and the
@@ -66,6 +86,9 @@ pub struct Chosen {
   pub model: String,
   pub source: Source,
   pub order: Vec<String>,
+  /// The units on the person's path whose own supply the run may take, the nearest first; none where the chain
+  /// leaves organisation supply closed.
+  pub units: Vec<i64>,
   /// The next step a money ask of the run takes.
   pub step: i64,
 }
@@ -80,6 +103,7 @@ impl Chosen {
       model: model.to_owned(),
       source: Source::Deployment,
       order: Vec::new(),
+      units: Vec::new(),
       step: 0,
     }
   }
@@ -220,16 +244,18 @@ pub fn carrying(chosen: Option<&Chosen>) -> Carrying {
   match chosen.map(|chosen| (&chosen.source, chosen.account)) {
     Some((Source::Personal | Source::Owned, Some(account))) => Carrying::Own(account),
     Some((Source::Platform { .. }, Some(_))) => Carrying::Lent,
+    Some((Source::Organisation { unit, .. }, Some(_))) => Carrying::Organisation(*unit),
     _ => Carrying::Platform,
   }
 }
 
-/// The name a gateway road's run is sent under on the person's own key: its member's name marked with the
-/// person (docs/own-llm.md, 「Personal members」); none where the run goes out on the member's own name, the
-/// platform's or one the person owns.
+/// The name a gateway road's run is sent under on the person's own key or their organisation's: its member's
+/// name marked with the person or the unit (docs/own-llm.md, 「Personal members」); none where the run goes out on
+/// the member's own name, the platform's or one the person owns.
 pub fn personal_member(chosen: Option<&Chosen>, name: &str) -> Option<String> {
   match chosen.map(|chosen| (&chosen.source, chosen.account)) {
     Some((Source::Personal, Some(account))) => Some(format!("{name}@u{account}")),
+    Some((Source::Organisation { unit, .. }, Some(_))) => Some(format!("{name}@o{unit}")),
     _ => None,
   }
 }
@@ -297,6 +323,40 @@ pub async fn personal_source(
   Ok(keyed.then_some(Source::Personal))
 }
 
+/// The nearest unit of `units` whose own supply is open for the road's provider, where one is: a Claude account
+/// of the unit's that can answer now for a Claude Code road, an open key of the unit's for a gateway road; the
+/// registry's provider has none (docs/supply.md, 「Organisation supply」).
+pub async fn organisation_source(
+  ground: &Ground,
+  units: &[i64],
+  provider: &str,
+  model: &str,
+) -> Result<Option<i64>, Refusal> {
+  for unit in units {
+    let open = match provider {
+      CLAUDE_CODE => !walk_for_user(Judging::of(ground), Carrying::Organisation(*unit), Some(model))
+        .await
+        .map_err(|refused| Refusal::failed(refused.error))?
+        .is_empty(),
+      REGISTERED => false,
+      road => one(
+        &ground.db,
+        r#"SELECT 1 AS "open" FROM "personal_supply"
+           WHERE "unit_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL LIMIT 1"#,
+        vec![(*unit).into(), road.into()],
+      )
+      .await?
+      .is_some(),
+    };
+
+    if open {
+      return Ok(Some(*unit));
+    }
+  }
+
+  Ok(None)
+}
+
 /// Whether the platform's credentials can carry a person's run on the road: for Claude Code, an open
 /// lendable account; on every other road, a model no person owns.
 pub async fn platform_open(ground: &Ground, provider: &str, model: &str) -> Result<bool, Refusal> {
@@ -312,8 +372,16 @@ pub async fn platform_open(ground: &Ground, provider: &str, model: &str) -> Resu
   )
 }
 
-/// The order a person's run walks: the hook's, or personal supply alone where nobody is registered.
-async fn order_of(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> Vec<String> {
+/// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, as the
+/// sources their chain leaves open shape it (`sources::shaped`).
+async fn order_of(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> (Vec<String>, Vec<i64>) {
+  let open = sources::open_for(ground, account).await;
+  let order = hooked_order(ground, asked, run, account).await;
+
+  (sources::shaped(&order, &open), open.units)
+}
+
+async fn hooked_order(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> Vec<String> {
   let ask = hook::OrderAsk {
     run: run.to_owned(),
     account,
@@ -347,7 +415,7 @@ pub async fn choose(ground: &Ground, asked: &Asked<'_>) -> Result<Choice, Refusa
   let Some(account) = person(ground, asked.account).await? else {
     return Ok(Choice::Go(Chosen::deployment(run, asked.provider, asked.model)));
   };
-  let order = order_of(ground, asked, &run, account).await;
+  let (order, units) = order_of(ground, asked, &run, account).await;
   let mut chosen = Chosen {
     run,
     account: Some(account),
@@ -355,6 +423,7 @@ pub async fn choose(ground: &Ground, asked: &Asked<'_>) -> Result<Choice, Refusa
     model: asked.model.to_owned(),
     source: Source::Personal,
     order: order.clone(),
+    units,
     step: 1,
   };
 
@@ -390,6 +459,30 @@ pub async fn next_source(
       continue;
     }
 
+    if source == organisation_word() {
+      let Some(unit) = organisation_source(ground, &chosen.units, &chosen.provider, &chosen.model).await?
+      else {
+        let reason = fill_marks(&ORGANISATION.sources.no_organisation, &[("provider", &chosen.provider)]);
+
+        last = Closed::of(source, reason, None);
+        continue;
+      };
+
+      match reservations::reserve(ground, chosen, source, Some(unit)).await? {
+        Ok(row) => {
+          chosen.source = Source::Organisation {
+            unit,
+            reservation: row,
+          };
+          return Ok(Ok(()));
+        }
+        Err(reopens_at) => {
+          last = Closed::of(source, fill_marks(&SUPPLY.words.refused, &[("source", source)]), reopens_at);
+          continue;
+        }
+      }
+    }
+
     if !platform_open(ground, &chosen.provider, &chosen.model).await? {
       let reason = if chosen.provider == CLAUDE_CODE {
         fill_marks(&SUPPLY.words.no_lendable, &[("provider", &chosen.provider)])
@@ -401,7 +494,7 @@ pub async fn next_source(
       continue;
     }
 
-    match reservations::reserve(ground, chosen, source).await? {
+    match reservations::reserve(ground, chosen, source, None).await? {
       Ok(row) => {
         chosen.source = Source::Platform {
           name: source.clone(),
@@ -419,14 +512,19 @@ pub async fn next_source(
 }
 
 /// The sources of a run's order after the one it goes out on now, the platform's alone: where an extension
-/// refused hands the run on along (docs/supply.md, 「Running out mid-turn」).
+/// refused hands the run on along (docs/supply.md, 「Running out mid-turn」). A run on its organisation's own
+/// credential is handed to none, since a platform source goes out on another credential.
 pub fn platform_after(chosen: &Chosen) -> Vec<String> {
+  if matches!(chosen.source, Source::Organisation { .. }) {
+    return Vec::new();
+  }
+
   let now = chosen.source.word().to_owned();
   let at = chosen.order.iter().position(|source| *source == now).map_or(0, |at| at + 1);
 
   chosen.order[at.min(chosen.order.len())..]
     .iter()
-    .filter(|source| *source != PERSONAL)
+    .filter(|source| *source != PERSONAL && *source != organisation_word())
     .cloned()
     .collect()
 }
@@ -447,12 +545,15 @@ pub async fn pass_owned(ground: &Ground, chosen: &Chosen) -> Result<Choice, Refu
   })
 }
 
-/// A person's own key for a gateway road found refused by its provider, where the run went out on one: it waits
-/// for its person, who is told once, and its next key or the next source is taken (docs/supply.md, 「Running out
-/// mid-turn」). A run on a model the person owns, or on a Claude login, marks no key. Answers the key marked.
+/// A person's own key for a gateway road, or their organisation unit's, found refused by its provider, where the
+/// run went out on one: it waits for its owner, the person told once, and its next key or the next source is taken
+/// (docs/supply.md, 「Running out mid-turn」 and 「Organisation supply」). A run on a model the person owns, or on a
+/// Claude login, marks no key. Answers the key marked.
 pub async fn refuse_personal_key(ground: &Ground, chosen: &Chosen) -> Result<Option<i64>, Refusal> {
-  let (Source::Personal, Some(account)) = (&chosen.source, chosen.account) else {
-    return Ok(None);
+  let (owner, id) = match (&chosen.source, chosen.account) {
+    (Source::Personal, Some(account)) => ("user_id", account),
+    (Source::Organisation { unit, .. }, Some(_)) => ("unit_id", *unit),
+    _ => return Ok(None),
   };
   if chosen.provider == CLAUDE_CODE {
     return Ok(None);
@@ -460,9 +561,11 @@ pub async fn refuse_personal_key(ground: &Ground, chosen: &Chosen) -> Result<Opt
   let road = chosen.provider.as_str();
   let Some(row) = one(
     &ground.db,
-    r#"SELECT "id" FROM "personal_supply"
-       WHERE "user_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL ORDER BY "place" LIMIT 1"#,
-    vec![account.into(), road.into()],
+    &format!(
+      r#"SELECT "id" FROM "personal_supply"
+         WHERE "{owner}" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL ORDER BY "place" LIMIT 1"#
+    ),
+    vec![id.into(), road.into()],
   )
   .await?
   else {

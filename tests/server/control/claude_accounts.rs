@@ -374,6 +374,7 @@ fn the_earliest_moment_under_an_expiring_name_answers_in_milliseconds() {
     },
     needs_login_at: Some(1),
     user_id: None,
+    unit_id: None,
     node: None,
     lendable: false,
     base_prompt: None,

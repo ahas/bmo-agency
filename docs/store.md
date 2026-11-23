@@ -31,7 +31,8 @@ seeds. The other crates and the server reach the store only through it.
     lists it at, and when it was made and last changed in epoch milliseconds
     — and `role_seeded`, the name of every role the policy's seed has given (`docs/agent-roles.md`, 「What a
     role row holds」);
-  - the repositories: `repositories`, one row a repository — its name, label, owner account, path, node,
+  - the repositories: `repositories`, one row a repository — its name, label, owner account or owner unit,
+    path, node,
     support count, null for `auto`, prefix documents, preamble, rules folder, dev command, pinned provider
     and model or none, whether it is an umbrella, and the sampling a run on a pinned registration is sent (`docs/repositories.md`,
     「What a repository row holds」); `repository_node_checkouts`, its checkouts on the work nodes; and
@@ -56,18 +57,21 @@ seeds. The other crates and the server reach the store only through it.
     token file or the endpoint or `api-key` account's own configuration home; for an endpoint account its
     `endpoint_url`, its `key_file` and its `endpoint_models`, a JSON object from the family words
     `opus`, `sonnet` and `haiku` to the endpoint's model ids, empty on the other kinds; for an `api-key`
-    account its `key_file`, the secret's path under the data root's `env/`; its `node`, the node a person's
-    login was signed in on and stands on, or none; whether it is `lendable` to another person's run; and its
+    account its `key_file`, the secret's path under the data root's `env/`; its `user_id`, the person it belongs
+    to, or its `unit_id`, the organisation unit it belongs to, or neither for the platform's; its `node`, the
+    node a person's login was signed in on and stands on, or none; whether it is `lendable` to another person's
+    run; and its
     `base_prompt`, the name of a kept base prompt or none, which a kept prompt cannot be removed
     from under (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」,
     `docs/base-prompts.md`, `docs/supply.md`);
-  - what people bring and what they spend (`docs/supply.md`): `personal_supply`, one row a person's own key
-    for a gateway road — the person, the road, the secret's name, its place, on/off, when it was added and when
+  - what people bring and what they spend (`docs/supply.md`): `personal_supply`, one row a person's or an
+    organisation unit's own key for a gateway road — the person or the unit, one of them, the road, the secret's name, its place, on/off, when it was added and when
     it was found refused; `gateway_call_keys`, one row an account's call key — the account, the key's SHA-256
     digest, when it was issued and when it was revoked; `gateway_requests`, one row a request the gateway
     carried — when, the account or none, the model, the run name and the program's session or none, its input
-    and output tokens and its cost in millionths of a US dollar; `supply_reservations`, one row a platform reservation of a run — the run, the
-    step it was opened at, the account, the source, the consumer's reservation, its amount and the amount it was opened at, what it has covered,
+    and output tokens and its cost in millionths of a US dollar; `supply_reservations`, one row a reservation of a run on a platform source
+    or on organisation supply — the run, the step it was opened at, the account, the source, the unit whose
+    supply it is for organisation supply, the consumer's reservation, its amount and the amount it was opened at, what it has covered,
     when it expires, the step last used on it and its state, `open`, `captured` or `released`; and
     `supply_settlements`, the supply outbox, one row an ask owed to the supply hook keyed by its idempotency
     key — the ask as JSON, when it was owed, when it is due next, how many tries it took and the last one's

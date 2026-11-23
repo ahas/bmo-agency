@@ -83,6 +83,7 @@ pub async fn view(ground: &Ground, repository: &Repository) -> Result<Value, Ref
     "label": repository.label,
     "icon": ROLES.icon("repository"),
     "ownerAccount": repository.owner_account,
+    "ownerUnit": repository.owner_unit,
     "path": repository.path,
     "nodeName": repository.node,
     "supportCount": repository.support_count,
@@ -454,9 +455,18 @@ impl Route for RepositoryCreate {
       );
     }
 
-    // A member's repository is filed under their own account (docs/api.md, 「Who a caller acts for」).
-    let owner = Acting::of(&call)?
-      .files_under(body.get("ownerAccount").and_then(Value::as_i64), &format!("the repository {name}"))?;
+    // A member's repository is filed under their own account (docs/api.md, 「Who a caller acts for」), or under a
+    // unit they head where the body names one (docs/repositories.md, 「An organisation's repository」).
+    let acting = Acting::of(&call)?;
+    let unit = body.get("ownerUnit").and_then(Value::as_i64);
+    let owner = match unit {
+      Some(unit) => {
+        crate::organisation::repositories::may_file_under_unit(call.ground(), acting, unit).await?;
+        None
+      }
+      None => acting
+        .files_under(body.get("ownerAccount").and_then(Value::as_i64), &format!("the repository {name}"))?,
+    };
     let fields = Fields::of(call.ground(), &body).await?;
     let path = fields.path.clone().ok_or_else(|| bad("path", "A repository names its path."))?;
     let pin = fields.pin.clone().flatten();
@@ -475,8 +485,8 @@ impl Route for RepositoryCreate {
       call.store(),
       r#"INSERT INTO "repositories" ("name", "label", "owner_account", "path", "node", "support_count",
            "prefix_documents", "preamble", "prompts", "dev_command", "pinned_provider", "pinned_model", "downgrade_heal",
-           "created_at", "updated_at", "umbrella")
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15)"#,
+           "created_at", "updated_at", "umbrella", "owner_unit")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $14, $15, $16)"#,
       vec![
         name.clone().into(),
         fields.label.clone().flatten().into(),
@@ -493,6 +503,7 @@ impl Route for RepositoryCreate {
         i64::from(fields.downgrade_heal.unwrap_or(true)).into(),
         now.into(),
         i64::from(umbrella).into(),
+        unit.into(),
       ],
     )
     .await?;

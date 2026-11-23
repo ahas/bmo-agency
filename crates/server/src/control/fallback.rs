@@ -391,6 +391,7 @@ async fn own_change(
 
       let owning = Owning {
         user_id: acting.person(),
+        unit_id: None,
         node: None,
       };
 
@@ -416,6 +417,23 @@ async fn own_change(
 
       if let Some(lendable) = lendable {
         changes::set_lendable(db, id, lendable).await?;
+      }
+
+      // The organisation an account of no person's belongs to, set or taken away by the owner alone
+      // (docs/supply.md, 「Organisation supply」).
+      match body.get("unitId") {
+        None => {}
+        Some(_) if acting != Acting::Platform => {
+          return Err(
+            Refused::new(axum::http::StatusCode::FORBIDDEN, CONTROL_WORDS.accounts.unit_owner.clone())
+              .with_code("forbidden"),
+          );
+        }
+        Some(Value::Null) => changes::set_unit(db, id, None).await?,
+        Some(unit) => match unit.as_i64().filter(|unit| *unit > 0) {
+          Some(unit) => changes::set_unit(db, id, Some(unit)).await?,
+          None => return Err(bad(CONTROL_WORDS.accounts.unit_named.as_str()).with_field("unitId")),
+        },
       }
 
       // A change naming part of a credential keeps the rest of the one the account already holds, and

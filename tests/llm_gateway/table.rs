@@ -351,7 +351,8 @@ fn road_member(name: &str, road: Option<&str>) -> Member {
 fn personal_key(id: i64, user_id: i64, road: &str, secret: &str, place: i64) -> PersonalKey {
   PersonalKey {
     id,
-    user_id,
+    user_id: Some(user_id),
+    unit_id: None,
     road: road.into(),
     secret: secret.into(),
     place,
@@ -385,7 +386,7 @@ fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_memb
   let personal = personal_members(&members, &keys);
   let laid: Vec<(&str, &str, i64)> = personal
     .iter()
-    .map(|one| (one.member.name.as_str(), one.member.key_file.as_str(), one.account))
+    .map(|one| (one.member.name.as_str(), one.member.key_file.as_str(), owner_number(one.owner)))
     .collect();
 
   assert_eq!(
@@ -429,4 +430,45 @@ fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_memb
       ("router-b@u7".to_owned(), Owner::Personal(7)),
     ])
   );
+}
+
+// The person or the unit a laid member is for, as a number.
+fn owner_number(owner: Owner) -> i64 {
+  match owner {
+    Owner::Personal(number) | Owner::Owned(number) | Owner::Organisation(number) => number,
+  }
+}
+
+// "An organisation unit's key is laid the same way" (docs/own-llm.md, 「Personal members」): the unit's lowest
+// open key of a road lays `<member>@o<unit>` on its own folder's secret, owned by the unit, which no payer's key
+// is admitted to by the name alone.
+#[test]
+fn a_units_lowest_open_key_of_a_road_lays_one_member_of_the_unit_beside_each_member_of_that_road() {
+  let members = [road_member("router-a", Some("openrouter")), road_member("flash", Some("deepseek"))];
+  let unit_key = |id: i64, secret: &str, place: i64| PersonalKey {
+    user_id: None,
+    unit_id: Some(12),
+    ..personal_key(id, 0, "openrouter", secret, place)
+  };
+  let keys = [
+    unit_key(1, "org-second", 2),
+    unit_key(2, "org-first", 1),
+    personal_key(3, 7, "deepseek", "mine", 1),
+  ];
+  let personal = personal_members(&members, &keys);
+  let laid: Vec<(&str, &str, Owner)> = personal
+    .iter()
+    .map(|one| (one.member.name.as_str(), one.member.key_file.as_str(), one.owner))
+    .collect();
+
+  assert_eq!(
+    laid,
+    [
+      ("flash@u7", "users/7/mine", Owner::Personal(7)),
+      ("router-a@o12", "units/12/org-first", Owner::Organisation(12)),
+    ]
+  );
+  assert_eq!(personal[1].member.account, None, "a unit's member belongs to no account");
+  assert!(!Owner::Organisation(12).admits(llm_gateway::supply::Payer::Account(12), None));
+  assert!(!Owner::Organisation(12).admits(llm_gateway::supply::Payer::Platform, None));
 }

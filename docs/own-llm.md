@@ -483,7 +483,14 @@ never the model's name.
   found refused reaches the gateway without a restart.
 - **Only that person's call key reaches it:** a request naming `<member>@u<account>` under any other key,
   the gateway's own among them, is answered 403 with the code `not-your-member` and the type `permission_error`.
-- **A run of the person on personal supply** is sent under that name in place of the member's own.
+- **An organisation unit's key is laid the same way** (`docs/supply.md`, 「Organisation supply」): for the
+  first open row a unit holds for a road, one more beside each member of that road under `<member>@o<unit>`,
+  its `key_file` the unit's secret `units/<unit>/<name>` under `env/`. A call key reaches it only while its
+  account holds an open reservation naming that unit, as the store says at the request, so only a person of the
+  unit's path whose run took the unit's supply reaches it; every other key, the gateway's own among them, is
+  answered 403 `not-your-member`.
+- **A run of the person on personal supply** is sent under that name in place of the member's own, and a run
+  on organisation supply under the unit's.
 
 
 ## The gateway

@@ -919,6 +919,118 @@ pub struct PersonalSupplyChange {
   pub enabled: Option<bool>,
 }
 
+/// One item of an organisation unit's own supply: a key for a gateway road, or an Anthropic API key standing as a
+/// Claude account of the unit's, `claude-code` its road.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganisationSupplyItem {
+  /// `key-<n>` for a gateway key, `account-<id>` for a Claude account.
+  pub id: String,
+  pub road: String,
+  /// The secret's name in the unit's space of the secret store; its value is never reported.
+  pub secret: String,
+  /// The Claude account's name, for an account.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub name: Option<String>,
+  pub enabled: bool,
+  /// epoch milliseconds: when its provider refused it, or the account was found waiting.
+  pub refused_at: Option<i64>,
+}
+
+/// An organisation unit's own supply as its heads read it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganisationSupplyPage {
+  pub unit: i64,
+  /// Whether organisation supply stands open for the unit on the delegation chain.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub open: Option<bool>,
+  pub items: Vec<OrganisationSupplyItem>,
+}
+
+/// A key of an organisation unit's added: a gateway road and a secret of the unit's space, or `claude-code` for an
+/// Anthropic API key.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganisationSupplyAsk {
+  pub road: String,
+  /// One plain file name in the unit's space of the secret store.
+  pub secret: String,
+}
+
+/// One of an organisation unit's keys or accounts turned on or off.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OrganisationSupplyChange {
+  pub enabled: bool,
+}
+
+/// The supply sources the signed-in person's delegation chain leaves open.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupplySources {
+  /// Their own login or key.
+  pub personal: bool,
+  /// The platform's supply.
+  pub platform: bool,
+  /// Their organisation's own supply.
+  pub organisation: bool,
+  /// Whether a unit on their path holds supply of its own that is on.
+  pub organisation_supply: bool,
+  /// Whether their own login or key is all that can carry their runs.
+  pub personal_only: bool,
+}
+
+/// One agent's road in a sign-up composition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompositionRoad {
+  pub provider: String,
+  pub model: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub effort: Option<String>,
+}
+
+/// What stands of one role in a sign-up composition for a subject.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CompositionRole {
+  pub role: String,
+  /// Whether the role is off for the people under the subject.
+  pub off: bool,
+  /// The roads of the agents a person is given of it, none for the platform's rule.
+  pub agents: Option<Vec<CompositionRoad>>,
+  /// The link that said the agents, where one did.
+  pub from: Option<String>,
+}
+
+/// A sign-up composition as it stands for a unit or a person, with the subject's own link where the caller reads
+/// it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SignupComposition {
+  /// `unit:<id>` or `person:<user>`.
+  pub subject: String,
+  pub roles: Vec<CompositionRole>,
+  /// The subject's own link as the delegation chain answers it to the caller: its `value`, `delegation`,
+  /// `lockedBy` and `writable`.
+  pub own: Option<Value>,
+}
+
+/// A link's sign-up composition written: `{ roles: { <role>: { off, agents } } }`, or null to follow above.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SignupCompositionAsk {
+  pub value: Option<Value>,
+}
+
+/// The agents made for a person by their composition.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ComposedAgents {
+  pub items: Vec<RoleAgent>,
+}
+
 /// What a person's off-boarding turned off.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -965,6 +1077,9 @@ pub struct FallbackAccount {
   /// The person it belongs to, or null for the platform's.
   #[serde(default)]
   pub user_id: Option<i64>,
+  /// The organisation unit it belongs to in place of a person, where one does.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub unit_id: Option<i64>,
   /// The node a person's login stands on, or null.
   #[serde(default)]
   pub node: Option<String>,
@@ -2989,6 +3104,10 @@ pub struct FallbackChange {
   /// Whether the platform's account goes out for another person's run; refused for a person's account.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub lendable: Option<bool>,
+  /// `update-account`: the organisation unit a platform account is given to, null to give it back; the owner's
+  /// alone.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub unit_id: Option<Option<i64>>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub key: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3894,6 +4013,9 @@ pub struct Repository {
   pub label: Option<String>,
   pub icon: Option<String>,
   pub owner_account: Option<i64>,
+  /// The organisation unit it belongs to in place of an account, whose people's agents alone work on it.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub owner_unit: Option<i64>,
   pub path: String,
   pub node_name: Option<String>,
   pub support_count: SupportCount,
@@ -3931,6 +4053,9 @@ pub struct RepositoryAsk {
   pub label: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub owner_account: Option<i64>,
+  /// The organisation unit an added repository is filed under in place of an account, by a head of the unit.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub owner_unit: Option<i64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub path: Option<String>,
   #[serde(default, skip_serializing_if = "Option::is_none")]

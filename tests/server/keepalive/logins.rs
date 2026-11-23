@@ -22,6 +22,7 @@ fn account(kind: &str) -> Account {
     },
     needs_login_at: None,
     user_id: None,
+    unit_id: None,
     node: None,
     lendable: false,
     base_prompt: None,

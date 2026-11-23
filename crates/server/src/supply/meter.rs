@@ -14,7 +14,7 @@ use store::one;
 use tokio::sync::Mutex;
 
 use super::reservations::{self, Held, cover, extend, of_source, settle};
-use super::{Chosen, Closed, Source, next_source, platform_after, told};
+use super::{Chosen, Closed, next_source, platform_after, told};
 use crate::Refusal;
 use crate::places::Ground;
 
@@ -204,7 +204,7 @@ pub fn metered(
   job: Option<i64>,
   room: Option<i64>,
 ) -> Option<Shared> {
-  matches!(chosen.source, Source::Platform { .. }).then(|| {
+  chosen.source.reservation().is_some().then(|| {
     Arc::new(Mutex::new(Metered {
       chosen: chosen.clone(),
       reading,

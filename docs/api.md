@@ -103,6 +103,9 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 - A refusal is 403 `forbidden` with one sentence naming what was asked and the section it needs; a permission
   that could not be read because the account service did not answer is 503 `access-unchecked`, so no access is
   guessed. Agency keeps no permission of its own: the console's is the only one.
+- **A member's change of a repository needs repository management** on the delegation chain, and a repository
+  an organisation unit owns is changed by that unit's heads (`docs/repositories.md`, 「Who may add and change a
+  repository」 and 「An organisation's repository」).
 - **A section's write reaches a member's own rows alone.** Every row of agent management but a role is filed
   under the login account it belongs to, its `ownerAccount`, the user id `Owner-Key` names, or under none, the
   platform's. A member's change — any method but `GET` and `HEAD` — of a supervisor, a repository or a role
@@ -378,6 +381,14 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/role-agents` | Add an agent to a role. |
 | PATCH | `/role-agents/{agentName}` | Change any field of an agent. |
 | DELETE | `/role-agents/{agentName}` | Remove an agent that carries no run. |
+| POST | `/composed-agents/{ownerAccount}` | Make a person's agents as the sign-up composition resolved for them says. |
+| GET | `/signup-composition` | The sign-up composition standing for a unit or a person, and the subject's own link. |
+| PUT | `/signup-composition/{link}` | Judge a link's sign-up composition and write it on the delegation chain in the caller's name. |
+
+- **The agents an account is given** are `docs/role-agents.md`, 「The agents an account is given」: the
+  composition is a setting of the delegation chain agency judges and writes itself, the agents made by the
+  deployment's own call alone, and a role off for a member refused their `POST /role-agents` with 403
+  `role-off`.
 
 - **The roles are the store's rows** (`docs/agent-roles.md`, 「What a role row holds」), and these routes are
   the one way to change them.
@@ -1233,15 +1244,24 @@ notice that holds nothing is withdrawn.
 | POST | `/personal-supply` | Add a key of the signed-in person's for a gateway road. |
 | PATCH | `/personal-supply/{supplyId}` | Change one of the person's keys: its place or its switch. |
 | DELETE | `/personal-supply/{supplyId}` | Remove one of the person's keys. |
+| GET | `/organisation-supply/{unit}` | An organisation unit's own keys and Claude accounts, and whether its supply stands open. |
+| POST | `/organisation-supply/{unit}` | Add a key of the unit's for a gateway road, or an Anthropic API key. |
+| PATCH | `/organisation-supply/{unit}/{supplyId}` | Turn one of the unit's keys or accounts on or off. |
+| DELETE | `/organisation-supply/{unit}/{supplyId}` | Remove one of the unit's keys or accounts. |
+| GET | `/supply-sources` | The supply sources the signed-in person's delegation chain leaves open. |
 | POST | `/people/{user}/off-boarding` | Switch a person's supply off and revoke their call key. |
 
 An account is reached one of four ways: a directory holding a login, a token file, an endpoint — an
 Anthropic-compatible base URL with a key file and an optional map from the `opus`, `sonnet` and `haiku`
 family words to the endpoint's model ids — or an Anthropic API key, `api-key`, its secret under the data
-root's `env/`. Each carries `userId`, the person it belongs to or null for the platform's, `node`, the node a
+root's `env/`. Each carries `userId`, the person it belongs to or null for the platform's, `unitId`, the
+organisation unit it belongs to where a unit owns it, `node`, the node a
 person's login stands on or null, and `lendable`, whether the platform's account goes out for another person's
 run (`docs/supply.md`, 「The lendable accounts」); `update-account` takes `lendable` for a platform account and
-refuses it 422 `not-lendable` for a person's, the administrator's among them. It may also name a base prompt that a worker-line run on it opens
+refuses it 422 `not-lendable` for a person's, the administrator's among them, or a unit's; and takes `unitId`
+from the owner alone, a unit's number giving an account of no person's to that organisation (`docs/supply.md`,
+「Organisation supply」) and lending it no more, null giving it back to the platform, a person's account refused
+422 `persons-own`. It may also name a base prompt that a worker-line run on it opens
 with. The list reports each account's kind, its home and, for an endpoint account, its base URL, key-file
 path and model map; a key's content is never reported. Each directory and token account carries its
 two headline windows, `session` and `week`, as the usage-window store holds them under the account
@@ -1297,6 +1317,22 @@ the key, last of that person's keys of the road; a key the person already holds 
 a secret that is not one plain name 400 with `field`, and a call naming no person 403 `forbidden`. `PATCH`
 takes `place` or `enabled`; turning a refused key on clears `refusedAt`. `DELETE` answers 204. A key of another
 person is 404 `unknown-supply`.
+
+**Organisation supply** (`docs/supply.md`, 「Organisation supply」) is a unit's own keys and Claude accounts,
+for a head of the unit and the owner: a person is taken as a head where the delegation chain answers them the
+unit's link of `supply.organisation`, anyone else refused 403 `forbidden`, and a check the account service did
+not answer 503 `access-unchecked`. `GET /organisation-supply/{unit}` answers `unit`, `open`, whether
+organisation supply stands open for the unit on the chain, and `items`, each `id` (`key-<n>` for a gateway key,
+`account-<id>` for a Claude account), `road`, `secret`, `name` for an account, `enabled` and `refusedAt`. `POST`
+takes `road` and `secret`, one plain file name in the unit's `units/<unit>/` space: a gateway road adds a key
+last of the unit's keys of that road, `claude-code` an `api-key` Claude account of the unit's with a
+configuration home of its own under the data root; it answers 201 with the item, and is refused 409
+`organisation-supply-closed` while the unit's supply stands closed, 409 `conflict` for a secret the unit holds
+already as a key of the road, and 422 `unknown-road` as a person's is. `PATCH` takes `enabled` and answers the
+page; turning a refused key on clears `refusedAt`. `DELETE` answers 204. An item of no such unit's is 404
+`unknown-supply`. `GET /supply-sources` answers a person's call `personal`, `platform`, `organisation`,
+`organisationSupply` and `personalOnly` (`docs/supply.md`, 「The sources a person's chain leaves open」); a call
+naming no person is refused 403.
 
 **Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it
 turns off each Claude account and key of the person, revokes their call key and answers `{accounts, keys}`, how
@@ -1381,7 +1417,9 @@ is refused 422 `not-a-directory`, as an account that keeps no login here is.
   being the platform's; a member named on the call adds, changes and removes the repositories of their own
   account alone (「Who a caller acts for」).
 - **A repository takes the work of its own side alone.** A side is one account, or the platform's: what is
-  filed under no account or under the administrator's own. Work stands on a repository only where its holder —
+  filed under no account or under the administrator's own; a repository an organisation unit owns, `ownerUnit`,
+  takes the work of the people of that unit's path alone (`docs/repositories.md`, 「An organisation's
+  repository」). Work stands on a repository only where its holder —
   the supervisor that files or holds it, or the role agent's seat, by its `ownerAccount` — stands on the
   repository's side, so a member's supervisor works on its account's repositories alone and the platform's
   supervisors on the platform's. An item filing, an assignment, a launch with every repository it lends, and a

@@ -1,0 +1,75 @@
+# What agency reads off the account service's delegation chain for the person an agent serves, beside its prompt
+# layers (policy/prompt-layers.toml): which supply sources the person's organisations leave open
+# (docs/supply.md, 「The sources a person's chain leaves open」), which agents an account is given as it is made
+# ready (docs/role-agents.md, 「The agents an account is given」), and who may add and change repositories
+# (docs/repositories.md, 「Who may add and change a repository」). Each setting is declared on the chain under the
+# unit name `policy/prompt-layers.toml` holds, as the prompt layers' are.
+
+# The supply sources. Each is a flag that narrows down the chain: a link turns a source off for everyone below it
+# and never turns one on that a link above turned off.
+[sources]
+# The source word a run's ledger and the supply hook carry for a run on its organisation's own credential.
+organisation_word = "organisation"
+# Why organisation supply is passed over at a run's start: no credential of the person's organisations answers
+# the road's provider. With {provider}.
+no_organisation = "no credential of the person's organisations answers {provider} now"
+
+[sources.platform]
+key = "supply.platform"
+description = "Whether a person here may run on the platform's supply: its Claude accounts lent to people and the gateway's members no one owns. A link turns it off for everyone below it; none turns it back on."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
+[sources.organisation]
+key = "supply.organisation"
+description = "Whether a person here may run on their organisation's own supply, the keys and Claude accounts a unit registers. Off until the platform turns it on for a company, by a rule naming it at the platform's link; a link below only turns it off."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit"]
+unit_permission = "manage"
+person_writer = "heads"
+default = false
+
+[sources.personal]
+key = "supply.personal"
+description = "Whether a person here may run on their own login or key. A link turns it off for everyone below it; none turns it back on."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
+# The agents an account is given as it is made ready: which roles its people may use, and how many agents of each
+# role, on which road, are made for a person at once. A JSON object agency judges and writes on the chain itself;
+# none set anywhere gives one agent for every role that has an agent of no account, on that agent's road.
+[composition]
+key = "signup.composition"
+description = "Which roles the people here may use, and the agents each is given as their account is made ready: for each role named, whether it is off, and the agents made of it, each on its road. A role named nowhere gives one agent on the road of the role's own agent."
+shape = "json"
+mode = "nearest"
+rules = false
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+# The most agents of one role a composition makes for one person.
+most_agents = 8
+
+# Who may add and change repositories: a person here, for their own account; and a head of a unit, for the unit's.
+[repositories]
+key = "repositories.manage"
+description = "Whether the people here may add and change repositories: a person their account's own, and a head their unit's. Off, a member's write of a repository is refused."
+shape = "flag"
+mode = "nearest"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true

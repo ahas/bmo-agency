@@ -291,8 +291,9 @@ async fn the_administrator_s_supervisors_carry_the_platform_s_rules_and_an_organ
   }
 }
 
-// Agency declares both settings as its policy holds them, and a kind a resolution finds undeclared is declared
-// and asked again.
+// Agency declares every setting it keeps on the chain as its policy holds them — the prompt layers' two beside the
+// supply sources, the sign-up composition and repository management — and a kind a resolution finds undeclared is
+// declared and asked again.
 #[tokio::test]
 async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_undeclared() {
   let scratch = store().await;
@@ -301,7 +302,25 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
   let declared = chain.lock().unwrap().declared.clone();
   let keys: HashSet<&str> = declared.keys().map(String::as_str).collect();
 
-  assert_eq!(keys, HashSet::from(["agency.org-instructions", "agency.persona"]));
+  assert_eq!(
+    keys,
+    HashSet::from([
+      "agency.org-instructions",
+      "agency.persona",
+      "supply.platform",
+      "supply.organisation",
+      "supply.personal",
+      "signup.composition",
+      "repositories.manage",
+    ])
+  );
+  assert_eq!(declared["supply.organisation"]["mode"], "narrowing");
+  assert_eq!(declared["supply.organisation"]["default"], json!(false));
+  assert_eq!(declared["signup.composition"]["shape"], "json");
+  assert!(
+    declared["signup.composition"].get("default").is_none(),
+    "none set gives the platform's own rule"
+  );
   assert_eq!(declared["agency.org-instructions"]["declaredBy"], "agency");
   assert_eq!(declared["agency.org-instructions"]["mode"], "layered");
   assert_eq!(declared["agency.org-instructions"]["shape"], "text");

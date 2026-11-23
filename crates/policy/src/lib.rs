@@ -29,6 +29,7 @@ pub mod machine_room;
 pub mod machine_turn;
 pub mod model_catalogue;
 pub mod node_states;
+pub mod organisation;
 pub mod person_nodes;
 pub mod place_words;
 pub mod pool_warm;

@@ -47,39 +47,38 @@ pub struct Table {
 }
 
 /// Whom a model name answers where it is not the platform's.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Owner {
   /// A personal member, laid on the account's own key: that account's call key alone.
   Personal(i64),
   /// A member or a registration the account owns: its call key, and the gateway's own key where the account
   /// is the administrator, whose supply the deployment's own runs go out on.
   Owned(i64),
+  /// A member laid on an organisation unit's own key: a call key whose account holds an open reservation on
+  /// that unit's supply alone, which the front judges itself (docs/own-llm.md, 「Personal members」).
+  Organisation(i64),
 }
 
 impl Owner {
   /// Whether a request its payer sends reaches the name, the platform administered by `administrator`.
   pub fn admits(self, payer: Payer, administrator: Option<i64>) -> bool {
     match (self, payer) {
-      (_, Payer::Account(paying)) => paying == self.account(),
+      (Owner::Organisation(_), _) => false,
+      (Owner::Personal(account) | Owner::Owned(account), Payer::Account(paying)) => paying == account,
       (Owner::Personal(_), Payer::Platform) => false,
       (Owner::Owned(account), Payer::Platform) => administrator == Some(account),
     }
   }
-
-  /// The account the name belongs to.
-  pub fn account(self) -> i64 {
-    match self {
-      Owner::Personal(account) | Owner::Owned(account) => account,
-    }
-  }
 }
 
-/// A member laid for one person on their own key (docs/own-llm.md, 「Personal members」).
+/// A member laid for one person, or for one organisation unit, on their own key (docs/own-llm.md, 「Personal
+/// members」).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Personal {
   pub member: Member,
-  /// The account whose key it goes out on, the only one whose call key reaches it.
-  pub account: i64,
+  /// Whose key it goes out on: `Owner::Personal` with the person, the only account whose call key reaches it,
+  /// or `Owner::Organisation` with the unit.
+  pub owner: Owner,
 }
 
 // Whether a secret's name names one file of the person's folder and nothing outside it.
@@ -90,12 +89,15 @@ fn plain_name(secret: &str) -> bool {
 /// The personal members the rows of personal supply lay: for each person and road, the open row with the
 /// lowest place, and beside each member of that road one more, `<member>@u<account>`, on the person's
 /// secret `users/<account>/<secret>` under the data root's `env/`, of no road of its own, so no road's model
-/// list names it. A row turned off, found refused or naming a secret outside the person's folder lays none.
+/// list names it; and for each organisation unit's rows the same, `<member>@o<unit>` on the unit's secret
+/// `units/<unit>/<secret>`. A row turned off, found refused or naming a secret outside its owner's folder lays
+/// none.
 pub fn personal_members(members: &[Member], keys: &[PersonalKey]) -> Vec<Personal> {
-  let mut first: BTreeMap<(i64, &str), &PersonalKey> = BTreeMap::new();
+  let mut first: BTreeMap<(Owner, &str), &PersonalKey> = BTreeMap::new();
 
   for key in keys.iter().filter(|key| key.open() && plain_name(&key.secret)) {
-    let held = first.entry((key.user_id, key.road.as_str())).or_insert(key);
+    let Some(owner) = key.owner() else { continue };
+    let held = first.entry((owner, key.road.as_str())).or_insert(key);
     if (key.place, key.id) < (held.place, held.id) {
       *held = key;
     }
@@ -103,19 +105,26 @@ pub fn personal_members(members: &[Member], keys: &[PersonalKey]) -> Vec<Persona
 
   first
     .into_iter()
-    .flat_map(|((account, road), key)| {
+    .flat_map(|((owner, road), key)| {
+      let (mark, folder, account) = match owner {
+        Owner::Organisation(unit) => (format!("o{unit}"), format!("units/{unit}"), None),
+        Owner::Personal(account) | Owner::Owned(account) => {
+          (format!("u{account}"), format!("users/{account}"), Some(account))
+        }
+      };
+
       members
         .iter()
         .filter(move |member| member.road.as_deref() == Some(road))
         .map(move |member| Personal {
           member: Member {
-            name: format!("{}@u{account}", member.name),
+            name: format!("{}@{mark}", member.name),
             road: None,
-            key_file: format!("users/{account}/{}", key.secret),
-            account: Some(account),
+            key_file: format!("{folder}/{}", key.secret),
+            account,
             ..member.clone()
           },
-          account,
+          owner,
         })
     })
     .collect()
@@ -144,7 +153,7 @@ pub fn owners(
     }
   }
   for one in personal {
-    owners.insert(one.member.name.clone(), Owner::Personal(one.account));
+    owners.insert(one.member.name.clone(), one.owner);
   }
 
   owners

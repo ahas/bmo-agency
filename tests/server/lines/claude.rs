@@ -13,6 +13,7 @@ fn account(id: &str, credential: Credential) -> Account {
     credential,
     needs_login_at: None,
     user_id: None,
+    unit_id: None,
     node: None,
     lendable: false,
     base_prompt: None,
@@ -420,6 +421,7 @@ fn an_api_key_login_hands_its_home_and_its_key_and_clears_every_other_credential
   };
   let persons = Account {
     user_id: Some(7),
+    unit_id: None,
     ..account("persons", keyed)
   };
 
@@ -437,6 +439,7 @@ fn a_person_s_login_on_their_node_is_handed_its_directory_there_and_no_token() {
   let data = tempfile::tempdir().unwrap();
   let held = Account {
     user_id: Some(7),
+    unit_id: None,
     node: Some("pc-7".into()),
     ..account(
       "theirs",

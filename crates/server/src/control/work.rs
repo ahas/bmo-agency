@@ -2330,14 +2330,17 @@ pub async fn carry_job<C: Carrier>(
     // The road the turn ended on: the Claude account its walk last moved it to, where it moved.
     let ended_on = roads.last().map_or_else(|| taken.clone(), |(road, _)| road.clone());
 
-    // A person's own credential the provider refused passes over to the next source on the same road, in a new
-    // session, and blocks no road (docs/supply.md, 「Running out mid-turn」).
-    if matches!(chosen.source, crate::supply::Source::Personal | crate::supply::Source::Owned)
-      && matches!(
-        road::BlockKind::of_words(&stopped),
-        Some(road::BlockKind::Access | road::BlockKind::Limit { .. })
-      )
-    {
+    // A person's own credential, or their organisation's, the provider refused passes over to the next source on the
+    // same road, in a new session, and blocks no road (docs/supply.md, 「Running out mid-turn」).
+    if matches!(
+      chosen.source,
+      crate::supply::Source::Personal
+        | crate::supply::Source::Owned
+        | crate::supply::Source::Organisation { .. }
+    ) && matches!(
+      road::BlockKind::of_words(&stopped),
+      Some(road::BlockKind::Access | road::BlockKind::Limit { .. })
+    ) {
       personal_refused(ground, job, &chosen, &stopped).await;
       if matches!(chosen.source, crate::supply::Source::Owned) {
         owned_refused = Some((chosen.provider.clone(), chosen.model.clone()));

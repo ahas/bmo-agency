@@ -4302,6 +4302,274 @@
         ]
       }
     },
+    "/organisation-supply/{unit}": {
+      "get": {
+        "operationId": "listOrganisationSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "An organisation unit's own keys and Claude accounts, and whether its supply stands open.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisationSupplyPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createOrganisationSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Add a key of an organisation unit's for a gateway road, or an Anthropic API key.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisationSupplyItem"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnknownRoad"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "unknown-road",
+          "conflict",
+          "organisation-supply-closed",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganisationSupplyAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/organisation-supply/{unit}/{supplyId}": {
+      "patch": {
+        "operationId": "changeOrganisationSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Turn one of an organisation unit's keys or accounts on or off.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganisationSupplyPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownSupply"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "unknown-supply",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
+          {
+            "name": "supplyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganisationSupplyChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteOrganisationSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Remove one of an organisation unit's keys or accounts.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownSupply"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "unknown-supply",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
+          {
+            "name": "supplyId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/supply-sources": {
+      "get": {
+        "operationId": "supplySources",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The supply sources the signed-in person's delegation chain leaves open.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplySources"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "access-unchecked"
+        ]
+      }
+    },
     "/people/{user}/off-boarding": {
       "post": {
         "operationId": "offBoardPerson",
@@ -6973,6 +7241,162 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/RoleAgentAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/composed-agents/{ownerAccount}": {
+      "post": {
+        "operationId": "composeAgents",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Make a person's agents as the sign-up composition resolved for them says.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComposedAgents"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "not-found",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/signup-composition": {
+      "get": {
+        "operationId": "signupComposition",
+        "tags": [
+          "roles"
+        ],
+        "summary": "The sign-up composition standing for a unit or a person, and the subject's own link.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignupComposition"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          },
+          {
+            "name": "person",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": ""
+            }
+          }
+        ]
+      }
+    },
+    "/signup-composition/{link}": {
+      "put": {
+        "operationId": "setSignupComposition",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Judge a link's sign-up composition and write it on the delegation chain in the caller's name.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/BadComposition"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-composition",
+          "forbidden",
+          "locked",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "link",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignupCompositionAsk"
               }
             }
           }
@@ -11701,6 +12125,14 @@
             "description": "The person it belongs to, or null for the platform's.",
             "default": null
           },
+          "unitId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The organisation unit it belongs to in place of a person, where one does."
+          },
           "node": {
             "type": [
               "string",
@@ -11931,6 +12363,14 @@
               "null"
             ],
             "description": "Whether the platform's account goes out for another person's run; refused for a person's account."
+          },
+          "unitId": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "`update-account`: the organisation unit a platform account is given to, null to give it back; the owner's\nalone."
           },
           "key": {
             "type": [
@@ -13013,6 +13453,137 @@
           }
         },
         "description": "A change of one of the person's keys: its place, its switch, or both."
+      },
+      "OrganisationSupplyPage": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "open": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether organisation supply stands open for the unit on the delegation chain."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganisationSupplyItem"
+            }
+          }
+        },
+        "required": [
+          "unit",
+          "items"
+        ],
+        "description": "An organisation unit's own supply as its heads read it."
+      },
+      "OrganisationSupplyItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "`key-<n>` for a gateway key, `account-<id>` for a Claude account."
+          },
+          "road": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "The secret's name in the unit's space of the secret store; its value is never reported."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Claude account's name, for an account."
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "refusedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "epoch milliseconds: when its provider refused it, or the account was found waiting."
+          }
+        },
+        "required": [
+          "id",
+          "road",
+          "secret",
+          "enabled",
+          "refusedAt"
+        ],
+        "description": "One item of an organisation unit's own supply: a key for a gateway road, or an Anthropic API key standing as a\nClaude account of the unit's, `claude-code` its road."
+      },
+      "OrganisationSupplyAsk": {
+        "type": "object",
+        "properties": {
+          "road": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string",
+            "description": "One plain file name in the unit's space of the secret store."
+          }
+        },
+        "required": [
+          "road",
+          "secret"
+        ],
+        "description": "A key of an organisation unit's added: a gateway road and a secret of the unit's space, or `claude-code` for an\nAnthropic API key."
+      },
+      "OrganisationSupplyChange": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "description": "One of an organisation unit's keys or accounts turned on or off."
+      },
+      "SupplySources": {
+        "type": "object",
+        "properties": {
+          "personal": {
+            "type": "boolean",
+            "description": "Their own login or key."
+          },
+          "platform": {
+            "type": "boolean",
+            "description": "The platform's supply."
+          },
+          "organisation": {
+            "type": "boolean",
+            "description": "Their organisation's own supply."
+          },
+          "organisationSupply": {
+            "type": "boolean",
+            "description": "Whether a unit on their path holds supply of its own that is on."
+          },
+          "personalOnly": {
+            "type": "boolean",
+            "description": "Whether their own login or key is all that can carry their runs."
+          }
+        },
+        "required": [
+          "personal",
+          "platform",
+          "organisation",
+          "organisationSupply",
+          "personalOnly"
+        ],
+        "description": "The supply sources the signed-in person's delegation chain leaves open."
       },
       "OffBoarded": {
         "type": "object",
@@ -15501,6 +16072,113 @@
         ],
         "description": "RoleAgentPage: the agents, by role and name."
       },
+      "ComposedAgents": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RoleAgent"
+            }
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "description": "The agents made for a person by their composition."
+      },
+      "SignupComposition": {
+        "type": "object",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "`unit:<id>` or `person:<user>`."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompositionRole"
+            }
+          },
+          "own": {
+            "description": "The subject's own link as the delegation chain answers it to the caller: its `value`, `delegation`,\n`lockedBy` and `writable`."
+          }
+        },
+        "required": [
+          "subject",
+          "roles",
+          "own"
+        ],
+        "description": "A sign-up composition as it stands for a unit or a person, with the subject's own link where the caller reads\nit."
+      },
+      "CompositionRole": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "off": {
+            "type": "boolean",
+            "description": "Whether the role is off for the people under the subject."
+          },
+          "agents": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/CompositionRoad"
+            },
+            "description": "The roads of the agents a person is given of it, none for the platform's rule."
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The link that said the agents, where one did."
+          }
+        },
+        "required": [
+          "role",
+          "off",
+          "agents",
+          "from"
+        ],
+        "description": "What stands of one role in a sign-up composition for a subject."
+      },
+      "CompositionRoad": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "description": "One agent's road in a sign-up composition."
+      },
+      "SignupCompositionAsk": {
+        "type": "object",
+        "properties": {
+          "value": true
+        },
+        "required": [
+          "value"
+        ],
+        "description": "A link's sign-up composition written: `{ roles: { <role>: { off, agents } } }`, or null to follow above."
+      },
       "RoleAgentAsk": {
         "type": "object",
         "properties": {
@@ -15765,6 +16443,14 @@
               "null"
             ],
             "format": "int64"
+          },
+          "ownerUnit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The organisation unit it belongs to in place of an account, whose people's agents alone work on it."
           },
           "path": {
             "type": "string"
@@ -16047,6 +16733,14 @@
               "null"
             ],
             "format": "int64"
+          },
+          "ownerUnit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The organisation unit an added repository is filed under in place of an account, by a head of the unit."
           },
           "path": {
             "type": [
@@ -17199,6 +17893,16 @@
       }
     },
     "responses": {
+      "AccessUnchecked": {
+        "description": "access-unchecked",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AgentBusy": {
         "description": "agent-busy",
         "content": {
@@ -17231,6 +17935,16 @@
       },
       "AwaitsOwner": {
         "description": "awaits-owner",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "BadComposition": {
+        "description": "bad-composition",
         "content": {
           "application/json": {
             "schema": {
@@ -17311,6 +18025,16 @@
       },
       "Gone": {
         "description": "gone",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "locked",
         "content": {
           "application/json": {
             "schema": {
@@ -17541,6 +18265,16 @@
       },
       "NotThisJob": {
         "description": "not-this-job",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "OrganisationSupplyClosed": {
+        "description": "organisation-supply-closed",
         "content": {
           "application/json": {
             "schema": {

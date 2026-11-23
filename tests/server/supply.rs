@@ -8,6 +8,7 @@ mod call_keys;
 mod choice;
 mod kept_hook;
 mod meter;
+mod organisation;
 mod settlements;
 mod usage;
 

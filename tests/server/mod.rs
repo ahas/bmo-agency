@@ -15,6 +15,7 @@ mod cards;
 mod chat_runs;
 mod chat_stand_in;
 mod clock;
+mod composition;
 mod conversation_session;
 mod role_runs;
 mod role_sessions;

@@ -237,6 +237,7 @@ async fn a_claude_code_step_stands_claude_code_on_its_login_and_not_on_the_gatew
     },
     needs_login_at: None,
     user_id: None,
+    unit_id: None,
     node: None,
     lendable: false,
     base_prompt: None,

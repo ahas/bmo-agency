@@ -764,6 +764,7 @@ async fn code_on_node(
   };
   let owning = Owning {
     user_id: Some(sign_in.user),
+    unit_id: None,
     node: Some(sign_in.node.clone()),
   };
 

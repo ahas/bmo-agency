@@ -366,6 +366,9 @@ pub struct Account {
   pub needs_login_at: Option<i64>,
   /// The user whose account it is, where the multi-user model names one.
   pub user_id: Option<i64>,
+  /// The organisation unit whose account it is, where a unit owns it in place of a person (docs/supply.md,
+  /// 「Organisation supply」).
+  pub unit_id: Option<i64>,
   /// The node a person's login was signed in on and stands on, none for an account of this machine's
   /// (docs/supply.md, 「Signing a person's login in」).
   pub node: Option<String>,
@@ -403,12 +406,13 @@ impl Account {
     }
   }
 
-  /// Whether a run may go out on it from a work node: as its credential says, and a person's `api-key`
-  /// account besides, whose key is the person's own and goes out on their node with the run
-  /// (docs/supply.md, 「The lendable accounts」).
+  /// Whether a run may go out on it from a work node: as its credential says, and a person's or an
+  /// organisation's `api-key` account besides, whose key is theirs and goes out on the node of the person whose
+  /// run it carries (docs/supply.md, 「The lendable accounts」 and 「Organisation supply」).
   pub fn runs_on_nodes(&self) -> bool {
     self.credential.runs_on_nodes()
-      || matches!(self.credential, Credential::ApiKey { .. }) && self.user_id.is_some()
+      || matches!(self.credential, Credential::ApiKey { .. })
+        && (self.user_id.is_some() || self.unit_id.is_some())
   }
 
   /// Whether it is a person's login signed in on their node, whose configuration directory stands there
@@ -564,7 +568,7 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
   let rows = all(
     db,
     r#"SELECT a.id, a.name, a.place, a.enabled, a.credential_kind, a.credential_path, a.endpoint_url,
-       a.key_file, a.endpoint_models, a.needs_login_at, a.user_id, a.node, a.lendable, a.base_prompt,
+       a.key_file, a.endpoint_models, a.needs_login_at, a.user_id, a.unit_id, a.node, a.lendable, a.base_prompt,
        s."value" AS node_token_gone
      FROM claude_accounts a
      LEFT JOIN "settings" s ON s."key" = $1 || a.id
@@ -593,6 +597,7 @@ pub async fn accounts(db: &DatabaseConnection) -> Result<Vec<Account>, Refused> 
         credential,
         needs_login_at: row.try_get("", "needs_login_at")?,
         user_id: row.try_get("", "user_id")?,
+        unit_id: row.try_get("", "unit_id")?,
         node: row.try_get("", "node")?,
         lendable: row.try_get("", "lendable")?,
         base_prompt: row.try_get("", "base_prompt")?,
@@ -1003,10 +1008,12 @@ pub async fn administrator(db: &DatabaseConnection) -> Result<Option<i64>, Refus
   )
 }
 
-/// Whether an account is the platform's own, given the user who administers it: one of no person's, or of
-/// the administrator's, and every account while the multi-user model names no administrator.
+/// Whether an account is the platform's own, given the user who administers it: one of no person's and no
+/// organisation's, or of the administrator's, and every account of no organisation while the multi-user model
+/// names no administrator.
 pub fn platform_owned(account: &Account, administrator: Option<i64>) -> bool {
-  account.user_id.is_none() || administrator.is_none() || account.user_id == administrator
+  account.unit_id.is_none()
+    && (account.user_id.is_none() || administrator.is_none() || account.user_id == administrator)
 }
 
 /// The logins a run may go out on (docs/cache-fallback.md, 「The Claude Code road is a list of accounts」).
@@ -1019,6 +1026,9 @@ pub enum Carrying {
   /// The platform's accounts marked lendable alone, which another person's run on a platform source walks
   /// (docs/supply.md, 「The lendable accounts」).
   Lent,
+  /// One organisation unit's own accounts alone, which a run of a person under it on organisation supply walks
+  /// (docs/supply.md, 「Organisation supply」).
+  Organisation(i64),
 }
 
 impl From<Option<i64>> for Carrying {
@@ -1042,7 +1052,8 @@ pub async fn carried_for_user(
   let carries = |account: &Account| match carrying {
     Carrying::Own(user) => account.user_id == Some(user),
     Carrying::Platform => platform_owned(account, administrator),
-    Carrying::Lent => account.user_id.is_none() && account.lendable,
+    Carrying::Lent => account.user_id.is_none() && account.unit_id.is_none() && account.lendable,
+    Carrying::Organisation(unit) => account.unit_id == Some(unit),
   };
 
   Ok(road_order(db).await?.into_iter().filter(|one| carries(one)).collect())
@@ -1232,6 +1243,7 @@ pub async fn views_of(
       "models": models,
       "basePrompt": account.base_prompt,
       "userId": account.user_id,
+      "unitId": account.unit_id,
       "node": account.node,
       "lendable": account.lendable,
       "login": login_standing(&account, now),
