@@ -26,6 +26,7 @@ off = "{account} is turned off"
 resting = "{account} is at its limit until {until}"
 model_resting = "{account} is at its {model} limit until {until}"
 person = "{account} waits for a person to sign in again"
+no_login = "{account} holds no login on this machine: it is not signed in"
 key = "{account} has no key in its key file"
 balance = "{account} has spent its balance"
 

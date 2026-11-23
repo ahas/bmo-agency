@@ -347,12 +347,22 @@ impl Credential {
   /// account's secret present and not empty, never opened; every other kind holds no key to judge.
   pub fn key_held(&self) -> bool {
     match self {
-      Self::Endpoint { key_file, .. } | Self::ApiKey { key_file, .. } => {
-        std::fs::metadata(key_file).is_ok_and(|held| held.is_file() && held.len() > 0)
-      }
+      Self::Endpoint { key_file, .. } | Self::ApiKey { key_file, .. } => filled(key_file),
       Self::Directory { .. } | Self::Token { .. } => true,
     }
   }
+
+  /// Whether a login stands to be handed to a run (docs/cache-fallback.md, 「The account judgement」): a
+  /// directory account's credentials file or a token account's token file present and not empty, never
+  /// opened; an endpoint or `api-key` account holds no login, its key being judged apart.
+  pub fn login_held(&self) -> bool {
+    self.login_file().is_none_or(|file| filled(&file))
+  }
+}
+
+// Whether a file stands, a file and not empty; what it holds is never read.
+fn filled(path: &Path) -> bool {
+  std::fs::metadata(path).is_ok_and(|held| held.is_file() && held.len() > 0)
 }
 
 /// One account as the store holds it.
@@ -847,6 +857,8 @@ pub enum LoginClosed {
   Key,
   /// It waits for a person to sign in again, or to settle its endpoint's key or balance.
   Person,
+  /// It holds no login on this machine: it was never signed in, or its login was taken away.
+  NoLogin,
   /// A window of its own is full, or a rest stands under it, until this epoch second.
   Resting(i64),
   /// The model the run asks for rests on it, until this epoch second; it stays open to every other model.
@@ -863,6 +875,7 @@ impl LoginClosed {
       Self::Off => &words.off,
       Self::Key => &words.key,
       Self::Person => &words.person,
+      Self::NoLogin => &words.no_login,
       Self::Resting(_) => &words.resting,
       Self::ModelResting { .. } => &words.model_resting,
       Self::Balance => &words.balance,
@@ -883,12 +896,12 @@ impl LoginClosed {
     let wording = &CLAUDE_CODE.login;
 
     match (self, &account.credential) {
-      (Self::Person, Credential::Directory { .. }) => Some(
+      (Self::Person | Self::NoLogin, Credential::Directory { .. }) => Some(
         wording
           .directory_command
           .replace("{path}", &account.credential.path().to_string_lossy()),
       ),
-      (Self::Person, Credential::Token { .. }) => {
+      (Self::Person | Self::NoLogin, Credential::Token { .. }) => {
         Some(wording.token_command.replace("{path}", &account.credential.path().to_string_lossy()))
       }
       (Self::Person | Self::Balance, Credential::Endpoint { url, .. }) => harness_providers::providers()
@@ -907,7 +920,8 @@ pub fn moment_words(at: i64) -> String {
 }
 
 /// Why a login cannot answer now a run on `model`, or on no model in particular where none is named; none
-/// where it can: it is on, an endpoint account's key file is there and not empty, its login has not gone, no
+/// where it can: it is on, an endpoint account's key file is there and not empty, a directory or token
+/// account holds a login here (a person's login on their node is theirs to hold), its login has not gone, no
 /// window of its own is full, an endpoint account's balance as last read is above zero, and the model named
 /// does not rest on it. This is the one judgement every run of every line is offered a login by.
 pub async fn closed_why(
@@ -922,6 +936,10 @@ pub async fn closed_why(
 
   if !account.credential.key_held() {
     return Ok(Some(LoginClosed::Key));
+  }
+
+  if !account.on_own_node() && !account.credential.login_held() {
+    return Ok(Some(LoginClosed::NoLogin));
   }
 
   // A directory account that carries on by its token for the work nodes answers on it, mark and all.

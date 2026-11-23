@@ -208,6 +208,9 @@ field() { sed -n "s/^$1=//p" "$env" | tail -n 1; }
 header="$(mktemp)"
 trap 'rm -f "$header"' EXIT
 printf 'Authorization: Bearer %s\n' "$(field AGENCY_CONTROL_TOKEN)" > "$header"
-curl -sf -H @"$header" "http://127.0.0.1:$(field AGENCY_CONTROL_PORT)/supervisors/$(field AGENCY_AGENT_KEY)/road" |
-  jq -e '.answers == true' > /dev/null
+road="$(curl -sf -H @"$header" "http://127.0.0.1:$(field AGENCY_CONTROL_PORT)/supervisors/$(field AGENCY_AGENT_KEY)/road")"
+if ! printf '%s' "$road" | jq -e '.answers == true' > /dev/null; then
+  printf '%s' "$road" | jq -r '.reason // "the road gave no reason"' >&2
+  exit 1
+fi
 '''

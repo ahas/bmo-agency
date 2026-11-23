@@ -1,8 +1,8 @@
 //! A supervisor's one road and its call names, asked of a running server over its control routes (docs/api.md,
-//! 「supervisors」): the road route names the road and whether a turn would go out on it now, no stand-in route
-//! stands, a body naming an order or a forced provider is refused, call names are written whole and read back as
-//! one line or refused out of their bounds, and a session is started at no scope the contract does not name — on
-//! a store the server settled itself.
+//! 「supervisors」): the road route names the road and whether a turn would go out on it now, never on a Claude
+//! login that was never signed in, no stand-in route stands, a body naming an order or a forced provider is
+//! refused, call names are written whole and read back as one line or refused out of their bounds, and a session
+//! is started at no scope the contract does not name — on a store the server settled itself.
 
 use serde_json::{Value, json};
 
@@ -45,14 +45,32 @@ async fn a_running_server_answers_a_supervisor_s_road_and_call_names_and_refuses
   let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
   let port = server.port;
 
-  // Its road is Claude Code's, which answers here: the road is named and a turn would go out on it.
-  let (status, road) = get(port, token, "/supervisors/chat-agent/road").await;
+  // Its road is Claude Code's, on the machine's own login, never signed in on this machine: the road is named
+  // and cannot take a turn, the reason naming the sign-in command with that login's directory in front of it.
+  let login = home.path().join(".claude");
 
-  assert_eq!(status, 200, "{road}");
+  std::fs::remove_file(login.join(".credentials.json")).unwrap();
+
+  let (status, unsigned) = get(port, token, "/supervisors/chat-agent/road").await;
+
+  assert_eq!(status, 200, "{unsigned}");
   assert_eq!(
-    (&road["supervisor"], &road["provider"], &road["model"]),
+    (&unsigned["supervisor"], &unsigned["provider"], &unsigned["model"]),
     (&json!("chat-agent"), &json!("claude-code"), &json!("claude-opus-5"))
   );
+  assert_eq!(unsigned["answers"], json!(false), "{unsigned}");
+  assert!(
+    unsigned["reason"].as_str().is_some_and(
+      |reason| reason.contains(&format!("CLAUDE_CONFIG_DIR={} claude /login", login.display()))
+    ),
+    "{unsigned}"
+  );
+
+  // Signed in, its credentials file standing, the road answers.
+  std::fs::write(login.join(".credentials.json"), "test-token").unwrap();
+
+  let (_, road) = get(port, token, "/supervisors/chat-agent/road").await;
+
   assert_eq!((&road["answers"], &road["reason"]), (&json!(true), &Value::Null), "{road}");
 
   // Claude Code switched off, the road cannot take a turn: the reason says why, with no other road offered in its

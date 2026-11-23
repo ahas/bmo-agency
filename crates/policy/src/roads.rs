@@ -40,6 +40,8 @@ pub struct Logins {
   /// One model resting on the login, with `{model}` and `{until}`.
   pub model_resting: String,
   pub person: String,
+  /// A login never signed in on this machine, or one whose credential file is gone.
+  pub no_login: String,
   pub key: String,
   pub balance: String,
 }

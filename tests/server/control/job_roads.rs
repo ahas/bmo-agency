@@ -12,10 +12,10 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use crate::support::grounds::{OrderEntry, deepseek_balance, set_provider_order};
+use crate::support::grounds::{OrderEntry, deepseek_balance, set_provider_order, signed_in};
 use agency_server::Service;
 use agency_server::config::Config;
-use agency_server::control::claude_accounts::{Account, CREDENTIAL_FILE};
+use agency_server::control::claude_accounts::{Account, CREDENTIAL_FILE, machine_config_dir};
 use agency_server::control::work::{Carried, Carrier, carry_job, continued, road_stopped};
 use agency_server::job_run::claude::failure::{Failure as ClaudeFailure, of_unanswered};
 use agency_server::job_run::claude::renewal::Renewing;
@@ -380,6 +380,7 @@ async fn standing_naming(
   let ground = ground_naming(scratch.db().clone(), home, peers);
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  signed_in(&machine_config_dir(&ground.machine()));
   crate::support::rows::seated_on_order(scratch.db(), "worker").await;
   set_provider_order(scratch.db(), &order).await.unwrap();
   std::fs::create_dir_all(home.join("helper")).unwrap();
@@ -922,6 +923,7 @@ async fn support_standing(scratch: &Scratch, home: &Path) -> (Ground, PathBuf, P
   let ground = ground_on(scratch.db().clone(), home);
 
   store::seed::settle(scratch.db(), &deployment(&ground.machine())).await.unwrap();
+  signed_in(&machine_config_dir(&ground.machine()));
   crate::support::rows::seated_on_order(scratch.db(), "worker").await;
   set_provider_order(scratch.db(), &order).await.unwrap();
 

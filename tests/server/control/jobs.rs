@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use crate::support::grounds::{OrderEntry, set_provider_order};
+use crate::support::grounds::{OrderEntry, set_provider_order, signed_in};
 use axum::http::StatusCode;
 use harness_providers::ARCHIVE_PROVIDERS;
 use serde_json::{Value, json};
@@ -147,7 +147,7 @@ async fn a_job_waits_for_a_login_ends_with_why_and_frees_its_worker() {
     axum::serve(listener, routes).await.unwrap();
   });
 
-  std::fs::create_dir_all(&login).unwrap();
+  signed_in(&login);
   std::fs::create_dir_all(home.path().join("helper")).unwrap();
   tool_host(&host);
   repository(

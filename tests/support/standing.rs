@@ -1,7 +1,9 @@
 //! Agency's own server as a test stands it: started on the store and a data root of the test's own, under a
 //! home of the test's own so it reaches no herdr of the machine's, its control port and its quota source
 //! each on a port the machine picks, once a seat of the test server's connections is free for its pool;
-//! and its control port once it listens. It is stopped when the guard goes, and its seat given back.
+//! and its control port once it listens. The machine's own Claude login stands signed in under that home,
+//! where the variables name no directory of their own. It is stopped when the guard goes, and its seat given
+//! back.
 
 #![allow(dead_code)]
 
@@ -11,6 +13,7 @@ use std::process::{Child, Command, Stdio};
 
 use crate::support::binary;
 use crate::support::connections::Seat;
+use crate::support::grounds::signed_in;
 
 /// A server standing, and the port its control routes listen on.
 pub struct Standing {
@@ -74,6 +77,11 @@ pub fn stand_server_with(
   // test that needs a stand-in names it in `variables`; the marker keeps even that from being called.
   let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_owned());
   let program = binary::path("agency-server");
+
+  if !variables.iter().any(|(name, _)| *name == "CLAUDE_CONFIG_DIR") {
+    signed_in(&home.join(".claude"));
+  }
+
   let seat = Seat::take();
   let mut child = Command::new(program)
     .env_clear()

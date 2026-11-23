@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use agency_server::control::work::{REAPED, RESUMED};
 
-use crate::support::grounds::{OrderEntry, set_provider_order};
+use crate::support::grounds::{OrderEntry, set_provider_order, signed_in};
 use crate::support::rows::repository;
 use crate::support::scratch::Scratch;
 use crate::support::standing;
@@ -134,7 +134,7 @@ async fn a_job_waiting_for_a_road_then_its_slot_is_launched_again_by_each_proces
   let host = home.path().join("mcp-host.sock");
 
   std::fs::create_dir_all(&data).unwrap();
-  std::fs::create_dir_all(&login).unwrap();
+  signed_in(&login);
   std::fs::create_dir_all(home.path().join("helper")).unwrap();
   tool_host(&host);
   repository(scratch.db(), "helper", &home.path().join("helper").to_string_lossy(), &[]).await;

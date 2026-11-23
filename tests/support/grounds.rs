@@ -6,6 +6,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use agency_server::Service;
 use agency_server::config::Config;
+use agency_server::control::claude_accounts::{CREDENTIAL_FILE, machine_config_dir};
 use agency_server::order_run::dispatch;
 use agency_server::places::Ground;
 use agency_server::seeds::deployment;
@@ -95,7 +96,16 @@ pub fn openrouter_road(home: &std::path::Path, members: &[(&str, &str, Option<bo
   std::fs::write(data.join("llm-gateway").join("members.json"), format!("[{}]", every.join(","))).unwrap();
 }
 
-/// A ground seeded as the deployment seeds its store, DeepSeek's road standing on it.
+/// A Claude login standing in the configuration directory `home`: its credentials file written with a stand-in,
+/// which the account judgement only looks for and never opens (docs/cache-fallback.md, 「The account
+/// judgement」).
+pub fn signed_in(home: &std::path::Path) {
+  std::fs::create_dir_all(home).unwrap();
+  std::fs::write(home.join(CREDENTIAL_FILE), "{}").unwrap();
+}
+
+/// A ground seeded as the deployment seeds its store, the machine's own Claude login signed in and DeepSeek's
+/// road standing on it.
 pub async fn seeded(db: &DatabaseConnection, home: &std::path::Path) -> Ground {
   seeded_with(db, home, &BTreeMap::new()).await
 }
@@ -109,6 +119,7 @@ pub async fn seeded_with(
   let ground = ground_with(db.clone(), home, more);
 
   store::seed::settle(db, &deployment(&ground.machine())).await.unwrap();
+  signed_in(&machine_config_dir(&ground.machine()));
   deepseek_road(home);
 
   ground

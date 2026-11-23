@@ -21,12 +21,13 @@ use agency_server::usage_windows::window_logins;
 use cache_siren::Keeping;
 use harness_providers::Machine;
 
+use crate::support::grounds::signed_in;
 use crate::support::scratch::Scratch;
 
 // The model the walks' runs go out on.
 const MODEL: &str = "claude-opus-5-5";
 
-// A directory account `main` and an endpoint account `deep`, each with a home of its own, and the
+// A directory account `main`, signed in, and an endpoint account `deep`, each with a home of its own, and the
 // endpoint's key written into its file.
 struct Logins {
   scratch: Scratch,
@@ -40,7 +41,7 @@ impl Logins {
     let main = dir.path().join("main");
     let deep = dir.path().join("deep");
 
-    std::fs::create_dir_all(&main).unwrap();
+    signed_in(&main);
     std::fs::create_dir_all(&deep).unwrap();
     std::fs::write(dir.path().join("deep.key"), "sk-endpoint\n").unwrap();
 

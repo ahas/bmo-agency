@@ -19,7 +19,7 @@ use policy::supply::SUPPLY;
 use serde_json::json;
 
 use super::{Consumer, PERSON, asked, personal_key, row_of, state_of};
-use crate::support::grounds::{deepseek_road, ground_on};
+use crate::support::grounds::{deepseek_road, ground_on, signed_in};
 use crate::support::scratch::Scratch;
 
 fn going(choice: Choice) -> Chosen {
@@ -335,7 +335,7 @@ async fn an_account_marked_lendable_is_lent_on_a_platform_source_whoever_owns_it
   let consumer = Consumer::stand().await;
   let login = home.path().join("login");
 
-  std::fs::create_dir_all(&login).unwrap();
+  signed_in(&login);
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
     .run(
@@ -462,7 +462,7 @@ async fn no_login_is_lent_to_a_person_whose_node_other_accounts_share() {
   let login = home.path().join("login");
   let person = PERSON.to_string();
 
-  std::fs::create_dir_all(&login).unwrap();
+  signed_in(&login);
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
     .run(

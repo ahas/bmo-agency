@@ -12,6 +12,7 @@ use agency_server::now_ms;
 use cache_siren::reader::Passing;
 use cache_siren::{Keeping, Reader, Slot, Window};
 
+use crate::support::grounds::signed_in;
 use crate::support::scratch::Scratch;
 
 /// A reader of Claude Code's windows whose reading stands for half an hour, and which passes over nothing.
@@ -146,13 +147,21 @@ async fn a_chosen_account_spent_until_its_reset_is_not_serving_and_serves_again_
       .collect::<Vec<_>>()
   };
 
+  let logins = tempfile::tempdir().unwrap();
+  let (first_home, second_home) = (logins.path().join("first"), logins.path().join("second"));
+
+  signed_in(&first_home);
+  signed_in(&second_home);
   scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
   scratch
     .run(
       r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at")
-         VALUES ('first', 'first', 1, 1, 'directory', '/logins/first', 0),
-                ('second', 'second', 2, 1, 'directory', '/logins/second', 0)"#,
-      vec![],
+         VALUES ('first', 'first', 1, 1, 'directory', $1, 0),
+                ('second', 'second', 2, 1, 'directory', $2, 0)"#,
+      vec![
+        first_home.to_string_lossy().into_owned().into(),
+        second_home.to_string_lossy().into_owned().into(),
+      ],
     )
     .await;
   scratch

@@ -62,7 +62,7 @@ struct Bench {
 }
 
 impl Bench {
-  // Two logins, `main` first in the order and in use, `default` after it, each in a folder of its own.
+  // Two logins, `main` first in the order and in use, `default` after it, each signed in its own folder.
   async fn new() -> Self {
     let scratch = Scratch::new().await;
     let homes = tempfile::tempdir().unwrap();
@@ -75,7 +75,7 @@ impl Bench {
     for (id, place) in [("main", 1_i64), ("default", 2)] {
       let home = homes.path().join(id);
 
-      std::fs::create_dir_all(&home).unwrap();
+      crate::support::grounds::signed_in(&home);
       scratch
         .run(
           r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at")

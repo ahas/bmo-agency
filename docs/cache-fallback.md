@@ -356,7 +356,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   document or a report. All three are looked for as shapes rather than fields, since the file's shape is
   the CLI's and free to move. A token file states no ending, so what stands for its year is the day the
   file was written.
-- **A login whose end cannot be read is left standing and nothing is said about it.**
+- **A login whose file stands but states no end this side can read is left standing and nothing is said
+  about it;** a login with no file at all is not held (「The account judgement」).
 - **A renewal is timed against the CLI's own margin.** The CLI renews a token only as a run goes out
   inside the last minutes before the moment its file states, and passes it by before them, so a login
   counts as near its end only inside that margin, which the provider's usage declaration names.
@@ -556,11 +557,17 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **One judgement says whether a login answers now, and every Claude run is offered a login by it** —
   every supervisor's turn, fold and warm ping, and every role's run, search and browse among them. No line
   keeps a judgement of its own, and none falls back to the machine's own login in place of one.
-- **A login is open while all three hold:** it is on; no window of its own is full (neither a rest standing
-  under it, a limit's or a refusal's, nor a reading of its own windows showing one full that has not reset —
-  `docs/usage-windows.md`); and its login has not gone (「A login that is about to end」), or it carries on by
-  its token for the work nodes (「A directory account carries on by its token」). A login that waits for a
-  person and has no such token to carry on by is closed.
+- **A login is open while all four hold:** it is on; it holds a login on this machine; no window of its own
+  is full (neither a rest standing under it, a limit's or a refusal's, nor a reading of its own windows showing
+  one full that has not reset — `docs/usage-windows.md`); and its login has not gone (「A login that is about
+  to end」), or it carries on by its token for the work nodes (「A directory account carries on by its
+  token」). A login that waits for a person and has no such token to carry on by is closed.
+- **A login is held where its credential file stands, a file and not empty:** a directory account's
+  credentials file in its configuration directory, a token account's token file. The file is only looked at,
+  never opened. One that holds none — a directory the CLI was never signed in to, the machine's own login on a
+  fresh installation among them — is closed as never signed in, and the road's sentence names the sign-in
+  command with that account's own configuration directory in front of it, as for a login waiting for a person.
+  A person's login signed in on their node stands there and nowhere here, so it is not looked for here.
 - **A run on a model asks one thing more: that model does not rest on that login.** A model's rest is one
   login's and one model's, so a login whose model rests is closed to runs on that model alone and stays
   open to every other model, and its rest never counts toward the deployment's rest
