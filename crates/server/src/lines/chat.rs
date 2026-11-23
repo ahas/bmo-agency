@@ -19,6 +19,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 
 use agent_host::place::ResidentCommand;
+use harness_machine::supervisor_prompt::Layers;
 use harness_providers::claude_code::ClaudeCode;
 use policy::run_lines::RUN_LINES;
 
@@ -31,7 +32,9 @@ use super::pieces::{ComposedTurn, LOST_SESSION, Window, walked_login};
 use super::place::{Holds, Place, read_settings, write_place_settings};
 use super::standing::{GatewayModel, OnGateway, Placing, gateway_command, status_root};
 use super::token::{self, facts};
-use super::worker::{Reasoning, WorkerRun, effort_of, reasoning_of, rulebook, system_prompt_file};
+use super::worker::{
+  Reasoning, WorkerRun, effort_of, platform_rulebook, reasoning_of, rulebook, system_prompt_file,
+};
 use super::{Trees, fault, publish_text, read_required};
 use crate::Refusal;
 use crate::control::claude_accounts::Account;
@@ -268,6 +271,8 @@ pub fn tools_paragraph(program: &[&str], servers: &[String], shown: &[String]) -
 /// not Claude Code's composes the same prompt with its own program's tools named.
 #[derive(Clone, Debug, Default)]
 pub struct SystemParts {
+  /// What stands between the harness and the role, and whether the persona is left out (docs/prompt-layers.md).
+  pub layers: Layers,
   pub above: Option<String>,
   pub persona: Option<String>,
   pub discipline: Option<String>,
@@ -284,23 +289,34 @@ impl SystemParts {
     super::harnessed(trees, &self.compose(trees, program)?)
   }
 
-  /// The chat's role and persona for a program whose own tools are these: what follows the harness, which
-  /// a program that is a harness of its own, as dsh is, carries after its own prompt.
+  /// What follows the harness for a program whose own tools are these, which a program that is a harness of
+  /// its own, as dsh is, carries after its own prompt: the platform's rules where its layers attach them, its
+  /// organisation's instructions where it has any, the chat's role, and its persona unless the chain chose none
+  /// (docs/prompt-layers.md).
   pub fn compose(&self, trees: &Trees, program: &[&str]) -> Result<String, Refusal> {
     let tools = tools_paragraph(program, &self.servers, RUN_LINES.shown(LINE));
+    let persona = if self.layers.persona_none { None } else { self.persona.as_deref() };
     let system = chat_system(
       trees,
       &self.documents,
-      self.persona.as_deref(),
+      persona,
       self.discipline.as_deref(),
       self.tool_discipline.as_deref(),
       Some(&tools),
     )?;
+    let mut parts = vec![];
 
-    Ok(match &self.above {
-      Some(above) => format!("{above}\n\n{system}"),
-      None => system,
-    })
+    if self.layers.platform {
+      for name in &CHAT_LINE.system.platform {
+        parts.push(platform_rulebook(trees, name)?);
+      }
+    }
+
+    parts.extend(self.layers.organisation.clone());
+    parts.extend(self.above.clone());
+    parts.push(system);
+
+    Ok(parts.join("\n\n"))
   }
 }
 
@@ -573,7 +589,16 @@ pub async fn composed_system(
     None => None,
   };
   let documents = documents(&ground.db).await;
+  // The account the supervisor serves, none for one of no account and for an agent that is no supervisor.
+  let owner = crate::supervisors::named(&ground.db, agent)
+    .await
+    .map_err(|why| fault(format!("{agent}: its supervisor row was not read: {why}")))?
+    .and_then(|row| row.owner_account);
+  let layers = crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), owner)
+    .await
+    .map_err(fault)?;
   let parts = SystemParts {
+    layers,
     above,
     persona: persona.text.clone(),
     discipline,

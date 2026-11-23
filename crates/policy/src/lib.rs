@@ -32,6 +32,7 @@ pub mod node_states;
 pub mod person_nodes;
 pub mod place_words;
 pub mod pool_warm;
+pub mod prompt_layers;
 pub mod providers;
 pub mod pull_requests;
 pub mod queue_idle;

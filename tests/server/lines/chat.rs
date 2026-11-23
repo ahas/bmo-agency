@@ -444,7 +444,9 @@ fn the_deploy_waits_on_plain_quiet_and_a_worker_never_deploys() {
 #[test]
 fn a_repository_is_added_to_the_live_machine_by_the_supervisor_alone_on_the_owner_s_approval() {
   let read = |path: &str| std::fs::read_to_string(tree().join(path)).unwrap();
-  let manual = read("prompts/agents/chat/manual.md");
+  // Adding a repository is the platform's own work, which the platform administrator's supervisors read
+  // (docs/prompt-layers.md, 「The platform's rules」).
+  let manual = read("prompts/platform/operations.md");
   let rules = read("prompts/agents/worker/standing-rules.md");
 
   for said in [
@@ -1431,14 +1433,21 @@ fn a_held_item_whose_wait_ended_has_its_hold_lifted_and_is_launched() {
   }
 }
 
-// A need that comes back is made a hosted tool: the manual's fast track says a worker writes it to the tool host's
-// authoring guide and never puts it live, the supervisor puts it within what the owner approved and tells him, and
-// the procedure it reads says how.
+// A need that comes back is made a hosted tool: the manual's fast track sends it to the platform's operations, which
+// say a worker writes it to the tool host's authoring guide and never puts it live, and the supervisor puts it
+// within what the owner approved and tells him; the procedure it reads says how.
 #[test]
 fn the_fast_track_has_a_repeated_need_made_a_hosted_tool_the_supervisor_puts_within_the_owners_approval() {
   let system = composed();
   let fast_track =
     section(&system, "FAST TRACK: a tool you do not have (the commands are in fasttrack.md)");
+  let operations = std::fs::read_to_string(tree().join("prompts/platform/operations.md")).unwrap();
+  let hosted = section(&format!("\n{operations}"), "A HOSTED TOOL MADE");
+
+  assert!(
+    fast_track.contains("have it made a hosted tool as A HOSTED TOOL MADE says"),
+    "{fast_track}"
+  );
 
   for said in [
     "A need that comes back is made a hosted tool, not done by hand each time.",
@@ -1447,7 +1456,7 @@ fn the_fast_track_has_a_repeated_need_made_a_hosted_tool_the_supervisor_puts_wit
     "you put it with `bmo pocket put`, allowing it no capability or grant beyond what the owner approved",
     "tell the owner what was added",
   ] {
-    assert!(fast_track.contains(said), "{said}: {fast_track}");
+    assert!(hosted.contains(said), "{said}: {hosted}");
   }
   assert!(!fast_track.contains("tool of the repository's own"), "{fast_track}");
 

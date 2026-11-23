@@ -80,7 +80,7 @@ fn the_next_turn_is_composed_from_the_document_that_moved() {
 
 #[test]
 fn a_supervisor_whose_documents_did_not_move_keeps_its_prompt() {
-  use harness_machine::supervisor_prompt::{Composition, Roots, Supervisor, system};
+  use harness_machine::supervisor_prompt::{Composition, Layers, Roots, Supervisor, system};
 
   let dir = tempfile::tempdir().unwrap();
   let _ = trees(dir.path());
@@ -101,6 +101,7 @@ fn a_supervisor_whose_documents_did_not_move_keeps_its_prompt() {
       &Composition::default(),
       None,
       false,
+      &Layers::default(),
     )
     .unwrap()
   };

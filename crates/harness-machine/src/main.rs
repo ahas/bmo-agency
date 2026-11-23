@@ -126,6 +126,10 @@ struct SupervisorAsk {
   /// harness opening would; by default it runs on Claude Code and takes the platform's.
   #[serde(default, rename = "ownHarness")]
   own_harness: bool,
+  /// What stands between its harness and its role and whether its persona is left out, as its caller resolved
+  /// them; by default no platform rules, no organisation's instructions and its persona kept.
+  #[serde(default)]
+  layers: supervisor_prompt::Layers,
 }
 
 fn standing_input() -> Result<String, Fault> {
@@ -232,7 +236,8 @@ async fn answer(cli: Cli) -> Result<Value, Fault> {
         supervisor,
         &asked.settings,
         asked.base.as_ref(),
-        !asked.own_harness
+        !asked.own_harness,
+        &asked.layers
       )?))
     }
     Ask::SupervisorPersona { folder } => {

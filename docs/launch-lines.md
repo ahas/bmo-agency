@@ -171,16 +171,18 @@
   behind any — a supervisor always names a road, and a provider that cannot carry the chat line is refused as
   the road is written. The console is the one place
   they are chosen, and the line, the record of the session, the keepalive's cache policy and the check for a
-  runtime downgrade all read that one answer. The system prompt is the harness, the role and the persona,
+  runtime downgrade all read that one answer. The system prompt is the layers `docs/prompt-layers.md` states,
   each whole (`docs/agent-documents.md`, 「A supervisor of the window shape」): the platform's harness opening,
-  `prompts/harness.md`; then the chat role's documents with the tools paragraph composed for the program the
+  `prompts/harness.md`; then, for a supervisor of no account or of the platform administrator's, the platform's
+  rulebooks the chat line's policy names; then the organisation's instructions the delegation chain gives the
+  person the supervisor serves, where it gives any; then the chat role's documents with the tools paragraph composed for the program the
   session runs on, the three answer rulebooks, the rulebook against destroying the system
   (`prompts/rules/self-preservation.md`), the brain's discipline and the tool host's paragraph on finding
   and using tools (`docs/api.md`, 「Calls agency makes」); then the persona — the base layer of the agent's
-  brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」). On
-  Claude Code the three are handed over as one file, the whole system prompt in the CLI's own place
-  (`--system-prompt-file`); on dsh, whose own prompt is its harness, the role and the persona go as the
-  persona suffix of its system prompt and the platform's opening is not sent. No settings sources, no
+  brain, or the one the turn hands in where the brain gives none (`docs/sessions.md`, 「Document reload」),
+  unless the chain chose none. On Claude Code the layers are handed over as one file, the whole system prompt
+  in the CLI's own place (`--system-prompt-file`); on dsh, whose own prompt is its harness, every layer after
+  the harness goes as the persona suffix of its system prompt and the platform's opening is not sent. No settings sources, no
   skills, no Chrome, and the chat line's MCP servers, named in `chat.mcp.json` beside the strict flag that
   keeps every other server out: the tool host's namespaces the chat line names — `bmo`, `gate`, `eye`,
   `ear`, `testbed`, `voice` and `research` (`policy/run-lines.toml`, the chat line's `namespaces`) —
@@ -260,7 +262,9 @@
   composes for the run — the owner's standing rules for every job,
   `prompts/agents/worker/standing-rules.md`, then, on a registration that names the languages it writes,
   the result-language piece `prompts/agents/worker/result-languages.md` filled with them (`docs/own-llm.md`,
-  「A run on the worker line is composed as on Claude」), then the rulebook against destroying the system, then the
+  「A run on the worker line is composed as on Claude」), then the rulebook against destroying the system and the
+  platform's `prompts/platform/preservation.md` naming the platform's own parts it protects
+  (`docs/prompt-layers.md`, 「The platform's rules」), then the
   repository's own rules where the run works in a repository's checkout and the repository names a
   document of its own, `prompts/agents/<folder>/own-rules.md` from the prompt folder its row names (a
   co-work branch in a standing checkout takes none), then the report trailer every job is held to,

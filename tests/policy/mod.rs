@@ -25,6 +25,7 @@ mod model_catalogue;
 mod node_states;
 mod place_words;
 mod pool_warm;
+mod prompt_layers;
 mod providers;
 mod providers_codex;
 mod queue_idle;

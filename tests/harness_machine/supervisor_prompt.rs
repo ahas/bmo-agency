@@ -5,6 +5,7 @@ use std::path::Path;
 
 use harness_machine::supervisor_prompt::*;
 use policy::base_prompts::BASE_PROMPTS;
+use policy::prompt_layers::PROMPT_LAYERS;
 use policy::supervisors::SUPERVISORS;
 
 // The supervisor every test composes for: its name, and the prompt folder its row names, which differs
@@ -27,6 +28,7 @@ fn roots(dir: &Path) -> Roots {
 
   write("prompts/harness.md", "the platform's harness");
   write("prompts/rules/self-preservation.md", "keep the system");
+  write("prompts/platform/preservation.md", "the platform's parts");
   write("prompts/rules/absolute-rules.md", "ABSOLUTE RULES");
   write("prompts/rules/agent-words.md", "agent words");
   write(
@@ -51,7 +53,8 @@ fn a_supervisor_whose_row_names_no_prompt_folder_is_sent_no_persona() {
     prompts: None,
     ..PAL
   };
-  let composed = system(&roots(dir.path()), bare, &Composition::default(), None, true).unwrap();
+  let composed =
+    system(&roots(dir.path()), bare, &Composition::default(), None, true, &Layers::default()).unwrap();
 
   assert!(composed.ends_with("RULEBOOK prompts/rules/agent-words.md:\nagent words"), "{composed}");
 }
@@ -96,7 +99,8 @@ fn every_policy_piece_has_its_own_text() {
 #[test]
 fn the_prompt_is_the_rulebook_the_role_whole_then_the_persona() {
   let dir = tempfile::tempdir().unwrap();
-  let composed = system(&roots(dir.path()), PAL, &Composition::default(), None, false).unwrap();
+  let composed =
+    system(&roots(dir.path()), PAL, &Composition::default(), None, false, &Layers::default()).unwrap();
   let home = dir.path().join("data/supervisor-homes/tester-pal").display().to_string();
   let tree = dir.path().join("assets").display().to_string();
 
@@ -131,8 +135,8 @@ fn the_frame_names_the_label_and_the_call_names() {
 fn a_supervisor_with_no_base_opens_on_the_platform_s_harness() {
   let dir = tempfile::tempdir().unwrap();
   let roots = roots(dir.path());
-  let opened = system(&roots, PAL, &Composition::default(), None, true).unwrap();
-  let bare = system(&roots, PAL, &Composition::default(), None, false).unwrap();
+  let opened = system(&roots, PAL, &Composition::default(), None, true, &Layers::default()).unwrap();
+  let bare = system(&roots, PAL, &Composition::default(), None, false, &Layers::default()).unwrap();
 
   assert_eq!(roots.harness().unwrap(), "the platform's harness");
   assert_eq!(opened, format!("the platform's harness\n\n{bare}"));
@@ -154,7 +158,7 @@ fn the_base_prompt_is_the_harness_and_the_settings_persona_closes_the_prompt() {
 
   // The chosen base stands in the platform's opening's place, so the opening is not sent beside it.
   assert_eq!(
-    system(&roots, PAL, &settings, Some(&base), true).unwrap(),
+    system(&roots, PAL, &settings, Some(&base), true, &Layers::default()).unwrap(),
     format!(
       "Run in {home} on model-0-1 for {{{{nobody}}}}.\n\nRULEBOOK prompts/rules/self-preservation.md:\nkeep the system\n\nABSOLUTE RULES\n\nframe of tester-pal, called tester-pal\ntools at {home}, verbs in {tree}\n{{{{unknown}}}}\n\nturn\n\nRULEBOOK prompts/rules/agent-words.md:\nagent words\n\nshort"
     )
@@ -168,4 +172,62 @@ fn every_base_prompt_value_has_a_reading_on_this_side() {
   }
 
   assert!(machine::local_date().len() == 10 && machine::os_version().contains(' '));
+}
+
+// The layers between the harness and the role stand in their order (docs/prompt-layers.md, 「The order」): the
+// platform's rules where the layers attach them, then the organisation's instructions, then the role.
+#[test]
+fn the_platform_s_rules_and_the_organisation_s_instructions_stand_between_the_harness_and_the_role() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let layers = Layers {
+    platform: true,
+    organisation: organisation(&["Never reach the company's ledger.".to_owned()]),
+    persona_none: false,
+  };
+  let composed = system(&roots, PAL, &Composition::default(), None, true, &layers).unwrap();
+  let bare = system(&roots, PAL, &Composition::default(), None, true, &Layers::default()).unwrap();
+  let platform_at = composed
+    .find("RULEBOOK prompts/platform/preservation.md:\nthe platform's parts")
+    .unwrap();
+  let organisation_at = composed.find("Never reach the company's ledger.").unwrap();
+  let role_at = composed.find("RULEBOOK prompts/rules/self-preservation.md").unwrap();
+
+  assert!(composed.starts_with("the platform's harness\n\n"), "{composed}");
+  assert!(platform_at < organisation_at && organisation_at < role_at, "{composed}");
+  assert!(!bare.contains("prompts/platform/"), "{bare}");
+  assert!(!bare.contains(&PROMPT_LAYERS.organisation.header), "{bare}");
+}
+
+// Every link's text, the outermost first, under the header and the end line; none where no link says any.
+#[test]
+fn the_organisation_s_instructions_keep_every_link_s_text_outermost_first() {
+  let words = &PROMPT_LAYERS.organisation;
+
+  assert_eq!(organisation(&[]), None);
+  assert_eq!(organisation(&["  ".to_owned()]), None);
+  assert_eq!(
+    organisation(&["platform's".to_owned(), String::new(), "company's".to_owned()]).unwrap(),
+    format!("{}\n\nplatform's\n\ncompany's\n\n{}", words.header, words.end)
+  );
+}
+
+// A persona the chain chose none for leaves no persona text: the role ends the prompt.
+#[test]
+fn a_persona_chosen_none_leaves_no_persona_text() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let settings = Composition {
+    persona: Some("a cheerful pirate".into()),
+  };
+  let none = Layers {
+    persona_none: true,
+    ..Layers::default()
+  };
+  let kept = system(&roots, PAL, &settings, None, false, &Layers::default()).unwrap();
+  let left = system(&roots, PAL, &settings, None, false, &none).unwrap();
+
+  assert!(kept.ends_with("a cheerful pirate"), "{kept}");
+  assert!(!left.contains("pirate") && !left.contains("persona file"), "{left}");
+  assert!(left.ends_with("RULEBOOK prompts/rules/agent-words.md:\nagent words"), "{left}");
 }

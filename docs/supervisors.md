@@ -570,14 +570,19 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 
 ## What a turn is given
 
-- **A turn of the `pieces` shape is given a system prompt of three layers, each whole, in this order:** the
-  harness, the pieces role and the supervisor's persona, as every agent's is (`docs/agent-documents.md`,
-  「A supervisor of the window shape」). No section of it is chosen or ordered per supervisor.
+- **A turn of the `pieces` shape is given a system prompt of the layers `docs/prompt-layers.md` states, each
+  whole, in this order:** the harness, the platform's rules where the supervisor is the platform
+  administrator's, its organisation's instructions where it has any, the pieces role and the supervisor's
+  persona unless the delegation chain chose none, as every supervisor's is. No section of it is chosen or
+  ordered per supervisor.
   - **The harness** is the platform's harness opening, `prompts/harness.md`, its values filled in. On
-    Claude Code the three layers are one whole system prompt in the program's own place; on a program
+    Claude Code the layers are one whole system prompt in the program's own place; on a program
     that is a harness of its own and carries its turns through its inbox, as dsh does, what is composed —
-    the role and the persona — goes as its persona suffix after its own prompt, and the platform's
+    every layer after the harness — goes as its persona suffix after its own prompt, and the platform's
     opening is not sent.
+  - **The platform's rules** are the platform's rulebooks the supervisors policy names for this shape
+    (`policy/supervisors.toml`, `pieces_platform`), for a supervisor of no account or of the platform
+    administrator's account alone.
   - **The pieces role** is the same for every supervisor of that shape: the rulebook against destroying
     the system, the absolute rules, the frame with its name and its tools, the turn, and the rulebook on
     another agent's words, in that order (`policy/supervisors.toml`, `pieces_role`; `prompts/agents/pieces/`).
@@ -585,7 +590,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     it holds no label, and the call names a person calls it by, its label where it holds none (「Its call
     names」 above). The frame tells it that this is its own name, to answer and speak of itself by, and that
     BMO is the platform's name. A supervisor of the `window` shape is told who it is by its own documents.
-  - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`.
+  - **The persona** closes it: the persona its settings hold, else its own prompt folder's `persona.md`;
+    none where the delegation chain chose none for the person it serves, so it keeps only its name and its
+    picture.
 - **Its turn** is the round the receiver composes, the same for either shape: its new words, the room's block
   and the draft process's first question, as the session it goes on in keeps the conversation (「A session in
   each room」 above). The round then runs that process to its end — its questions, its review and a revision a

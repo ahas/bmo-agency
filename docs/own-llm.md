@@ -70,11 +70,15 @@ never the model's name.
 - **On the chat line it is the supervisor whose turn it is.** A round of the window shape on a registered
   model is handed that supervisor's system prompt exactly as it is, with nothing of a worker's in it.
 - **A turn of the pieces shape,** on the chat line, is given its own system prompt: its base prompt, then
-  the pieces role whole and its persona, in place of a harness's own prompt (`docs/supervisors.md`, 「What a
+  the layers after it (`docs/prompt-layers.md`) — the platform's rules where the supervisor is the platform
+  administrator's, its organisation's instructions, the pieces role whole and its persona — in place of a
+  harness's own prompt (`docs/supervisors.md`, 「What a
   turn is given」). Nothing of the window shape's documents or of the worker's rules is among them.
 - **The rule against destroying the system is on every line that acts,** since every agent that acts is
   given the self-preservation rule (`prompts/rules/self-preservation.md`): the worker and chat lines,
-  a pieces-shaped turn's prompt after its base prompt.
+  a pieces-shaped turn's prompt after its base prompt. The platform's own parts it protects are named in the
+  platform's `prompts/platform/preservation.md`, which the worker line and the platform administrator's
+  supervisors carry beside it.
 - **A repository's rules follow the path, not the model:** a run in a repository's support worktree is
   handed that repository's rules, and a run elsewhere on the same registered model is not.
 - **A job's session closes with nothing handed over.** Where a job's runner hands its session over as

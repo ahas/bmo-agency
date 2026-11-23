@@ -1,7 +1,9 @@
 //! A supervisor's system prompt, composed out of the agent documents exactly as a turn sends it
 //! (docs/harness-machine.md, 「A supervisor's system prompt」; docs/supervisors.md, 「What a turn is
-//! given」): its harness — the base prompt it chooses, else the platform's harness opening on a program that
-//! takes it — the self-preservation rulebook, then the pieces its settings list, joined by a blank line.
+//! given」; docs/prompt-layers.md): its harness — the base prompt it chooses, else the platform's harness opening
+//! on a program that takes it — the platform's rules where it is the platform administrator's, its
+//! organisation's instructions where it has any, the role — the self-preservation rulebook, then the pieces its
+//! settings list — and its persona where the chain keeps one, joined by a blank line.
 
 use std::collections::BTreeMap;
 use std::io;
@@ -9,6 +11,7 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::LazyLock;
 
 use policy::base_prompts::BASE_PROMPTS;
+use policy::prompt_layers::PROMPT_LAYERS;
 use policy::supervisors::SUPERVISORS;
 use regex::{Captures, Regex};
 use serde::Deserialize;
@@ -35,6 +38,35 @@ pub fn render(template: &str, values: &BTreeMap<&str, String>) -> String {
 pub struct Composition {
   /// The persona its settings hold, or none for its own file.
   pub persona: Option<String>,
+}
+
+/// What stands between a supervisor's harness and its role, and whether its persona closes the prompt
+/// (docs/prompt-layers.md). The caller resolves them: whose the supervisor is, and what the delegation chain
+/// says for the person it serves.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Layers {
+  /// Whether the platform's rules stand after the harness: a supervisor of no account, or of the platform
+  /// administrator's.
+  pub platform: bool,
+  /// The organisation's instructions as composed, or none.
+  pub organisation: Option<String>,
+  /// Whether the chain chose no persona, so none closes the prompt.
+  pub persona_none: bool,
+}
+
+/// The organisation's instructions as a prompt carries them: every link's text, the outermost first, under
+/// their header and closed by their end line; none where no link says any.
+pub fn organisation(texts: &[String]) -> Option<String> {
+  let said: Vec<&str> = texts.iter().map(|text| text.trim()).filter(|text| !text.is_empty()).collect();
+
+  if said.is_empty() {
+    return None;
+  }
+
+  let words = &PROMPT_LAYERS.organisation;
+
+  Some(format!("{}\n\n{}\n\n{}", words.header, said.join("\n\n"), words.end))
 }
 
 /// The base prompt a supervisor chooses, and the model it is pinned to, which the prompt may name.
@@ -110,6 +142,15 @@ impl Roots {
     let text = Self::required(self.assets.join("prompts/rules").join(format!("{name}.md")))?;
 
     Ok(format!("RULEBOOK prompts/rules/{name}.md:\n{text}"))
+  }
+
+  /// One of the platform's rulebooks, as the platform administrator's agents are given it: named, as every
+  /// rulebook is.
+  pub fn platform_rulebook(&self, name: &str) -> io::Result<String> {
+    let folder = &PROMPT_LAYERS.platform_folder;
+    let text = Self::required(self.assets.join("prompts").join(folder).join(format!("{name}.md")))?;
+
+    Ok(format!("RULEBOOK prompts/{folder}/{name}.md:\n{text}"))
   }
 
   /// The ABSOLUTE RULES, bare, under their own heading line.
@@ -259,32 +300,44 @@ pub fn piece(
   }
 }
 
-/// The whole system prompt: its harness, then every supervisor's role whole — the rulebook against destroying
-/// the system and the role's parts in their fixed order — then its persona. The harness is the base prompt it
-/// chooses; where it chooses none, the platform's harness opening when `platform` says its program takes
-/// one, and none for a program whose own prompt is its harness.
+/// The whole system prompt, its layers each whole in their order (docs/prompt-layers.md): its harness; the
+/// platform's rules where `layers` attaches them; its organisation's instructions where it has any; every
+/// supervisor's role whole — the rulebook against destroying the system and the role's parts in their fixed
+/// order — and its persona, unless the chain chose none. The harness is the base prompt it chooses; where it
+/// chooses none, the platform's harness opening when `harnessed` says its program takes one, and none for a
+/// program whose own prompt is its harness.
 pub fn system(
   roots: &Roots,
   supervisor: Supervisor,
   settings: &Composition,
   base: Option<&Base>,
-  platform: bool,
+  harnessed: bool,
+  layers: &Layers,
 ) -> io::Result<String> {
   let mut parts = vec![];
 
   match base {
     Some(base) => parts.push(filled_base(roots, supervisor.name, base)),
-    None if platform => parts.push(roots.harness()?),
+    None if harnessed => parts.push(roots.harness()?),
     None => {}
   }
 
+  if layers.platform {
+    for name in &SUPERVISORS.pieces_platform {
+      parts.push(roots.platform_rulebook(name)?);
+    }
+  }
+
+  parts.extend(layers.organisation.clone());
   parts.push(roots.rulebook(SELF_PRESERVATION)?);
 
   for name in &SUPERVISORS.pieces_role {
     parts.extend(Some(piece(roots, supervisor, name, settings)?).filter(|text| !text.is_empty()));
   }
 
-  parts.extend(Some(piece(roots, supervisor, "persona", settings)?).filter(|text| !text.is_empty()));
+  if !layers.persona_none {
+    parts.extend(Some(piece(roots, supervisor, "persona", settings)?).filter(|text| !text.is_empty()));
+  }
 
   Ok(parts.join("\n\n"))
 }

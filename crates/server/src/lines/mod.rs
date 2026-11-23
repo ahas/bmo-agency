@@ -67,6 +67,15 @@ impl Trees {
     self.code.join("prompts").join("rules").join(format!("{name}.md"))
   }
 
+  /// One of the platform's rulebooks under the prompts (docs/prompt-layers.md).
+  pub fn platform_rulebook_path(&self, name: &str) -> PathBuf {
+    self
+      .code
+      .join("prompts")
+      .join(&policy::prompt_layers::PROMPT_LAYERS.platform_folder)
+      .join(format!("{name}.md"))
+  }
+
   /// The platform's harness opening, which every line that runs on Claude Code opens its whole system
   /// prompt with (docs/base-prompts.md).
   pub fn harness_path(&self) -> PathBuf {

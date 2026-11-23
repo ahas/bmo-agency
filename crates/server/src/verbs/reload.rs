@@ -24,19 +24,22 @@ use crate::lines::prefix::touches_prefix;
 pub const RELOAD_USAGE: &str = "usage: bmo-agency reload --path <file> [--path <file>...] [--now]";
 
 // The tree's document directories a session relies on, relative to its root.
-const DOCUMENT_DIRS: [&str; 2] = ["prompts/rules", "prompts/agents"];
+const DOCUMENT_DIRS: [&str; 3] = ["prompts/rules", "prompts/platform", "prompts/agents"];
 
 // The platform's harness opening, a document of the tree standing outside those directories, relative to the
 // prompts.
 const HARNESS: &str = "harness.md";
 
-// The rulebooks and the supervisor's own documents a chat session is given as its system prompt.
-const CHAT_DOCUMENTS: [&str; 5] = [
+// The rulebooks and the supervisor's own documents a chat session is given as its system prompt, the platform's
+// rulebooks a supervisor of the platform administrator's carries among them.
+const CHAT_DOCUMENTS: [&str; 7] = [
   "rules/answer-content.md",
   "rules/answer-shape.md",
   "rules/plain-writing.md",
   "rules/agent-words.md",
   "rules/self-preservation.md",
+  "platform/preservation.md",
+  "platform/operations.md",
 ];
 const CHAT_SYSTEM_DOCUMENTS: [&str; 2] = ["agents/chat/context.md", "agents/chat/manual.md"];
 
@@ -159,7 +162,7 @@ fn document_parts(path: &str) -> Vec<&str> {
 }
 
 fn is_agent_document(path: &str) -> bool {
-  matches!(document_parts(path).first(), Some(&"rules" | &"agents"))
+  matches!(document_parts(path).first(), Some(&"rules" | &"platform" | &"agents"))
 }
 
 /// Whether a document is part of a chat session's turn rather than its system prompt or something read with

@@ -15,6 +15,7 @@ use policy::supervisors::{GENERATION, GenerationSetting, SUPERVISORS};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
+use tool_call::room_gate::AccountService;
 
 use super::fault::{Fault, refused};
 use super::models::{entries, latest_uses};
@@ -275,11 +276,12 @@ pub fn roots(call: &Call) -> Roots {
 }
 
 /// The system prompt a supervisor's next turn sends on the provider and model named, or an empty one where it
-/// cannot be composed: its persona read out of the prompt folder its row names, never by its name.
+/// cannot be composed: its persona read out of the prompt folder its row names, never by its name, and its layers
+/// as its account's standing and the delegation chain give them (docs/prompt-layers.md).
 async fn system<C: ConnectionTrait>(
   db: &C,
-  roots: &Roots,
-  supervisor: Supervisor<'_>,
+  (roots, service): (&Roots, &AccountService),
+  (supervisor, owner): (Supervisor<'_>, Option<i64>),
   settings: &Settings,
   (provider, model): (&str, &str),
 ) -> Result<String, Refused> {
@@ -296,11 +298,21 @@ async fn system<C: ConnectionTrait>(
     model: model.to_owned(),
   });
 
-  let platform = crate::lines::pieces::takes_harness(provider);
+  let harnessed = crate::lines::pieces::takes_harness(provider);
+  let Ok(layers) = crate::prompt_layers::of(db, service, owner).await else {
+    return Ok(String::new());
+  };
 
   Ok(
-    supervisor_prompt::system(roots, supervisor, &settings.composition(), base.as_ref(), platform)
-      .unwrap_or_default(),
+    supervisor_prompt::system(
+      roots,
+      supervisor,
+      &settings.composition(),
+      base.as_ref(),
+      harnessed,
+      &layers,
+    )
+    .unwrap_or_default(),
   )
 }
 
@@ -312,7 +324,12 @@ async fn route_of(db: &DatabaseConnection, agent: &str) -> Option<(String, Strin
 }
 
 /// One supervisor as a screen shows it, each room by the title the room's owner answers.
-async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str) -> Result<Value, Fault> {
+async fn view(
+  db: &DatabaseConnection,
+  hooks: &Hooks,
+  (roots, service): (&Roots, &AccountService),
+  agent: &str,
+) -> Result<Value, Fault> {
   let row = supervisor_row(db, agent).await?;
   let prompts = prompt_folder(db, agent).await?;
   let registration_name = pinned_registration(&row)?;
@@ -363,7 +380,16 @@ async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str
       prompts: prompts.as_deref(),
     };
 
-    Some(system(db, roots, supervisor, &settings, (&provider_now, &model_now)).await?)
+    Some(
+      system(
+        db,
+        (roots, service),
+        (supervisor, held.owner_account),
+        &settings,
+        (&provider_now, &model_now),
+      )
+      .await?,
+    )
   } else {
     None
   };
@@ -784,7 +810,9 @@ pub async fn shown(
   roots: &Roots,
   agent: &str,
 ) -> Result<Value, String> {
-  view(db, hooks, roots, agent).await.map_err(said)
+  let service = AccountService::read(&roots.data, |name| std::env::var(name).ok());
+
+  view(db, hooks, (roots, &service), agent).await.map_err(said)
 }
 
 /// A save of one supervisor's settings, read as a route's body is read and written whole or refused, by a
@@ -820,7 +848,9 @@ impl Route for SupervisorSettingsRead {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let agent = call.param("supervisorName").unwrap_or_default().to_owned();
 
-    match view(call.store(), &call.ground().hooks, &roots(&call), &agent).await {
+    let service = crate::apps::service(call.ground());
+
+    match view(call.store(), &call.ground().hooks, (&roots(&call), &service), &agent).await {
       Ok(shown) => Ok(answer(StatusCode::OK, shown)),
       Err(fault) => fault.answer(),
     }
@@ -881,7 +911,9 @@ impl Route for SupervisorSettingsChange {
       carry_out_waiting(&call).await;
     }
 
-    match view(db, &call.ground().hooks, &roots, &agent).await {
+    let service = crate::apps::service(call.ground());
+
+    match view(db, &call.ground().hooks, (&roots, &service), &agent).await {
       Ok(shown) => Ok(answer(StatusCode::OK, shown)),
       Err(fault) => fault.answer(),
     }

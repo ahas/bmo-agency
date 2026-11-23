@@ -695,7 +695,8 @@ async fn harness_moved(
 }
 
 // The system prompt a supervisor's settings compose, out of the documents of the tree the process runs, for
-// the provider and model it answers on.
+// the provider and model it answers on, with the layers its account's standing and the delegation chain give it
+// (docs/prompt-layers.md).
 async fn system_of(
   ground: &Ground,
   pinned: &Pinned,
@@ -727,12 +728,17 @@ async fn system_of(
     prompts: pinned.prompts.as_deref(),
   };
 
+  let layers =
+    crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), pinned.supervisor.owner_account)
+      .await?;
+
   harness_machine::supervisor_prompt::system(
     &roots,
     supervisor,
     &settings.composition(),
     base.as_ref(),
     crate::lines::pieces::takes_harness(provider.name()),
+    &layers,
   )
   .map_err(|why| why.to_string())
   .map(|system| (system, pinned.supervisor.owner_account))

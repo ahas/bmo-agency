@@ -88,8 +88,9 @@ impl Places {
   /// claims and marks idle taken down; every idle base's main brought up to its remote's every ten minutes;
   /// every run whose program is gone
   /// taken down every ten minutes; and the nodes' workspaces and the links to the work nodes as it starts
-  /// and every minute. A process on a copy of the data root moves no checkout, sweeps no run and keeps
-  /// no link: the machine is not the copy's.
+  /// and every minute; and the prompt layers' settings declared on the account service's delegation chain as
+  /// it starts. A process on a copy of the data root moves no checkout, sweeps no run, keeps no link and
+  /// declares nothing: the machine is not the copy's.
   /// The places have stood once, for the readiness the health route answers, when the first pass over
   /// the heads is done.
   pub fn stand(self, watch: Option<herdr::picture::Watch>) {
@@ -171,6 +172,16 @@ impl Places {
     }));
 
     if own {
+      let declaring = self.clone();
+
+      // The settings the prompt layers read off the delegation chain, declared as the server stands
+      // (docs/prompt-layers.md, 「The settings agency declares」).
+      tokio::spawn(async move {
+        if let Err(why) = crate::prompt_layers::declare(&crate::apps::service(&declaring.ground)).await {
+          eprintln!("agency: the prompt layers' kinds were not declared: {why}");
+        }
+      });
+
       let linking = self.clone();
 
       tokio::spawn(every("node links' clock", Duration::ZERO, LINKS_PASS, move || {

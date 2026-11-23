@@ -10,6 +10,8 @@ pub struct System {
   pub absolute_rules: String,
   pub manual: String,
   pub rulebooks: Vec<String>,
+  /// The platform's rulebooks a supervisor of the platform's administrator reads on this line.
+  pub platform: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]

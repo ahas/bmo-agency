@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use agency_server::lines::*;
-use harness_machine::supervisor_prompt::{self, Composition, Roots, Supervisor};
+use harness_machine::supervisor_prompt::{self, Composition, Layers, Roots, Supervisor};
 
 #[test]
 fn a_mark_is_filled_where_it_is_named_and_left_where_it_is_not() {
@@ -65,7 +65,8 @@ fn a_supervisor_composed_out_of_the_tree_opens_on_its_harness_opening() {
     prompts: None,
   };
   let composed =
-    supervisor_prompt::system(&roots, supervisor, &Composition::default(), None, true).unwrap();
+    supervisor_prompt::system(&roots, supervisor, &Composition::default(), None, true, &Layers::default())
+      .unwrap();
   let harness = std::fs::read_to_string(trees.harness_path()).unwrap();
 
   assert!(composed.starts_with(&format!("{}\n\n", harness.trim())), "{composed}");

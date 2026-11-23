@@ -21,7 +21,11 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - `agent-words.md` — every supervisor, for the turns
     another agent's words woke it in;
   - `self-preservation.md` — every agent that acts: the chat session, every run of the worker line,
-    every subagent such a run opens and the news page writer.
+    every subagent such a run opens and the news page writer. It is written for an agent of any
+    organisation and names no part of the platform; the platform's own parts stand in the platform's rules.
+- **`prompts/platform/` holds the platform's rules,** the rulebooks of the platform's own operations that
+  only the platform administrator's supervisors are given, and the worker line's runs the one of them its
+  line names (`docs/prompt-layers.md`, 「The platform's rules」): `preservation.md` and `operations.md`.
 - **`prompts/agents/<folder>/own-rules.md`** is a repository's own rules, appended after the worker
   line's standing rules for a run in that repository's checkout, from the prompt folder the repository's
   row names (`docs/repositories.md`, 「What a repository row holds」); no repository carried in this
@@ -84,14 +88,16 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
 
 ## A supervisor of the window shape
 
-- **The supervisor's prompt is three layers, each whole, in this order:** the harness, the role and the
-  persona. No layer is cut into sections chosen per program, and none knows the others.
+- **The supervisor's prompt is the layers `docs/prompt-layers.md` states, each whole, in this order:** the
+  harness, the platform's rules where the supervisor is the platform administrator's, its organisation's
+  instructions where it has any, the role and the persona unless the chain chose none. No layer is cut into
+  sections chosen per program, and none knows the others.
   - **The owner's text of three of the role's documents stands in the store:** the opening, the
     absolute rules and the manual are read from `chat_documents` where the owner saved one and from
     the files named here otherwise (`docs/api.md`, 「chat-documents」); the rulebooks and the room's
     documents are files alone.
   - **The harness** on Claude Code is agency's own `prompts/harness.md`, not the program's prompt: the
-    three layers go to the program as one whole system prompt in the place of its own. On dsh the
+    layers go to the program as one whole system prompt in the place of its own. On dsh the
     harness is dsh's own prompt for the headless profile, with the role and the persona as its persona
     suffix after dsh's own guidance, and agency's opening is not sent.
   - **The role** is the chat role's prompt, the same whatever the program: the documents below, in the
@@ -110,9 +116,8 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   - A game anyone asks for — a word game, a quiz — is played like any other request, and a member
     who has become a drain is answered briefly instead.
 - **`prompts/agents/chat/manual.md` is the operating manual** — long work, the queue and the owner's
-  approval, the worker's run and its close, the work tree's notices and the day's collection, host work,
-  the fast track and a need that comes back made a hosted tool, a secret asked for and used by its
-  name, images read and drawn, a document
+  approval, the worker's run and its close, the work tree's notices and the day's collection, the fast
+  track, a secret asked for and used by its name, images read and drawn, a document
   filed for a person and the pictures that stand in its body, a line for the voice,
   the response protocol with its sentinels, the language an answer is written in, what the room hears
   of the agent's tools, the research unit's tools and the research skill a request it answers itself
@@ -121,7 +126,10 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   agent, a voice note among them arriving as what was said in it rather than as a placeholder it cannot open. It is how
   the supervisor works at all, and it says when to act.
   It names no tool of the program the session runs on, since one manual serves every program the chat
-  stands on.
+  stands on. The platform's own work — where the procedure documents are read, whose work is whose between a
+  repository's worker and the supervisor's hands, host work and the owner's infrastructure, putting a
+  repository live and adding one, a hosted tool made and a supervisor's cut turn — is not the manual's: it
+  stands in the platform's rules, which a supervisor of the platform administrator's reads before its role.
 - **The day's collection is the supervisor's own reading, told by the manual.** The work service only
   says when a person's day is to be asked, with its `day.end` notice (bmo-work `docs/design.md`, 「The
   end-of-day question」); the person's supervisor does the rest with its own tools, reaching nothing the
@@ -250,7 +258,7 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
 - **The procedure documents:** how to do what is needed only at the moment it is done — filing and
   running the queue, a fast-track tool and keeping one as a hosted tool, asking for a secret, and a run
   past its clock — is in `prompts/agents/chat/procedures/`, one document each, which the session reads
-  right before doing it.
+  right before doing it, as the platform's operations rulebook tells it.
   - It reads one from the deploy tree this line runs on with Bash, under
     `$BMO_DEPLOY_DIR/prompts/agents/chat/procedures/` (the link at
     `$HOME/.local/share/bmo-agency/deploy` holds the same tree where the variable is unset), never
@@ -271,8 +279,9 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   finding and using tools with `bmo use`, read from the tool host at the launch through its client, whole
   and as the host words it, and left out where the host does not answer; and then the persona, the base
   layer of the agent's own brain, or the one the turn hands in where the brain gives none
-  (`docs/sessions.md`, 「Document reload」).
-- **The role and the persona follow the harness, never replace it:** the harness opening stands
+  (`docs/sessions.md`, 「Document reload」), left out where the delegation chain chose none for the person
+  the supervisor serves (`docs/prompt-layers.md`, 「The persona's choice」).
+- **The layers after the harness follow it, never replace it:** the harness opening stands
   first and whole — agency's own on Claude Code, dsh's on dsh — while this machine's settings,
   instruction files, MCP servers and skills reach no chat session.
 - **The session stands as the supervisor's resident program in its pane,** on the login that session was opened

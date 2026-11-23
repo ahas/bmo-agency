@@ -5,6 +5,7 @@ import { dirname, join, relative } from "node:path";
 
 import { agentsRoot, assetRoot } from "@agency/support/roots";
 import declaredBrowser from "@agency/policy/browser.toml";
+import promptLayers from "@agency/policy/prompt-layers.toml";
 import { systemPromptFile } from "./prompt-files";
 
 // Every agent the bot runs is given exactly the documents under prompts/agents/<name>/ plus the
@@ -22,6 +23,7 @@ export interface DeployedFile {
 
 const rulesDir = join(assetRoot(), "prompts", "rules");
 const agentsDir = join(assetRoot(), "prompts", "agents");
+const platformDir = join(assetRoot(), "prompts", promptLayers.platform_folder as string);
 const runnerNames = ["search", "browse"] as const;
 
 // Where the runners' working directories are deployed (`agentsRoot`).
@@ -137,6 +139,12 @@ export function rulebook(name: string): string {
   return `RULEBOOK prompts/rules/${name}.md:\n${readRequired(join(rulesDir, `${name}.md`))}`;
 }
 
+// One of the platform's rulebooks, as the platform administrator's agents are given it: named, as every
+// rulebook is (docs/prompt-layers.md).
+export function platformRulebook(name: string): string {
+  return `RULEBOOK prompts/${promptLayers.platform_folder}/${name}.md:\n${readRequired(join(platformDir, `${name}.md`))}`;
+}
+
 // The rulebook every agent that acts — the supervisor, the workers and their co-workers and the runners
 // — is given, forbidding it to destroy the system it runs in. A gate holds no tool and is not
 // given it.
@@ -164,9 +172,10 @@ export function harness(): string {
 }
 
 // The chat's documents around the absolute rules and the rulebooks it reads, as the chat line's policy
-// names them for both sides, opened by the harness.
+// names them for both sides, opened by the harness and the platform's rules a supervisor of no account carries.
 export function chatSystemStatic(_kind?: ChatKind): string {
-  return [harness(), agentFile("chat", chatLine.system.opening), absoluteRules(), agentFile("chat", chatLine.system.manual),
+  return [harness(), ...(chatLine.system.platform as string[]).map((name) => platformRulebook(name)),
+    agentFile("chat", chatLine.system.opening), absoluteRules(), agentFile("chat", chatLine.system.manual),
     ...(chatLine.system.rulebooks as string[]).map((name) => rulebook(name))].join("\n\n");
 }
 

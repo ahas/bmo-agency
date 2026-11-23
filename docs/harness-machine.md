@@ -121,16 +121,21 @@ flowchart TD
 ## A supervisor's system prompt
 
 - **Composed exactly as a turn of the pieces shape sends it** (`docs/supervisors.md`, 「What a turn is
-  given」): its harness at the head — the platform's harness opening where its program takes one — then the
-  pieces role whole in its fixed order, then its persona, joined by a blank line.
+  given」; `docs/prompt-layers.md`): its harness at the head — the platform's harness opening where its program
+  takes one — then the platform's rulebooks where its layers attach them, its organisation's instructions
+  where it has any, the pieces role whole in its fixed order, then its persona unless its layers leave it out,
+  joined by a blank line.
 - **Read out of the asset root for every call:** the platform's harness opening `prompts/harness.md`, the
-  rulebooks under `prompts/rules/`, the frame, turn and tools under `prompts/agents/pieces/`, and the
+  rulebooks under `prompts/rules/` and the platform's under `prompts/platform/`, the frame, turn and tools under `prompts/agents/pieces/`, and the
   `persona.md` of the supervisor's own prompt folder.
 - **What the caller hands it:** the supervisor's name; its label and its call names, which the frame tells it
   it is called by (`docs/supervisors.md`, 「What a turn is given」); the prompt folder its supervisor row names
-  under `prompts/agents/` or none, the persona its settings hold or none, the model its turn goes out on, and
+  under `prompts/agents/` or none, the persona its settings hold or none, the model its turn goes out on,
   whether its program takes the platform's harness opening — every program on Claude Code does, and one that
-  is a harness of its own does not. The crate never derives a prompt folder from the name, and a folder that
+  is a harness of its own does not — and its layers as the caller resolved them: whether the platform's rules
+  are attached, the organisation's instructions as composed, and whether the persona is left out. The crate
+  composes the organisation's instructions out of the links' texts with the header and end line the prompt
+  layers' policy holds, and resolves nothing itself. The crate never derives a prompt folder from the name, and a folder that
   is not one plain name is refused.
 - **A prompt's values are filled in here** (`docs/base-prompts.md`, 「Values filled in as a run is
   composed」): the folder it stands in, today's local date, the operating system's name, its
@@ -152,8 +157,8 @@ flowchart TD
 - **`harness-machine model-use start`** starts a choice's unit, **`model-use install`** runs an engine's
   installer into a log, and **`model-use log`** prints a log's last lines.
 - **`harness-machine supervisor-system`** reads a supervisor's settings from standard input, with `label` and
-  `callNames` where it holds them and `ownHarness` true where its program is a harness of its own, and prints
-  the composed system prompt;
+  `callNames` where it holds them, `ownHarness` true where its program is a harness of its own and `layers`
+  (`platform`, `organisation`, `personaNone`) where it carries any, and prints the composed system prompt;
   **`supervisor-persona <folder>`** prints the persona the prompt folder's file holds, or nothing where it
   has none.
 - **Every answer is one line of JSON on standard output.** A refusal the owner reads ends with status

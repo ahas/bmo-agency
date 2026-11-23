@@ -10,6 +10,8 @@ use crate::model_catalogue::NumberBounds;
 pub struct SupervisorRules {
   /// The role every turn of the pieces shape is given, in its fixed order.
   pub pieces_role: Vec<String>,
+  /// The platform's rulebooks a supervisor of the platform's administrator reads on a turn of the pieces shape.
+  pub pieces_platform: Vec<String>,
   /// The longest a persona the settings hold may be, in characters.
   pub persona_most: usize,
   /// The pattern a supervisor is registered by.

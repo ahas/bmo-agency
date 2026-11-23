@@ -81,6 +81,7 @@ pub mod outbox;
 pub mod peers;
 pub mod person_nodes;
 pub mod places;
+pub mod prompt_layers;
 pub mod queue;
 pub mod readiness;
 pub mod relays;

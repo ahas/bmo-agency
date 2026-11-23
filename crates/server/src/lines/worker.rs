@@ -29,6 +29,10 @@ pub const LINE: &str = "worker";
 // The rulebook every worker's rules carry after the standing rules.
 pub const SELF_PRESERVATION: &str = "self-preservation";
 
+/// The platform's rulebook naming the platform's own parts the rule against destroying the system protects, which
+/// every run of the worker line carries after it, since the line's standing rules are the platform's work.
+pub const PLATFORM_PRESERVATION: &str = "preservation";
+
 // A value a base prompt names, as `{{name}}`: the base prompts' own syntax.
 static VALUE: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r"\{\{([A-Za-z0-9_]+)\}\}").expect("the value mark"));
@@ -139,6 +143,7 @@ pub fn standing_rules(
 
   parts.extend(languages.map(str::to_owned));
   parts.push(rulebook(trees, SELF_PRESERVATION)?);
+  parts.push(platform_rulebook(trees, PLATFORM_PRESERVATION)?);
   parts.extend(own.clone());
   parts.extend(trailer.map(str::to_owned));
   parts.extend(documents.map(str::to_owned));
@@ -222,6 +227,15 @@ pub fn rulebook(trees: &Trees, name: &str) -> Result<String, Refusal> {
   Ok(format!(
     "RULEBOOK prompts/rules/{name}.md:\n{}",
     read_required(&trees.rulebook_path(name))?
+  ))
+}
+
+/// One of the platform's rulebooks as an agent is given it: named, as every rulebook is (docs/prompt-layers.md).
+pub fn platform_rulebook(trees: &Trees, name: &str) -> Result<String, Refusal> {
+  Ok(format!(
+    "RULEBOOK prompts/{}/{name}.md:\n{}",
+    policy::prompt_layers::PROMPT_LAYERS.platform_folder,
+    read_required(&trees.platform_rulebook_path(name))?
   ))
 }
 

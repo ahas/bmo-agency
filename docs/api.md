@@ -2200,7 +2200,11 @@ person's console sections with `GET /users/{user}/sections` (「Who a caller act
 under the data root as the owner's gate reaches it (`docs/launch-lines.md`, 「The owner's gate」). The same account
 service is asked, as a record is issued for a person's account and as a resident program's turn begins, for the
 declared kinds with `GET /chain/kinds` and for each app's two settings for that person with `GET
-/chain/kinds/{key}/resolve?person=` (`docs/tools.md`, 「The apps a person reaches」). Each is the
+/chain/kinds/{key}/resolve?person=` (`docs/tools.md`, 「The apps a person reaches」). As its server stands, and
+again where a resolution finds one undeclared, it declares the two settings its prompt layers read with `PUT
+/chain/kinds/{key}`, `agency.org-instructions` and `agency.persona`, and as a supervisor of an account has its
+prompt composed it asks both for that person with `GET /chain/kinds/{key}/resolve?person=`
+(`docs/prompt-layers.md`, 「The settings agency declares」). Each is the
 documented route of the unit that holds what must reach it; agency keeps no client of these units and no
 store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
 at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none
