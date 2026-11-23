@@ -1466,6 +1466,36 @@ it names a job.
   the job's end reads the mark — written `stopped` with outcome `stopped`, its lease given back so the
   item is open for a rerun. The bound is generous, since the call clock is what catches a hang; it is a
   backstop for a turn the call clock cannot see.
+- **A job's turn that makes no progress is told to its orderer.** The call clock's rules judge one call at a
+  time, and a call that waits on the job's own work in the background is held for as long as the writing
+  process lives, however still it stands. So the same reads also keep one moment for the whole turn, its last
+  progress, and a job's turn that has stood past it for the stall span (`policy/tool-clock.toml`, `[stall]`)
+  while it still works is told to its item's orderer once, as `job-stalled` (「An item's change is told to its
+  orderer」). It is a notice, never a cut: the turn runs on as it would.
+  - **What counts as progress.** Each read takes the record's new lines and the turn's running calls as the
+    clock reads them. Any of these moves the moment to the read: a line of the record the model wrote, a text,
+    a tool call or a tool's result, unlike every one of the last few the turn wrote; a subagent's own record
+    grown; a running call's output grown with a last line unlike every one of the last few it wrote; a running
+    call's tree burning more than the idle share of one processor (the silent window's `idle_cpu_percent`)
+    since the read before; and, for a call that waits on the job's own work in the background, the file that
+    work writes grown with a last line unlike the last few, or the writing process's tree burning more than
+    that share. Two lines are alike where they read the same once every run of digits is taken as one, so a
+    wait that says it still waits every minute with a new count, and a poll the model makes again and again
+    with the same answer, are no progress. A process that merely lives, and one newly begun, are no progress:
+    a poll begins one on every pass.
+  - **When nothing is told.** While a call of the turn stands under an overtime ask, a keep, or a wait on the
+    job's own question, the supervisor already holds that wait, so no stall is told; one that outlasts them is
+    told at the next read. A turn picked up across a restart counts its last progress from the time of the
+    record's last such line.
+  - **What it carries.** The job, the item, the worker, how long the turn has made no progress and since
+    when, and what it waits on: each running call's tool and command, with the last lines (`[stall]`
+    `lines`) of the file the job's own work writes where it waits on one, else of its own output; where no
+    call runs, that the model's own turn is what stands.
+  - **Told once a stall.** The notice is kept while the stall lasts and withdrawn once the turn makes progress
+    again or ends; a turn that then stalls again is told again. A notice already owed for the item when a
+    stall begins, as after a restart in the middle of one, is not told twice.
+  - **Where it holds.** The turns the call clock reads, a live one and one picked up across a restart. A job
+    whose turn goes out on another provider's road is not watched for it.
 - **A turn picked up across a restart is held to the same clock.** The turn `turn_pickup` attaches to
   reads its calls from the record its program writes and holds them to the same call clock, stop and
   bound. A blocked call is cut there as it is in the door, a silent and idle call is asked about and
@@ -3500,8 +3530,9 @@ view and a person's room may not mend it alone.
     `DELETE /instructions/{id}`, and never told again while it is kept: a job's question, withdrawn once a
     settling reply comes; a job's commit waiting for its repository's batch deployment, withdrawn once the
     item no longer waits for it; an idle agent,
-    withdrawn once it is no longer idle or a room has no item left it could take; and an ended job's item left
-    leased, withdrawn once its lease ends or its commit waits for its deployment;
+    withdrawn once it is no longer idle or a room has no item left it could take; an ended job's item left
+    leased, withdrawn once its lease ends or its commit waits for its deployment; and a job's turn that makes no
+    progress, withdrawn once it makes progress again or its turn ends;
   - **standing**, owed for as long as its condition holds, until the orderer acts or the condition ends: told
     again at every start of agency and every `retell_seconds` after it was last told, under the same kind, so
     the receiver replaces the copy still pending rather than queueing a second one. This is a check of a job's
@@ -3513,7 +3544,9 @@ view and a person's room may not mend it alone.
   notice's row is its own mark. The mark is written with the notice's row, not when the receiver takes it,
   and let go once the item, the job or the question has moved on, so neither a restart nor the next pass
   owes a notice twice, and a transition that comes again is owed again. No clock decides whether a
-  notice is owed beyond the idle agent's own minute: every other one is keyed by the transition it tells.
+  notice is owed beyond the idle agent's own minute and a job's stall span: every other one is keyed by the
+  transition it tells. A job's stall is owed by its turn's own watch, not by the minute pass, and its row is its
+  mark: one standing for the item is not owed again.
 - **The job service's events.** In the same minute pass agency reads the job service's events as a page
   (`GET /events` with `Accept: application/json`, `kinds` `item.created`, `item.changed`, `note.created`,
   `question.created`, `question.due` and `reply.created`, past its cursor), keeping the last event's number as the settings row
@@ -3554,6 +3587,7 @@ view and a person's room may not mend it alone.
 | A job's question past its due time while open, one with no recommendation; a question the supervisor holds has no due time, and its clock starts once the supervisor puts it to the owner; the job service tells it once each time the question is put to the owner | the orderer | instruction, from the events | `job-question-due:<question>`, `job-question-due:#<question>` |
 | A job's question settled on its recommendation because its due time passed with no answer (a settling `reply.created` whose `source` is `recommendation`) | the orderer | instruction, from the events | `job-question-settled:<question>`, `job-question-settled:#<question>` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
+| A job's turn that has made no progress for the stall span while it still works (「A run's tool calls are held to a clock」) | the orderer | instruction, from the turn's own watch, told once a stall and kept until the turn makes progress again or ends | `job-stalled:<item>`, `job-stalled:#<item>` |
 | A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
 | A job's end, however it came | the orderer | instruction (`docs/api.md`, 「assignments and jobs」) | `job-ended:<item>`, `job-ended:#<item>` |

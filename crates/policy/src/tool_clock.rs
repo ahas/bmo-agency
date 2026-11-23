@@ -8,6 +8,7 @@ use serde::Deserialize;
 pub struct ToolClock {
   pub call: CallClock,
   pub turn: TurnClock,
+  pub stall: StallClock,
 }
 
 #[derive(Debug, Deserialize)]
@@ -75,6 +76,21 @@ pub struct TurnClock {
   pub bound_minutes: u64,
   /// Why a job's turn was cut at its bound; `{minutes}` is the bound in minutes.
   pub cut: String,
+}
+
+/// A job's turn that has made no progress for its span is told to its item's orderer, never cut
+/// (docs/agent-control.md, 「A run's tool calls are held to a clock」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StallClock {
+  /// How long a job's turn may make no progress before it is told.
+  pub after_seconds: u64,
+  /// How many of the turn's own last lines, and of a call's last output lines, a new one is compared with.
+  pub recent: usize,
+  /// How many last lines of what a call waits on the notice carries.
+  pub lines: usize,
+  /// How many characters of a call's command and of each of its lines the notice carries.
+  pub chars: usize,
 }
 
 crate::part!(pub TOOL_CLOCK: ToolClock = "tool-clock.toml");

@@ -23,6 +23,11 @@ fn the_orderer_chain_is_bounded_and_every_order_carries_its_data_and_no_instruct
     (&JOB_NOTICES.waiting_order, &["{item}", "{worker}", "{why}"][..]),
     (&JOB_NOTICES.close_order, &["{item}", "{lease}"][..]),
     (
+      &JOB_NOTICES.stalled_order,
+      &["{job}", "{item}", "{worker}", "{minutes}", "{since}", "{waiting}"][..],
+    ),
+    (&JOB_NOTICES.stalled_call, &["{tool}", "{lines}"][..]),
+    (
       &JOB_NOTICES.question_due_order,
       &["{question}", "{item}", "{asker}", "{text}", "{choices}"][..],
     ),

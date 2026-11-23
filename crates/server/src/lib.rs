@@ -49,6 +49,7 @@ pub mod job_handoff;
 pub mod job_leases;
 pub mod job_notices;
 pub mod job_review;
+pub mod job_stall;
 pub mod job_words;
 pub mod label_values;
 

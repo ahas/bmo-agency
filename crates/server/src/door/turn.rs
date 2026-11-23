@@ -279,6 +279,17 @@ pub trait Watch {
     async {}
   }
 
+  /// The numbers the turn's stall is judged by where its tool calls are held to a clock: the policy's.
+  fn stall_clock(&self) -> super::stall::StallClock {
+    super::stall::StallClock::policy()
+  }
+
+  /// What became of the turn's progress as its call clock read it: a stall past the stall span, or a move after
+  /// one. A caller that tells nobody of it lets it pass; one that does lets its notice go as the turn ends.
+  fn stalled(&mut self, _change: &super::stall::StallChange) -> impl Future<Output = ()> + Send {
+    async {}
+  }
+
   /// A call that held no process of its own did not take its cut within the grace: the reason a caller
   /// marks its job stopped by, where it keeps one; none where the turn is only stopped.
   fn held_by_processless_call(
@@ -1759,7 +1770,9 @@ async fn watch_turn<W: Watch>(
   let tool_policy = door.watch.tool_clock();
   let stop_bound_ms = tool_policy.as_ref().map(|clock| clock.stop_bound_ms);
   let in_process_grace_ms = tool_policy.as_ref().map_or(i64::MAX, |clock| clock.in_process_grace_ms);
-  let mut tools = tool_policy.map(super::tool_clock::Watch::new);
+  let stall_clock = door.watch.stall_clock();
+  let mut tools = tool_policy
+    .map(|clock| super::tool_clock::Watch::stalling(clock, super::stall::Progress::new(stall_clock)));
   // Where this turn's own lines begin in the record, read again as the prompt goes in: a program
   // started again for this turn writes lines of its own on the way up.
   let mut from = opened_from;
@@ -1987,6 +2000,8 @@ async fn watch_turn<W: Watch>(
     let program = door.program.as_ref().map(|program| program.pid);
 
     if let (Some(watching), Some(program)) = (tools.as_mut(), program) {
+      watching.subagent_records(door.tail.path(), now_ms());
+
       let records = door.tail.look();
       let mut question = CallerQuestion(&mut *door.watch);
       let said = watching.look(&turn.name, records, from, program, now_ms(), &mut question).await;
@@ -2058,6 +2073,10 @@ async fn watch_turn<W: Watch>(
 
       for ended in watching.take_closed_asks() {
         door.watch.call_ended(Some(&ended)).await;
+      }
+
+      while let Some(change) = watching.take_stall() {
+        door.watch.stalled(&change).await;
       }
     }
 

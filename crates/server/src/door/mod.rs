@@ -19,6 +19,7 @@ pub mod place_run;
 pub mod record;
 pub mod record_secrets;
 pub mod rollout;
+pub mod stall;
 pub mod stand;
 pub mod surface;
 pub mod tool_clock;

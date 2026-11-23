@@ -15,6 +15,7 @@ use std::time::Duration;
 
 use agency_server::door::execution::Identity;
 use agency_server::door::looks::GoneConfirm;
+use agency_server::door::stall::{Progress, StallChange, StallClock};
 use agency_server::door::stand::Interrupt;
 use agency_server::door::tool_clock::{
   BackgroundCall, BackgroundClock, CallVerdict, ClockNote, NoQuestion, Owns, QuestionWait, SilentClock,
@@ -716,6 +717,98 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
   );
 }
 
+// A stall span the test's own moments reach in two seconds.
+fn stalling() -> Progress {
+  Progress::new(StallClock {
+    after_ms: 2_000,
+    idle_cpu_percent: 30,
+    recent: 16,
+    lines: 5,
+    chars: 300,
+  })
+}
+
+// The stall changes the watch has handed over since this was last asked.
+fn stall_changes(watch: &mut ToolWatch) -> Vec<StallChange> {
+  std::iter::from_fn(|| watch.take_stall()).collect()
+}
+
+#[tokio::test]
+async fn a_wait_on_the_job_s_own_work_that_stands_still_is_told_once_as_a_stall_and_not_while_that_work_writes()
+ {
+  let scratch = tempfile::tempdir().unwrap();
+  let log = scratch.path().join("run-clip.txt").to_string_lossy().into_owned();
+  let waiting = "every card it may use is taken; asking again every minute";
+
+  std::fs::write(&log, format!("{waiting}\n")).unwrap();
+
+  // The job's own work in the background, alive and holding its log open, writing nothing more; and the call
+  // polling that log, which the call clock holds as a wait on moving work for as long as the writer lives.
+  let poll = format!("until rg -q '^exit ' {log}; do sleep 30; done");
+  let program = Program::spawn_args(&[
+    "bash",
+    "-c",
+    "( exec -a held-clip sleep 1000 ) >> \"$0\" & bash -c \"$1\" & wait",
+    &log,
+    &poll,
+  ]);
+
+  started("held-clip 1000").await;
+  started(&format!("bash -c {poll}")).await;
+
+  let mut watch = ToolWatch::stalling(
+    ToolClock {
+      in_process_ms: 60_000,
+      ..asking(1_000, i64::MAX / 4)
+    },
+    stalling(),
+  );
+  let began = agency_server::now_ms();
+  let records = vec![used("t1", &poll, began)];
+  let mut said = vec![];
+  let mut changes = vec![];
+  let mut now = began;
+
+  while now < began + 10_000 {
+    assert!(
+      looked_at(&mut watch, &records, program.pid, now, &mut said).await.is_none(),
+      "the call clock asks nothing of a wait on living work: {said:?}"
+    );
+    changes.extend(stall_changes(&mut watch));
+    now += 250;
+  }
+
+  assert_eq!(changes.len(), 1, "told once however long it stands: {changes:?}");
+
+  let StallChange::Stalled(stall) = &changes[0] else { panic!("a stall: {changes:?}") };
+
+  assert_eq!(stall.since, began, "counted from the record's last line");
+  assert!(
+    (began + 2_000..began + 2_250).contains(&stall.at),
+    "told at the first read past the span, {}ms after",
+    stall.at - began
+  );
+  assert_eq!(stall.waits.len(), 1, "{stall:?}");
+  assert!(stall.waits[0].tool.contains(&log), "naming the running command: {stall:?}");
+  assert_eq!(stall.waits[0].lines, [waiting], "and the last lines of the log it waits on");
+
+  // The work writes new lines: the turn moves, said once, and is not told again while the work goes on.
+  let mut changes = vec![];
+
+  for step in 0..40u8 {
+    let mut file = std::fs::OpenOptions::new().append(true).open(&log).unwrap();
+
+    let clip = format!("{}{}", char::from(b'a' + step / 26), char::from(b'a' + step % 26));
+
+    writeln!(file, "clip {clip} written").unwrap();
+    looked_at(&mut watch, &records, program.pid, now, &mut said).await;
+    changes.extend(stall_changes(&mut watch));
+    now += 250;
+  }
+
+  assert_eq!(changes, [StallChange::Resumed], "{said:?}");
+}
+
 // Waits, a bounded while, for a child of `parent` whose command line is `line`.
 async fn child_named(parent: i32, line: &str) -> i32 {
   for _ in 0..100 {
@@ -1273,6 +1366,247 @@ async fn the_door_cuts_a_job_turn_s_in_process_call_and_the_model_gets_a_result(
 
 // A program of the test's own whose background shells each write to the output file of the task named, under a
 // `tasks` folder as the program writes its tasks' output, beside a child of its own that is no task's.
+// A job's turn watched for its stall as a job's runner watches it, its stall span shortened so the test waits
+// no real minutes: the changes the door hands over are kept.
+#[derive(Clone)]
+struct Stalls {
+  notes: Arc<Mutex<Vec<String>>>,
+  changes: Arc<Mutex<Vec<StallChange>>>,
+  clock: ToolClock,
+}
+
+impl Watch for Stalls {
+  async fn note(&mut self, text: &str) {
+    self.notes.lock().unwrap().push(text.to_owned());
+  }
+
+  fn tool_clock(&self) -> Option<ToolClock> {
+    Some(self.clock.clone())
+  }
+
+  fn stall_clock(&self) -> StallClock {
+    StallClock {
+      after_ms: 600,
+      idle_cpu_percent: 30,
+      recent: 16,
+      lines: 5,
+      chars: 300,
+    }
+  }
+
+  async fn stalled(&mut self, change: &StallChange) {
+    self.changes.lock().unwrap().push(change.clone());
+  }
+}
+
+// One job's turn put in through the door: where it `stands_still`, its program makes a call blocked on a pipe
+// and answers only once the door has told the stall; else it keeps making calls answered at once, each unlike
+// the last, for several stall spans. Answers the changes the door handed over.
+async fn stall_turn(stands_still: bool) -> Vec<StallChange> {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let config = home.path().join("config");
+  let cwd = home.path().join("work");
+  std::fs::create_dir_all(&cwd).unwrap();
+  std::fs::create_dir_all(config.join("herdr")).unwrap();
+
+  let herdr_model = HerdrModel::stand(config.join("herdr").join("herdr.sock"));
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("PATH".to_owned(), "/usr/bin:/bin".to_owned()),
+      ("XDG_CONFIG_HOME".to_owned(), at(&config)),
+      ("BMO_DEPLOY_DIR".to_owned(), env!("CARGO_MANIFEST_DIR").to_owned()),
+    ],
+    home.path().join("data"),
+  );
+  let service = common::service(&scratch, &[("AGENCY_SOURCE_DIR", at(&home.path().join("source")))]);
+  let ground = Ground::new(&service, &machine, Some(herdr::Herdr::there(herdr_model.socket.clone())));
+  let session = &own_session("session-stall");
+  let record = ClaudeCode::records_under(&config, &cwd, session).swap_remove(0);
+  append(&record, &[]);
+
+  let command = vec!["bash".to_owned(), "-c".to_owned(), "the work".to_owned()];
+  let trigger = home.path().join("go");
+  let script = format!(
+    "while [ ! -e {} ]; do sleep 0.05; done; ( {} ) & while :; do sleep 0.05; done",
+    trigger.display(),
+    BLOCKED
+  );
+  let program = Program::spawn_args(&["bash", "-c", &script, "--session-id", session]);
+  let watch = Stalls {
+    notes: Arc::new(Mutex::new(Vec::new())),
+    changes: Arc::new(Mutex::new(Vec::new())),
+    // No call is cut and none asked about, so the stall alone is what the turn can show.
+    clock: ToolClock {
+      min_ms: 200,
+      stall_ms: 600_000,
+      look_ms: 20,
+      in_process_ms: 600_000,
+      ..clock(200, 600_000, 100)
+    },
+  };
+  let changes = watch.changes.clone();
+
+  let turn = Turn {
+    name: "job-41".into(),
+    title: "the work".into(),
+    seat: Seat::Own(herdr::Herdr::there(herdr_model.socket.clone())),
+    cwd: at(&cwd),
+    command: command.clone(),
+    env: BTreeMap::from([
+      ("CLAUDE_CONFIG_DIR".to_owned(), at(&config)),
+      ("HOME".to_owned(), at(home.path())),
+    ]),
+    prompt: "the work".into(),
+    session: session.into(),
+    identity: Identity {
+      agent: None,
+      root: None,
+      parent: None,
+      role: Some("worker".into()),
+      model: Some("claude-sonnet-5".into()),
+      effort: None,
+    },
+    line: "worker".into(),
+    provider: "claude-code".into(),
+    lead: String::new(),
+    trusts_folder: true,
+    clock: None,
+    interrupt: Interrupt::Keys(vec!["escape".into()]),
+    timings: Timings {
+      poll: Duration::from_millis(30),
+      redraw: Duration::from_millis(500),
+      submit: Duration::from_secs(5),
+      gone: GoneConfirm::default(),
+    },
+  };
+
+  let herdr_for_writer = herdr_model.clone();
+  let record_for_writer = record.clone();
+  let changes_for_writer = changes.clone();
+  let writing = tokio::spawn(async move {
+    let pane = 'found: {
+      for _ in 0..400 {
+        if let Some(pane) = herdr_for_writer
+          .panes()
+          .into_iter()
+          .find(|pane| pane.command.as_ref() == Some(&command))
+        {
+          break 'found pane.id;
+        }
+
+        tokio::time::sleep(Duration::from_millis(10)).await;
+      }
+
+      panic!("the door's pane");
+    };
+
+    herdr_for_writer.agent_status(&pane, "idle");
+
+    for _ in 0..400 {
+      if !herdr_for_writer.typed().is_empty() {
+        break;
+      }
+
+      tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    herdr_for_writer.agent_status(&pane, "working");
+    append(&record_for_writer, &[handed("the work")]);
+
+    let call = |id: &str, command: &str| {
+      json!({ "type": "assistant", "timestamp": stamp(agency_server::now_ms()), "message": { "content": [
+        { "type": "tool_use", "id": id, "name": "Bash", "input": { "command": command } }
+      ] } })
+    };
+    let result = |id: &str, text: &str| {
+      json!({ "type": "user", "timestamp": stamp(agency_server::now_ms()), "message": { "content": [
+        { "type": "tool_result", "tool_use_id": id, "content": text }
+      ] } })
+    };
+
+    if stands_still {
+      append(&record_for_writer, &[call("t1", "cat")]);
+      std::fs::write(&trigger, "").unwrap();
+
+      // The call stands until the door has told its stall, and a while after, so a second telling would come.
+      for _ in 0..300 {
+        if !changes_for_writer.lock().unwrap().is_empty() {
+          break;
+        }
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+      }
+
+      tokio::time::sleep(Duration::from_millis(1_500)).await;
+      append(&record_for_writer, &[result("t1", "killed")]);
+    } else {
+      let files = [
+        "store", "server", "policy", "herdr", "tools", "gateway", "siren", "agent", "host", "link",
+      ];
+
+      for (step, file) in files.iter().cycle().take(20).enumerate() {
+        let id = format!("w{step}");
+
+        append(
+          &record_for_writer,
+          &[call(&id, &format!("cat {file}.rs")), result(&id, &format!("the {file} source"))],
+        );
+        tokio::time::sleep(Duration::from_millis(150)).await;
+      }
+    }
+
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    append(&record_for_writer, &[answer("the work is done"), turn_end()]);
+    herdr_for_writer.agent_status(&pane, "idle");
+  });
+
+  let notes = watch.notes.clone();
+  let ended = tokio::time::timeout(Duration::from_secs(30), async {
+    let mut watch = watch;
+
+    agency_server::door::turn::put(&ground, &turn, &mut watch).await
+  })
+  .await
+  .unwrap_or_else(|_| panic!("the turn ends within its bound; notes: {:?}", notes.lock().unwrap()))
+  .expect("the turn is put in and ended");
+
+  writing.await.unwrap();
+  drop(program);
+
+  assert!(matches!(ended, Ending::Answered { .. }), "the turn answered: {ended:?}");
+
+  changes.lock().unwrap().clone()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_door_tells_a_job_turn_standing_still_once_and_its_move_after_it() {
+  let changes = stall_turn(true).await;
+
+  assert_eq!(changes.len(), 2, "one stall and one move, however long it stood: {changes:?}");
+
+  let StallChange::Stalled(stall) = &changes[0] else {
+    panic!("the stall first: {changes:?}")
+  };
+
+  assert_eq!(stall.waits.len(), 1, "{stall:?}");
+  assert_eq!(stall.waits[0].tool, "Bash cat", "naming the call it stands on");
+  assert!(stall.at - stall.since >= 600, "not before its span: {stall:?}");
+  assert_eq!(changes[1], StallChange::Resumed, "the call's result moves it");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_door_tells_nothing_of_a_job_turn_that_keeps_working() {
+  let changes = stall_turn(false).await;
+
+  assert!(
+    changes.is_empty(),
+    "a turn making new calls for five stall spans is not told: {changes:?}"
+  );
+}
+
 fn with_tasks(dir: &Path, tasks: &[(&str, &str)]) -> Program {
   std::fs::create_dir_all(dir.join("tasks")).unwrap();
 

@@ -25,6 +25,10 @@
 //! into the working turn saying the call did not complete, and the program ends the waiting call and hands
 //! the model a failed result. A program that does not take the words ends the turn at the grace.
 //!
+//! The same reads keep the turn's progress as one moment (`super::stall`): the record's new lines, each call's
+//! output grown with a new last line, and the processor time each call's tree, and the job's own work a call
+//! waits on, burned. A turn that stands still past the stall span is handed to the caller once a stall.
+//!
 //! The notes this writes go to the run's log and to the unit's own log, so a hang is readable while it is
 //! happening: the call's start with its pid and a one-line summary, a still-running line past a threshold,
 //! and its end with its duration and outcome. Each is a `ClockNote`, its facts kept beside its sentence.
@@ -32,6 +36,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::{Read as _, Seek as _, SeekFrom};
 use std::os::unix::fs::PermissionsExt as _;
+use std::path::Path;
 use std::time::Duration;
 
 use agent_host::identity::{ProcessStat, boot_ms, clock_ticks, process_stat};
@@ -39,6 +44,8 @@ use policy::tool_clock::CallClock;
 use serde_json::Value;
 
 pub mod notes;
+
+use super::stall::{Progress, StallChange, StallClock, Waits};
 
 pub use notes::{ClockEvent, ClockNote, Cut, Outcome};
 
@@ -220,6 +227,12 @@ struct Call {
   // The file the job's own work in the background wrote while the call waited on it, and the last moment it
   // was seen moving.
   work: Option<WaitedWork>,
+  // Until when the supervisor kept it.
+  kept_until: i64,
+  // The moment of the read before and the processor time its tree had burned by then; the same of the tree
+  // of the job's own work it waits on.
+  burned_read: Option<(i64, u64)>,
+  work_read: Option<(i64, u64)>,
 }
 
 impl Call {
@@ -338,10 +351,23 @@ pub struct Watch {
   in_process: VecDeque<InProcessCut>,
   silent: VecDeque<SilentCall>,
   closed_asks: Vec<String>,
+  progress: Progress,
+  subagents_read_at: i64,
 }
 
 impl Watch {
+  /// A watch over a turn just put in, its stall judged by the policy's numbers.
   pub fn new(clock: ToolClock) -> Self {
+    Self::stalling(clock, Progress::new(StallClock::policy()))
+  }
+
+  /// A watch over a turn already going, taken up as after a restart: a stall told before it began may stand.
+  pub fn taken_up(clock: ToolClock) -> Self {
+    Self::stalling(clock, Progress::taken_up(StallClock::policy()))
+  }
+
+  /// A watch whose turn's progress is kept by `progress`.
+  pub fn stalling(clock: ToolClock, progress: Progress) -> Self {
     Self {
       clock,
       calls: BTreeMap::new(),
@@ -349,6 +375,37 @@ impl Watch {
       in_process: VecDeque::new(),
       silent: VecDeque::new(),
       closed_asks: vec![],
+      progress,
+      subagents_read_at: i64::MIN / 2,
+    }
+  }
+
+  /// What became of the turn's progress since this was last asked: a stall, or a move after one.
+  pub fn take_stall(&mut self) -> Option<StallChange> {
+    self.progress.take()
+  }
+
+  /// The subagents' own records beside the turn's `record` read, at most once a look: one grown is progress.
+  pub fn subagent_records(&mut self, record: &Path, now: i64) {
+    if now - self.subagents_read_at < self.clock.look_ms {
+      return;
+    }
+
+    self.subagents_read_at = now;
+
+    let Some(session) = record.to_str().and_then(|path| path.strip_suffix(".jsonl")) else {
+      return;
+    };
+    let Ok(entries) = std::fs::read_dir(Path::new(session).join("subagents")) else {
+      return;
+    };
+
+    for entry in entries.flatten() {
+      let Ok(meta) = entry.metadata() else { continue };
+
+      if meta.is_file() {
+        self.progress.output(&entry.path().to_string_lossy(), meta.len(), || None, now);
+      }
     }
   }
 
@@ -392,6 +449,7 @@ impl Watch {
       CallVerdict::Kept(until) => {
         call.asking = Asking::Held(until);
         call.asked = true;
+        call.kept_until = until;
 
         let for_ms = (until - now).max(0);
 
@@ -451,6 +509,8 @@ impl Watch {
     let results = tool_results(records, from);
     let mut lines = vec![];
 
+    self.progress.records(records, from, now);
+
     for used in &uses {
       if !self.calls.contains_key(&used.id) {
         self.calls.insert(
@@ -481,6 +541,10 @@ impl Watch {
 
       if call.asked {
         self.closed_asks.push(id.clone());
+      }
+
+      for path in call.outputs.keys() {
+        self.progress.forget(path);
       }
 
       let outcome = match results.get(id) {
@@ -525,11 +589,13 @@ impl Watch {
         if !owned.is_empty() {
           call.pids = owned.iter().map(|owned| owned.pid).collect();
           read_activity(call, &owned, now, self.clock.silent.window_ms);
+          made_progress(&mut self.progress, call, now);
 
           if now - call.started_at >= self.clock.min_ms
-            && let Some(path) = awaited_work(procs, program, &owned, used)
+            && let Some((path, writer)) = awaited_work(procs, program, &owned, used)
           {
             call.awaited_at = now;
+            work_progress(&mut self.progress, call, procs, &path, writer, now);
             call.work = Some(WaitedWork {
               path,
               moved_at: now,
@@ -621,9 +687,35 @@ impl Watch {
 
     if scanning {
       self.hand_over_silent(&uses, now);
+      self.judge_stall(&uses, now);
     }
 
     lines
+  }
+
+  // The turn's stall judged: told unless a call of it stands under an ask, a keep or a wait on the job's own
+  // question, which the supervisor already holds; what it waits on is each call still running.
+  fn judge_stall(&mut self, uses: &[ToolUse], now: i64) {
+    let running: Vec<&Call> = uses
+      .iter()
+      .filter_map(|used| self.calls.get(&used.id))
+      .filter(|call| !call.cut)
+      .collect();
+    let known = running.iter().any(|call| {
+      matches!(call.asking, Asking::Open | Asking::Due { open: true } | Asking::Awaiting)
+        || call.kept_until > now
+    });
+    let (lines, chars) = (self.progress.clock().lines, self.progress.clock().chars);
+
+    self.progress.judge(now, known, || {
+      running
+        .iter()
+        .map(|call| Waits {
+          tool: call.asked_as.chars().take(chars).collect(),
+          lines: waited_lines(call, lines, chars),
+        })
+        .collect()
+    });
   }
 
   // Each call that owns processes and has gone silent and idle, each whose ask stands, and each the caller
@@ -870,19 +962,83 @@ fn read_activity(call: &mut Call, owned: &[Proc], now: i64, window_ms: i64) {
   }
 }
 
-// The file of the job's own work that still moves a shell call waits on, where it waits on one: its command
-// names, by its whole path, a regular file that a living process of the program's tree, not one of the
-// call's own, holds open for writing — a check or a close an earlier call put in the background, writing
-// the log the call polls.
-fn awaited_work(procs: &[Proc], program: i32, owned: &[Proc], used: &ToolUse) -> Option<String> {
+// What a call's own reads came to for the turn's progress: each output file at its size, its last line read
+// only where it grew, and the processor time its tree burned since the read before.
+fn made_progress(progress: &mut Progress, call: &mut Call, now: i64) {
+  for (path, (size, through)) in &call.outputs {
+    progress.output(path, *size, || tail_lines(Path::new(through), 1, usize::MAX).pop(), now);
+  }
+
+  if let Some((at, burned)) = call.burned_read {
+    progress.burned(ticks_ms(call.burned.saturating_sub(burned)), now - at, now);
+  }
+
+  call.burned_read = Some((now, call.burned));
+}
+
+// What the job's own work a call waits on came to for the turn's progress: the file it writes at its size, its
+// last line read only where it grew, and the processor time the writer's tree burned since the read before.
+fn work_progress(
+  progress: &mut Progress,
+  call: &mut Call,
+  procs: &[Proc],
+  path: &str,
+  writer: i32,
+  now: i64,
+) {
+  if let Ok(meta) = std::fs::metadata(path) {
+    progress.output(path, meta.len(), || tail_lines(Path::new(path), 1, usize::MAX).pop(), now);
+  }
+
+  let tree = descendants_of(procs, &HashSet::from([writer]));
+  let burned: u64 = procs
+    .iter()
+    .filter(|proc| tree.contains(&proc.pid))
+    .map(|proc| proc.cpu + proc.reaped_cpu)
+    .sum();
+
+  if let Some((at, was)) = call.work_read {
+    progress.burned(ticks_ms(burned.saturating_sub(was)), now - at, now);
+  }
+
+  call.work_read = Some((now, burned));
+}
+
+fn ticks_ms(ticks: u64) -> i64 {
+  let per_second = u64::try_from(clock_ticks().max(1)).unwrap_or(1);
+
+  i64::try_from(ticks.saturating_mul(1_000) / per_second).unwrap_or(i64::MAX)
+}
+
+// The last lines of what a running call waits on: the file the job's own work writes where it waits on one,
+// else its own output.
+fn waited_lines(call: &Call, lines: usize, chars: usize) -> Vec<String> {
+  if let Some(work) = &call.work {
+    return tail_lines(Path::new(&work.path), lines, chars);
+  }
+
+  call
+    .last_written
+    .as_ref()
+    .and_then(|path| call.outputs.get(path))
+    .or_else(|| call.outputs.values().find(|(size, _)| *size > 0))
+    .map(|(_, through)| tail_lines(Path::new(through), lines, chars))
+    .unwrap_or_default()
+}
+
+// The file of the job's own work that still moves a shell call waits on, and the process writing it, where it
+// waits on one: its command names, by its whole path, a regular file that a living process of the program's
+// tree, not one of the call's own, holds open for writing — a check or a close an earlier call put in the
+// background, writing the log the call polls.
+fn awaited_work(procs: &[Proc], program: i32, owned: &[Proc], used: &ToolUse) -> Option<(String, i32)> {
   let command = used.input.get("command").and_then(Value::as_str)?;
   let own: HashSet<i32> = owned.iter().map(|proc| proc.pid).collect();
 
   descendants(procs, program)
     .iter()
     .filter(|proc| !own.contains(&proc.pid))
-    .flat_map(|proc| written_files(proc.pid))
-    .find(|path| command.contains(path.as_str()))
+    .flat_map(|proc| written_files(proc.pid).into_iter().map(|path| (path, proc.pid)))
+    .find(|(path, _)| command.contains(path.as_str()))
 }
 
 // The regular files a process holds open for writing, by the path the kernel names: a descriptor's link
@@ -936,20 +1092,34 @@ fn last_line(call: &Call, chars: usize) -> Option<String> {
     .as_ref()
     .and_then(|path| call.outputs.get(path))
     .or_else(|| call.outputs.values().find(|(size, _)| *size > 0))?;
-  let mut file = std::fs::File::open(through).ok()?;
-  let size = file.metadata().ok()?.len();
 
-  file.seek(SeekFrom::Start(size.saturating_sub(TAIL_BYTES))).ok()?;
+  tail_lines(Path::new(through), 1, chars).pop()
+}
 
+// The last `count` lines that hold anything at the end of a file, oldest first, each with its control characters
+// taken out and cut at `chars` characters; none where it cannot be read.
+fn tail_lines(path: &Path, count: usize, chars: usize) -> Vec<String> {
+  let Ok(mut file) = std::fs::File::open(path) else { return vec![] };
+  let Ok(meta) = file.metadata() else { return vec![] };
   let mut tail = vec![];
 
-  file.read_to_end(&mut tail).ok()?;
+  if file.seek(SeekFrom::Start(meta.len().saturating_sub(TAIL_BYTES))).is_err()
+    || file.read_to_end(&mut tail).is_err()
+  {
+    return vec![];
+  }
 
   let text = String::from_utf8_lossy(&tail);
-  let line = text.lines().map(str::trim).rfind(|line| !line.is_empty())?;
-  let clean: String = line.chars().filter(|one| !one.is_control()).take(chars).collect();
+  let mut lines: Vec<String> = text
+    .lines()
+    .rev()
+    .map(|line| line.trim().chars().filter(|one| !one.is_control()).take(chars).collect::<String>())
+    .filter(|line| !line.is_empty())
+    .take(count)
+    .collect();
 
-  (!clean.is_empty()).then_some(clean)
+  lines.reverse();
+  lines
 }
 
 // A call's processes stopped: a polite end first, then the kill for what a blocked read will not take.

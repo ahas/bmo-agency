@@ -71,6 +71,15 @@ pub struct JobNotices {
   pub waiting_order: String,
   /// An ended job's item still leased: `{item}` and `{lease}`.
   pub close_order: String,
+  /// A job's turn that has made no progress for its stall span: `{job}`, `{item}`, `{worker}`, `{minutes}`,
+  /// `{since}` and `{waiting}`, what it waits on.
+  pub stalled_order: String,
+  /// One running call a stalled turn waits on: `{tool}`, its tool and command, and `{lines}`, its last lines.
+  pub stalled_call: String,
+  /// What a stalled turn waits on where no call runs.
+  pub stalled_no_call: String,
+  /// The last lines a stalled call is told with where it has written none.
+  pub stalled_no_lines: String,
   /// A person's question past its due time: `{question}`, `{item}`, `{asker}`, `{text}` and `{choices}`.
   pub question_due_order: String,
   /// A question settled on its recommendation once its due time passed: `{question}`, `{item}`, `{answer}`

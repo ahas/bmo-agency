@@ -94,3 +94,19 @@ bound_minutes = 240
 
 # Why a job's turn was cut at its bound, in the job's report. `{minutes}` is the bound in minutes.
 cut = "cut at its {minutes}-minute bound: the job's turn held its item without ending, so its item is released for a rerun"
+
+[stall]
+# A job's turn that has made no progress for this long while it still works is told to its item's orderer as
+# `job-stalled`, once a stall; nothing is cut. Progress is a line of the record the model wrote, a subagent's
+# record grown, output grown with a new last line, or processor time above the silent window's idle share,
+# read as docs/agent-control.md, 「A run's tool calls are held to a clock」, says.
+after_seconds = 900
+
+# How many of the turn's own last lines, and of each call's last output lines, a new line is compared with:
+# a line alike one of them, every run of digits taken as one, is no progress.
+recent = 16
+
+# How many last lines of what a call waits on the notice carries, and how many characters of a call's
+# command and of each such line.
+lines = 5
+chars = 300

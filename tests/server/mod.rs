@@ -119,6 +119,7 @@ mod door {
   mod record;
   mod record_secrets;
   mod rollout;
+  mod stall;
   mod stand;
   mod tool_clock;
   mod tool_clock_notes;
@@ -137,6 +138,7 @@ mod job_handoff;
 mod job_leases;
 mod job_list;
 mod job_notices;
+mod job_stall;
 mod outbox;
 mod job_run {
   mod claude {

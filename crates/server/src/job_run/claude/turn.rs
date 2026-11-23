@@ -39,8 +39,10 @@ use crate::door::apart::{self, new_session};
 use crate::door::confirm::{Asking, Confirmation};
 use crate::door::execution::{cancelled, execution_root};
 use crate::door::record::Reply;
+use crate::door::stall::StallChange;
 use crate::door::tool_clock::{CallVerdict, ClockNote, SilentCall, ToolClock};
 use crate::door::turn::{Ending, Overrun, Overtime, Turn, Watch, put};
+use crate::job_stall::JobStall;
 use crate::keepalive::logins;
 use crate::lines::Trees;
 use crate::lines::claude::{self, Command, Runs, Session, command_env};
@@ -957,6 +959,7 @@ impl Attempting<'_, '_> {
         .asked
         .job
         .map(|job| CallAsks::new(&work.name, worker, job.job, JobService::of(ground.vars()))),
+      stall: self.asked.job.map(|job| JobStall::new(job.job)),
     };
     let ending = apart::run(
       ground,
@@ -1059,6 +1062,7 @@ impl Attempting<'_, '_> {
         .asked
         .job
         .map(|job| CallAsks::new(&work.name, agent, job.job, JobService::of(ground.vars()))),
+      stall: self.asked.job.map(|job| JobStall::new(job.job)),
     };
     let ending = apart::run(
       ground,
@@ -1268,6 +1272,7 @@ impl Attempting<'_, '_> {
         .asked
         .job
         .map(|job| CallAsks::new(&work.name, worker, job.job, JobService::of(ground.vars()))),
+      stall: self.asked.job.map(|job| JobStall::new(job.job)),
     };
     let ending = put(ground, &turn, &mut watch).await.map_err(Failure::error)?;
     let primary = match ending {
@@ -1425,6 +1430,8 @@ struct WorkWatch<'w> {
   job: Option<JobMark>,
   /// The asks opened on the job's tool calls gone silent and idle.
   asks: Option<CallAsks>,
+  /// The notice of the job's turn standing still.
+  stall: Option<JobStall>,
 }
 
 impl Watch for WorkWatch<'_> {
@@ -1462,6 +1469,19 @@ impl Watch for WorkWatch<'_> {
   async fn call_ended(&mut self, call: Option<&str>) {
     if let Some(asks) = self.asks.as_mut() {
       asks.ended(&self.ground.db, &self.ground.events, call).await;
+    }
+
+    if call.is_none()
+      && let Some(stall) = self.stall.as_mut()
+    {
+      stall.ended(&self.ground.db, self.ground.vars()).await;
+    }
+  }
+
+  // A job's turn standing still is told to its item's orderer, and let go once it moves again.
+  async fn stalled(&mut self, change: &StallChange) {
+    if let Some(stall) = self.stall.as_mut() {
+      stall.heard(&self.ground.db, self.ground.vars(), change).await;
     }
   }
 

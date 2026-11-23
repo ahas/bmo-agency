@@ -29,8 +29,8 @@ use crate::{Refusal, now_ms};
 
 const MINUTE_MS: i64 = 60_000;
 
-// A moment as the time of day on this machine's clock, as the supervisor reads it beside the ask.
-fn clock_time(ms: i64) -> String {
+/// A moment as the time of day on this machine's clock, as the supervisor reads it beside a notice.
+pub fn clock_time(ms: i64) -> String {
   chrono::Local
     .timestamp_millis_opt(ms)
     .single()

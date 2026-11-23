@@ -36,6 +36,7 @@ use crate::door::record::{
 use crate::door::tool_clock::{CallVerdict, ClockNote, InProcessCut, ToolClock, Watch as ToolWatch};
 use crate::door::turn::{AsideOutcome, takes_words_mid_turn};
 use crate::herdr_backend::{RoadWalked, TurnEnded, close_turn_run, spent_of};
+use crate::job_stall::JobStall;
 use crate::lines::place::Place;
 use crate::places::Ground;
 use crate::places::locks::{agent_lock_path, hold};
@@ -990,11 +991,16 @@ pub async fn waited(
   let mut asks = turn
     .job
     .map(|job| CallAsks::new(&turn.run, &turn.agent, job, JobService::of(ground.vars())));
+  let mut stall = turn.job.map(JobStall::new);
 
-  followed(ground, place, pane, turn, clock, asks.as_mut()).await;
+  followed(ground, place, pane, turn, clock, asks.as_mut(), stall.as_mut()).await;
 
   if let Some(asks) = asks.as_mut() {
     asks.ended(&ground.db, &ground.events, None).await;
+  }
+
+  if let Some(stall) = stall.as_mut() {
+    stall.ended(&ground.db, ground.vars()).await;
   }
 }
 
@@ -1005,6 +1011,7 @@ async fn followed(
   turn: &InFlight,
   clock: ToolClock,
   mut asks: Option<&mut CallAsks>,
+  mut stall: Option<&mut JobStall>,
 ) {
   let every = Duration::from_millis(RESIDENT_TURN.inbox_poll_ms);
   let mut unseen = 0u32;
@@ -1015,7 +1022,7 @@ async fn followed(
   let grace_ms = clock.in_process_grace_ms;
   let grace_cut = clock.in_process_grace_cut.clone();
   let mut in_process_cut: Option<InProcessCut> = None;
-  let mut tools = clocked.then(|| ToolWatch::new(clock));
+  let mut tools = clocked.then(|| ToolWatch::taken_up(clock));
   let mut following = Following::of(ground, turn, place, pane).await;
   let provider = pane
     .map(|pane| pane.provider.as_str())
@@ -1060,6 +1067,10 @@ async fn followed(
     }
 
     following.feed(ground, turn, place, pane).await;
+
+    if let (Some(watch), Some(tail)) = (tools.as_mut(), following.tail.as_ref()) {
+      watch.subagent_records(tail.path(), now);
+    }
 
     let records = following.tail.as_mut().map(Tail::look);
     let program = tool_program(place, pane);
@@ -1119,6 +1130,13 @@ async fn followed(
       for ended in watch.take_closed_asks() {
         if let Some(asks) = asks.as_deref_mut() {
           asks.ended(&ground.db, &ground.events, Some(&ended)).await;
+        }
+      }
+
+      // A job's turn standing still is told to its item's orderer as a live turn's is.
+      while let Some(change) = watch.take_stall() {
+        if let Some(stall) = stall.as_deref_mut() {
+          stall.heard(&ground.db, ground.vars(), &change).await;
         }
       }
     }

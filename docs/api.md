@@ -1943,6 +1943,12 @@ service.
   card is granted (`docs/own-llm.md`, 「An engine the arbiter stands」). A job held so — for a road, for its
   card — or not let in at its first ask for a slot of its role, is told to its item's orderer once as the
   wait begins (`job-waiting`).
+- **A job whose turn makes no progress is told.** A running job's turn that has made no progress for the stall
+  span while it still works — no new line of the model's, no output grown with a new line, no processor time
+  above the idle share — is told to its item's orderer once a stall through the receiver's `POST
+  /instructions`, under the kind `job-stalled:<item>` and the event `job-stalled:#<item>`, naming what it waits
+  on; the instruction is withdrawn once the turn moves again or ends (`docs/agent-control.md`, 「A run's tool
+  calls are held to a clock」).
 - **A job that will wait is written waiting.** `POST /jobs` judges, as it writes the job, the wait its first
   turn will begin with, and writes that wait as its `heldFor` in the same write, so the `201` answer, the
   `job.created` event and every read of the job carry it from the start: where no road of its walk answers,

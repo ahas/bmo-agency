@@ -57,6 +57,14 @@ deploy_read_seconds = 5
 deploy_journal_lines = 20
 question_order = "A run asked question #{question} on item #{item}: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
+# A job's turn that has made no progress for its stall span (docs/agent-control.md, 「A run's tool calls are held
+# to a clock」): `{job}`, `{item}`, `{worker}`, `{minutes}`, `{since}`, the time of day of its last progress, and
+# `{waiting}`, each running call as `stalled_call` gives it with `{tool}` and `{lines}`, else `stalled_no_call`.
+# `stalled_no_lines` stands for the lines of a call that has written none.
+stalled_order = "The job {job} of item #{item} on {worker} is still working but has made no progress for {minutes} minutes, since {since}. It waits on:\n{waiting}"
+stalled_call = "the tool call {tool}, its last lines:\n{lines}"
+stalled_no_call = "no tool call: the model's own turn has written nothing new"
+stalled_no_lines = "(nothing written)"
 close_order = "The job of item #{item} ended, and item #{item} is still leased under lease {lease}: it is not closed."
 # A person's question still open past its due time: `{question}`, `{item}`, `{asker}`, `{text}` and `{choices}`.
 question_due_order = "Question #{question} on item #{item}, asked by {asker}, is still open past its due time: {text}\nChoices: {choices}"
