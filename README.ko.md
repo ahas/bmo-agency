@@ -68,6 +68,7 @@
 | `policy/`, `prompts/` | agency가 따르는 고정값과 프롬프트 |
 | `deploy/` | 서비스 유닛: 배포할 때마다 재시작되는 agency 서버, 에이전트 호스트, 모델 게이트웨이, 그리고 agency 배포가 유지하지 않는 herdr의 유닛 |
 | `testbed.toml` | 테스트베드 선언: 저장소를 어떻게 테스트하고, 검사하고, 빌드하고, 배포하는지. 배포 대상은 함께 쓰는 데이터 루트 `~/.local/share/bmo/data` 옆에 있는 agency 자체의 배포 트리 `~/.local/share/bmo-agency`입니다 |
+| `install.toml` | 설치 선언: 새 머신에 agency를 설치할 때 필요한 것으로, `bmo install`이 읽습니다 |
 | `tests/` | 모든 테스트 |
 
 ## 명령

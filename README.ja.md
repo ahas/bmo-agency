@@ -69,6 +69,7 @@
 | `policy/`, `prompts/` | agency が従う固定値とプロンプト |
 | `deploy/` | サービスユニット: デプロイのたびに再起動される agency サーバー、エージェントホスト、モデルゲートウェイと、agency のデプロイでは保持しない herdr のユニット |
 | `testbed.toml` | テストベッドの宣言: リポジトリのテスト、チェック、ビルド、デプロイの方法。デプロイ先は、共有するデータルート `~/.local/share/bmo/data` の隣にある agency 自身のデプロイツリー `~/.local/share/bmo-agency` です |
+| `install.toml` | インストール宣言: 新しいマシンに agency をインストールするのに必要なもので、`bmo install` が読みます |
 | `tests/` | すべてのテスト |
 
 ## コマンド

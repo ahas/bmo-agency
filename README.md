@@ -63,6 +63,7 @@ its turns, reads what it says and ends it. herdr is one backend behind the sessi
 | `policy/`, `prompts/` | the fixed values and the prompts agency runs by |
 | `deploy/` | the service units: agency's server, the agent host and the model gateway, which every deployment restarts, and herdr's, which no deployment of agency keeps |
 | `testbed.toml` | the testbed's declaration: how the repository is tested, checked, built and deployed, into agency's own deploy tree under `~/.local/share/bmo-agency` beside the data root it shares, `~/.local/share/bmo/data` |
+| `install.toml` | the install declaration: what installing agency on a fresh machine needs, which `bmo install` reads |
 | `tests/` | every test |
 
 ## Commands

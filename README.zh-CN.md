@@ -60,6 +60,7 @@
 | `policy/`, `prompts/` | agency 依据的固定值与提示词 |
 | `deploy/` | 服务单元：每次部署都会重启的 agency 服务器、智能体宿主和模型网关，以及 agency 部署不负责维持的 herdr 单元 |
 | `testbed.toml` | testbed 的声明：如何测试、检查、构建和部署本仓库。部署目标是 agency 自己的部署树 `~/.local/share/bmo-agency`，与它共用的数据根目录 `~/.local/share/bmo/data` 并列 |
+| `install.toml` | 安装声明：在新机器上安装 agency 所需的内容，由 `bmo install` 读取 |
 | `tests/` | 全部测试 |
 
 ## 命令
