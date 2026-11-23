@@ -871,7 +871,10 @@ impl Route for SupervisorSettingsChange {
     if made.road_moved
       && let Some(sessions) = call.sessions()
     {
-      sessions.road_moved(&agent).await;
+      // Made behind the answer: a handoff takes as long as a session's note does, and the save waits on none.
+      let agent = agent.clone();
+
+      tokio::spawn(async move { sessions.road_moved(&agent).await });
     }
 
     if made.resets {

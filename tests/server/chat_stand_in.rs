@@ -350,7 +350,8 @@ async fn a_road_that_cannot_answer_fails_the_turn_and_nothing_stands_in() {
   let home = tempfile::tempdir().unwrap();
   let scratch = store_on("codex", &[("claude-code", true), ("codex", false), ("openrouter", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+  let turned =
+    road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None, None).await;
 
   assert!(
     matches!(&turned, Err(NoAnswer::Failed(said)) if said.contains("codex") || said.contains("Codex")),
@@ -363,9 +364,29 @@ async fn a_road_on_claude_code_leaves_the_turn_to_claude_s_own_session() {
   let home = tempfile::tempdir().unwrap();
   let scratch = store_on("claude-code", &[("claude-code", true), ("codex", true)]).await;
   let ground = ground_on(scratch.db().clone(), home.path(), &[]);
-  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+  let turned =
+    road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None, None).await;
 
   assert!(matches!(turned, Ok(None)), "{turned:?}");
+}
+
+// A turn of the receiver's handoff goes out on the road the session last answered on, not the road the row now
+// names (docs/sessions.md, 「A restart hands the session over」): the row names Claude Code, whose own session would
+// carry the turn, but the turn named onto Codex goes there.
+#[tokio::test]
+async fn a_handoff_turn_goes_out_on_the_road_it_is_named_onto() {
+  let home = tempfile::tempdir().unwrap();
+  let scratch = store_on("claude-code", &[("claude-code", true), ("codex", false)]).await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
+  let last = agency_server::road::Road {
+    provider: "codex".to_owned(),
+    model: "gpt-5".to_owned(),
+    account: None,
+  };
+  let turned =
+    road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None, Some(&last)).await;
+
+  assert!(!matches!(turned, Ok(None)), "the turn did not stay on Claude Code: {turned:?}");
 }
 
 // A turn interrupted before it goes out does not go out (docs/cache-fallback.md, 「Automatic walks only on
@@ -384,7 +405,8 @@ async fn a_turn_stopped_from_outside_does_not_go_out() {
   .await
   .unwrap();
 
-  let turned = road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None).await;
+  let turned =
+    road_turn(&ground, &mut log(), &chat_run(home.path()), "chat-agent", &[], 1, None, None).await;
 
   assert!(
     matches!(&turned, Err(NoAnswer::Failed(said)) if said.contains("stopped from outside")),

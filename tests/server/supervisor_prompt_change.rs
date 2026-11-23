@@ -251,7 +251,9 @@ type Seen = Arc<Mutex<Vec<(bool, bool, Option<String>)>>>;
 
 // The receiver's ask, in the agency's own terms: it reads the state the agency answers for the agent's
 // session and then sends the handoff's turns into that same session, the note it owes and the handoff. What the stand-in records is what the
-// receiver would find at the moment it is asked.
+// receiver would find at the moment it is asked. Like the receiver, it lines asks for one agent up one behind
+// another, so a turn of the handoff that asked for a handoff of its own would wait on the very ask it answers
+// (docs/sessions.md, 「A restart hands the session over」).
 #[tokio::test(flavor = "multi_thread")]
 async fn a_prompt_that_moved_is_settled_outside_any_turn_while_the_session_stands_and_the_handoff_turn_is_let_in()
  {
@@ -290,12 +292,15 @@ async fn a_prompt_that_moved_is_settled_outside_any_turn_while_the_session_stand
   let kept = seen.clone();
   let asking = sessions.clone();
   let db = scratch.db().clone();
+  let line = Arc::new(tokio::sync::Mutex::new(()));
   let app = Router::new().fallback(move |request: Request| {
     let kept = kept.clone();
     let sessions = asking.clone();
     let db = db.clone();
+    let line = line.clone();
 
     async move {
+      let _in_line = line.lock_owned().await;
       let agent = request.uri().path().rsplit('/').next().unwrap_or_default().to_owned();
       let named = agent_session(&db, &agent).await.unwrap().is_some();
       // The receiver sends the note the session owes and then the handoff, one after the other.
@@ -335,7 +340,9 @@ async fn a_prompt_that_moved_is_settled_outside_any_turn_while_the_session_stand
   // No turn asks for the handoff: the pass that runs while the agent is quiet finds the prompt its session was
   // sent with moved, owes the replacement and makes it, asking the receiver while agency still names the
   // session (docs/sessions.md, 「Session replacement」).
-  sessions.settle_pass().await;
+  tokio::time::timeout(std::time::Duration::from_secs(30), sessions.settle_pass())
+    .await
+    .expect("no turn of the handoff asks for a handoff of its own, so the replacement ends");
 
   let seen = seen.lock().unwrap().clone();
 

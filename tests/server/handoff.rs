@@ -1,13 +1,14 @@
 //! The handoff a supervisor's session going away is asked for (docs/sessions.md, 「A restart hands the session
 //! over」), against a stand-in receiver: a turn that resumes its session asks nothing, one that replaces a
-//! session asks once and waits for the answer however long it takes, a handoff under way is waited on and
-//! asked again, and a receiver that refuses the connection is let go so the fresh session still opens.
+//! session asks once and waits for the answer up to the policy's ceiling, a handoff under way is waited on and
+//! asked again, and a receiver that refuses the connection or never answers is let go so the fresh session
+//! still opens.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use agency_server::handoff::{Handed, ask, replaces};
+use agency_server::handoff::{Handed, ask, asked, replaces};
 use axum::Router;
 use axum::extract::Request;
 use axum::http::StatusCode;
@@ -127,4 +128,24 @@ async fn a_deployment_that_names_no_receiver_asks_nothing() {
   let handed = ask(&BTreeMap::new(), "agent", "why", None, Duration::from_millis(10)).await;
 
   assert_eq!(handed, Handed::NoReceiver);
+}
+
+// A receiver that takes the ask and never answers it: the ask as the policy bounds it ends at the ceiling,
+// saying so, so the turn waiting on it goes on and the fresh session opens all the same.
+#[tokio::test(start_paused = true)]
+async fn an_ask_the_receiver_never_answers_ends_at_the_ceiling() {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let app = Router::new().fallback(std::future::pending::<StatusCode>);
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  let vars = BTreeMap::from([
+    ("BMO_RECEIVER_URL".to_owned(), format!("http://127.0.0.1:{port}")),
+    ("BMO_RECEIVER_TOKEN".to_owned(), "secret".to_owned()),
+  ]);
+  let handed = asked(&vars, "agent", "why", None).await;
+
+  assert!(matches!(handed, Handed::Failed(_)), "{handed:?}");
+  assert!(handed.said().contains("did not answer the handoff within 1800s"), "{handed:?}");
 }

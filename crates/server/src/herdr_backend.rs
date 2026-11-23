@@ -1643,6 +1643,16 @@ impl HerdrSessions {
       self.outputs.ended(session, ended.turn);
     }
 
+    // A turn that lent its session ended while a turn of the receiver's handoff still goes: it leaves the parked
+    // turns too, so the handoff turn's end hands back nothing of it to hold the session busy.
+    if let Some(parked) = self.parked().get_mut(session)
+      && let Some(at) = parked.iter().position(|going| going.run == run)
+    {
+      let ended = parked.remove(at);
+
+      self.outputs.ended(session, ended.turn);
+    }
+
     // A turn of the receiver's handoff ended while the session is still lent: the turn that lent it waits on,
     // since the receiver may send another. Lent no longer, the waiting turn takes the session back.
     if !lending && let Some(parked) = self.parked().remove(session) {
@@ -1783,6 +1793,15 @@ impl HerdrSessions {
       return;
     }
 
+    let session = SessionId(agent.to_owned());
+
+    // A turn the receiver's handoff sends on the session lent to it is that handoff's own: it asks for none,
+    // since the receiver lines an ask up behind the one under way, which waits on this very turn.
+    if self.handing().contains(&session) {
+      log.write(&ground.db, Line::note(SUPERVISOR_RUNNER.log.handoff_inside.clone())).await;
+      return;
+    }
+
     let standing = crate::lines::place::Place::of(&ground.roots.data, agent).program_alive().is_some();
 
     if !crate::handoff::replaces(kept, resuming, standing) {
@@ -1818,11 +1837,15 @@ impl HerdrSessions {
     // The handoff a supervisor's one session across rooms is asked for is one more turn of that same session,
     // so the session is lent to it while this turn waits: the receiver finds the session by the state agency
     // answers for it, and that turn would otherwise be refused as a second turn of the session.
-    let session = SessionId(agent.to_owned());
-
     self.handing().insert(session.clone());
 
-    let handed = crate::handoff::asked(ground.vars(), agent, reason, room).await;
+    // A stop asked of the waiting turn ends the wait; the turn then ends stopped, as its run reads the stop.
+    let handed = tokio::select! {
+      handed = crate::handoff::asked(ground.vars(), agent, reason, room) => handed,
+      () = stop_asked(ground, log.run()) => {
+        crate::handoff::Handed::Failed(SUPERVISOR_RUNNER.log.handoff_stopped.clone())
+      }
+    };
 
     self.lent_back(&session);
 
@@ -2275,6 +2298,18 @@ impl HerdrSessions {
     // A session the last answer left on a road other than Claude Code is resumed on that road; one left on
     // Claude Code is Claude's, and a road other than Claude Code opens a session of its own.
     let road_resume = if last_mode.as_deref() == Some(CHAT_PROVIDER) { None } else { held.clone() };
+    // Claude Code's own session resumes only a session Claude Code left: one another road left is held by no
+    // Claude Code login, so a fresh session opens in its place.
+    let claude_held = if last_mode.as_deref().is_none_or(|mode| mode == CHAT_PROVIDER) {
+      held.clone()
+    } else {
+      None
+    };
+    // A turn of the receiver's handoff goes out on the road the session last answered on where the row now names
+    // another, so the program holding the session writes the note (docs/sessions.md, 「A restart hands the session
+    // over」).
+    let handoff_road = if handoff { answered_road(&db, agent).await } else { None };
+    let handoff_model = handoff_road.as_ref().map(|road| road.model.as_str());
 
     // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one,
     // and the session is asked for its handoff while agency still names it, as before any fresh session
@@ -2296,7 +2331,7 @@ impl HerdrSessions {
     let line_run = match crate::lines::chat::chat_run(
       ground,
       &ground.machine(),
-      &launch_of(agent, room, context, road_resume),
+      &launch_on(agent, room, context, road_resume, handoff_model, None),
       prompt,
       false,
     )
@@ -2323,37 +2358,68 @@ impl HerdrSessions {
 
     sessions::mark_agent_system(&db, agent, &hash).await.map_err(store_fault)?;
 
-    let asked =
-      match road_turn(ground, &mut log, &line_run, agent, &context.answers, began, Some(shown)).await {
-        Ok(Some(reply)) => Ok(reply),
-        Err(no) => Err(no),
-        Ok(None) => {
-          // A fresh session in place of one the agent's program still stands on asks for its handoff first.
-          if !moved {
-            self
-              .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
-              .await;
-          }
-
-          let mut asked =
-            self.agent_run(&mut log, agent, room, context, prompt, held.clone(), began, shown).await;
-
-          if let Err(NoAnswer::Failed(said)) = &asked
-            && held.is_some()
-            && lost_session(said)
-          {
-            // The session the turn could not resume is asked for its handoff while agency still names it,
-            // then let go.
-            self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
-            keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
-            asked = self
-              .agent_run(&mut log, agent, room, context, &aside::carried(run, prompt), None, began, shown)
-              .await;
-          }
-
-          asked
+    let asked = match road_turn(
+      ground,
+      &mut log,
+      &line_run,
+      agent,
+      &context.answers,
+      began,
+      Some(shown),
+      handoff_road.as_ref(),
+    )
+    .await
+    {
+      Ok(Some(reply)) => Ok(reply),
+      Err(no) => Err(no),
+      Ok(None) => {
+        // A fresh session in place of one the agent's program still stands on asks for its handoff first.
+        if !moved {
+          self
+            .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
+            .await;
         }
-      };
+
+        let mut asked = self
+          .agent_run(
+            &mut log,
+            agent,
+            room,
+            context,
+            prompt,
+            claude_held.clone(),
+            handoff_model,
+            began,
+            shown,
+          )
+          .await;
+
+        if let Err(NoAnswer::Failed(said)) = &asked
+          && claude_held.is_some()
+          && lost_session(said)
+        {
+          // The session the turn could not resume is asked for its handoff while agency still names it,
+          // then let go.
+          self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
+          keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
+          asked = self
+            .agent_run(
+              &mut log,
+              agent,
+              room,
+              context,
+              &aside::carried(run, prompt),
+              None,
+              handoff_model,
+              began,
+              shown,
+            )
+            .await;
+        }
+
+        asked
+      }
+    };
 
     let reply = match asked {
       Ok(reply) => reply,
@@ -2764,10 +2830,11 @@ impl HerdrSessions {
     context: &TurnContext,
     prompt: &str,
     resume: Option<String>,
+    model: Option<&str>,
     began: i64,
     shown: OutputWatch<'_>,
   ) -> Result<Reply, NoAnswer> {
-    let launch = launch_of(agent, room, context, resume);
+    let launch = launch_on(agent, room, context, resume, model, None);
     self
       .agent_run_launched(log, agent, &launch, prompt, &context.answers, began, shown)
       .await
@@ -3963,7 +4030,11 @@ impl Sessions for HerdrSessions {
   }
 
   async fn interrupt(&self, session: &SessionId, turn: i64) -> Result<(), Fault> {
-    let runs = self.going().get(session).cloned().unwrap_or_default();
+    // A turn that lent its session to the receiver's handoff stands parked while it waits, and is cut there too.
+    let mut runs = self.going().get(session).cloned().unwrap_or_default();
+
+    runs.extend(self.parked().get(session).cloned().unwrap_or_default());
+
     let Some(running) = runs.into_iter().find(|running| running.turn == turn) else {
       return Err(fault(FaultKind::UnknownTurn, format!("no turn {turn} is going in {session}")));
     };
@@ -4203,13 +4274,32 @@ fn road_of(supervisor: &crate::supervisors::Supervisor) -> Option<(String, Optio
 
 // A turn across rooms as the chat line launches it: the room's block, the road and the base persona its
 // caller handed in for where the agent's brain gives none, on the session named.
-fn launch_of<'a>(
-  agent: &'a str,
-  room: &RoomBlock,
-  context: &'a TurnContext,
-  resume: Option<String>,
-) -> ChatLaunch<'a> {
-  launch_on(agent, room, context, resume, None, None)
+// The road the supervisor's session last answered on, where its row now names another: its provider and model as
+// the row keeps its last answer. None where they are one, or the row keeps no last answer.
+async fn answered_road(db: &sea_orm::DatabaseConnection, agent: &str) -> Option<crate::road::Road> {
+  let held = crate::supervisors::named(db, agent).await.ok().flatten()?;
+  let provider = held.last_mode.filter(|mode| !mode.is_empty())?;
+  let model = held.last_model.filter(|model| !model.is_empty())?;
+  let names = held.road.as_ref().map(|road| (road.provider.as_str(), road.model.as_str()));
+
+  (names != Some((provider.as_str(), model.as_str()))).then_some(crate::road::Road {
+    provider,
+    model,
+    account: None,
+  })
+}
+
+// Resolves once a stop stands over the run, looked for at the run-stop policy's pace; never where none comes.
+async fn stop_asked(ground: &Ground, run: &str) {
+  let look = Duration::from_millis(policy::run_stop::RUN_STOP.interrupt_look_ms.max(500));
+
+  loop {
+    if crate::door::execution::cancelled(&ground.db, &[run]).await.unwrap_or(false) {
+      return;
+    }
+
+    tokio::time::sleep(look).await;
+  }
 }
 
 // A turn as a launch that names the model and folder where the caller chose them rather than the agent's

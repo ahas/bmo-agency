@@ -577,7 +577,10 @@ impl Route for SupervisorChange {
     // names now; a supervisor carrying a turn keeps its session and its end makes the replacement
     // (docs/api.md, 「supervisors」; docs/supervisors.md, 「Where a supervisor's turn runs」).
     if moved && let Some(sessions) = call.sessions() {
-      sessions.road_moved(&name).await;
+      // Made behind the answer: a handoff takes as long as a session's note does, and the save waits on none.
+      let name = name.clone();
+
+      tokio::spawn(async move { sessions.road_moved(&name).await });
     }
 
     let supervisor = supervisors::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;

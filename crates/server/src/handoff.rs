@@ -1,7 +1,7 @@
 //! The handoff a supervisor's session going away is asked for before a fresh session replaces it
 //! (docs/sessions.md, 「A restart hands the session over」): the receiver's `POST /handoffs/{agentName}`,
-//! asked while the old program still stands in its pane and waited on up to the receiver's own bound and a
-//! margin; a handoff already under way waited on and asked again; anything else let go, the turn going on.
+//! asked while the old program still stands in its pane and waited on up to the policy's ceiling; a handoff
+//! already under way waited on and asked again; anything else let go, the turn going on.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -47,8 +47,8 @@ pub fn replaces(kept: bool, resuming: bool, standing: bool) -> bool {
 }
 
 /// The receiver asked for `agent`'s handoff, with the reason and the room, under the deployment's address and
-/// token, and waited on for its answer however long that takes: a 409 waited out `retry` and asked again,
-/// and only an error answer or a refused or broken connection ends the ask without a handoff.
+/// token, and waited on for its answer: a 409 waited out `retry` and asked again, and an error answer or a
+/// refused or broken connection ends the ask without a handoff. The caller bounds the wait.
 pub async fn ask(
   vars: &BTreeMap<String, String>,
   agent: &str,
@@ -96,12 +96,21 @@ pub async fn ask(
   }
 }
 
-/// The handoff asked as the policy paces it.
+/// The handoff asked as the policy paces and bounds it: an ask the receiver has not answered within the
+/// policy's ceiling was not had, so a handoff that waits on something that will not come never holds the turn.
 pub async fn asked(
   vars: &BTreeMap<String, String>,
   agent: &str,
   reason: &str,
   room: Option<i64>,
 ) -> Handed {
-  ask(vars, agent, reason, room, Duration::from_secs(HANDOFF.retry_seconds)).await
+  let ceiling = Duration::from_secs(HANDOFF.wait_seconds);
+  let asking = ask(vars, agent, reason, room, Duration::from_secs(HANDOFF.retry_seconds));
+
+  tokio::time::timeout(ceiling, asking).await.unwrap_or_else(|_| {
+    Handed::Failed(policy::fill_marks(
+      &policy::supervisor_runner::SUPERVISOR_RUNNER.log.handoff_waited_out,
+      &[("seconds", &HANDOFF.wait_seconds.to_string())],
+    ))
+  })
 }

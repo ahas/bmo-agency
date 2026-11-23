@@ -189,9 +189,18 @@ statements below about either are kept for a rollback to the road a deployment l
     the receiver sends for it, the notes the session owes and then the handoff itself, one after another,
     runs on the very session going away instead of being refused as a second turn while the waiting turn
     goes. The waiting turn takes the session back once the ask is answered, never between two of the
-    receiver's turns. The old
+    receiver's turns, and a waiting turn that ends while a turn of the receiver's still goes leaves nothing
+    of itself behind to hold the session busy. The old
     program usually outlives agency's own restart, so a turn after a restart that opens a fresh session
     asks as any other does;
+  - **a turn of the handoff asks for none:** a turn the receiver sends on a session lent to it is the
+    handoff's own, so it never asks for a handoff of its own, whatever it finds of the session; an ask made
+    from inside it would wait in the receiver's line behind the very ask it answers;
+  - **the road the handoff goes out on:** a turn of the handoff goes out on the road the session last
+    answered on, the provider and model the supervisor's row keeps as its last answer, where the row now
+    names another, so the program that holds the session writes the note; on Claude Code it resumes that
+    session. A fresh session on Claude Code never resumes a session another road left, since no Claude
+    Code login holds it;
   - **once a minute at most, and never skipped:** an ask for the same session within a minute of the last
     one (`policy/handoff.toml`, `again_seconds`) waits out the rest of that minute and is then made, so a
     turn that keeps failing does not ask in a loop and no replacement lets a session go without asking.
@@ -199,9 +208,11 @@ statements below about either are kept for a rollback to the road a deployment l
   - **the answer:** 200 with the handoff file's path and its byte count where the old session wrote one,
     204 where there was nothing to ask or it wrote nothing; a 409, a handoff already under way, is waited
     on and asked again a few seconds later (`policy/handoff.toml`); the ask waits for the receiver's
-    answer however long the handoff takes, and no clock cuts it. An error answer, a refusal or a broken
-    connection lets the turn go on — the fresh session is opened all the same, and the run log says the
-    handoff was not had and why. A deployment that names no receiver asks nothing.
+    answer up to the policy's ceiling (`wait_seconds`, thirty minutes), long enough for any note a session
+    writes, and a stop asked of the waiting turn ends the wait at once and the turn with it, as any stopped
+    turn ends. An error answer, a refusal, a broken connection or the ceiling lets the turn go on — the
+    fresh session is opened all the same, and the run log says the handoff was not had and why. A
+    deployment that names no receiver asks nothing.
 - **A handoff that was not had is said on the session's state.** Where the ask for the one session across
   rooms failed, or a room's own handoff turn failed or wrote no note, the fresh session or generation opens
   all the same and its state answers `handoffLost` until a turn begun after it has answered (`docs/api.md`,

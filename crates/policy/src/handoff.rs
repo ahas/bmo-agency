@@ -8,6 +8,8 @@ use serde::Deserialize;
 pub struct Handoff {
   /// How long agency waits before asking again while a handoff is under way, in seconds.
   pub retry_seconds: u64,
+  /// The longest one ask waits for the receiver's answer, in seconds; past it the handoff was not had.
+  pub wait_seconds: u64,
   /// The least time between two asks for the same session's handoff, in seconds; an ask sooner waits for it.
   pub again_seconds: u64,
   /// How often a replaced program's tool record is looked at for asynchronous calls still running, in seconds.

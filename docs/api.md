@@ -278,7 +278,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   writes its note in one more turn on the road it was opened on and its next generation opens on it, and the
   program standing on one of them ends with them so the pane no longer shows the old road. The replacement is
   owed, not made under a turn: a turn already going finishes where it went out, and its end makes the
-  replacement while the agent is quiet (`docs/supervisors.md`, 「Where a supervisor's turn runs」).
+  replacement while the agent is quiet (`docs/supervisors.md`, 「Where a supervisor's turn runs」). The route
+  answers once the change is written and the replacement owed, never waiting for a handoff: the replacement
+  is made behind the answer.
 - **`DELETE /supervisors/{supervisorName}` ends a registration,** taking `force`, `forgetBrain` and `rooms` in
   its query:
   - 404 `not-found` for no supervisor of the name;
@@ -315,8 +317,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   refused 400 with `field` beside `error`, and so is a value outside its setting's bounds. A save that
   changes its generation settings, its reference switch, its brain switch or its tool limit asks a reset of
   every room session it holds, each carried out by its handover. One that moves its thinking or its
-  registration moves its road, which replaces its sessions through their handoff as the row's route does
-  (「`PATCH /supervisors/{supervisorName}`」 above). The answer is the settings read as it then stands.
+  registration moves its road, which replaces its sessions through their handoff as the row's route does,
+  behind the answer (「`PATCH /supervisors/{supervisorName}`」 above). The answer is the settings read as it then stands.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
   `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list

@@ -1,8 +1,11 @@
 # The handoff a supervisor's session going away is asked for before a fresh session replaces it
 # (docs/sessions.md, 「A restart hands the session over」): how long agency waits before asking again while
-# one is under way, and the reasons it names, each by what makes the session go. The ask itself waits for
-# the receiver's answer however long it takes.
+# one is under way, how long the ask waits for the receiver's answer at most, and the reasons it names, each by
+# what makes the session go.
 retry_seconds = 5
+# The ceiling on one ask: long enough for any note a session writes, so an ask still unanswered past it waits on
+# something that will not come, and the fresh session opens without the note.
+wait_seconds = 1800
 # The least time between two asks for the same session's handoff: an ask sooner waits out the rest of it and is
 # then made, never skipped, so a turn that keeps failing does not ask in a loop.
 again_seconds = 60

@@ -284,7 +284,8 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     the settings route, a registration pinned anew, and a change of the registered models that leaves the
     program standing on a model its road no longer names or on an address its registration no longer holds;
   - the replacement is owed as the change is written and made while the agent is quiet: the one session
-    across rooms is asked through the receiver, each room's own session writes its note in one more turn
+    across rooms is asked through the receiver, its handoff turn going out on the road the session last
+    answered on, each room's own session writes its note in one more turn
     on the road it was opened on (「A session in each room」 below), and only then is the session let go and
     the program standing on it taken down, so the next turn stands the road the row names now;
   - a turn running as the road moves finishes where it went out, and its end makes the replacement; no

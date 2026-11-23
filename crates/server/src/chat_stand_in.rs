@@ -95,9 +95,10 @@ async fn note_failed(ground: &Ground, log: &mut RunLog, step: &Step, why: &str) 
 }
 
 /// The turn across rooms on the supervisor's one road (docs/supervisors.md, 「Where a supervisor's turn runs」),
-/// judged as it starts: none where the road is Claude Code's, whose own session carries the turn; the reply
-/// where the road's program answered; and a failure saying why where the road cannot take the turn now or did
-/// not answer. Nothing stands in for the road, and a turn stopped from outside does not go out.
+/// judged as it starts, or on the road `on` names where the caller names one — a turn of the receiver's handoff,
+/// on the road the session last answered on: none where the road is Claude Code's, whose own session carries the
+/// turn; the reply where the road's program answered; and a failure saying why where the road cannot take the
+/// turn now or did not answer. Nothing stands in for the road, and a turn stopped from outside does not go out.
 #[allow(clippy::too_many_arguments)]
 pub async fn road_turn(
   ground: &Ground,
@@ -107,6 +108,7 @@ pub async fn road_turn(
   answers: &[i64],
   began: i64,
   shown: Option<OutputWatch<'_>>,
+  on: Option<&road::Road>,
 ) -> Result<Option<Reply>, NoAnswer> {
   let machine = ground.machine();
   let agent = run.agent.as_str();
@@ -121,9 +123,17 @@ pub async fn road_turn(
 
   let order = supervisor.order();
   let ask = road::Ask::of(road::Row::Supervisor(agent), "chat", &order);
-  let resolution = road::resolve(ground, &ask).await.map_err(failed)?;
-  let Some(taken) = resolution.road() else {
-    return Err(failed(resolution.sentence()));
+  let resolution = match on {
+    Some(_) => None,
+    None => Some(road::resolve(ground, &ask).await.map_err(failed)?),
+  };
+  let taken = match (on, &resolution) {
+    (Some(on), _) => on,
+    (None, Some(resolution)) => match resolution.road() {
+      Some(taken) => taken,
+      None => return Err(failed(resolution.sentence())),
+    },
+    (None, None) => return Err(failed(format!("{agent} names no road to go out on"))),
   };
 
   if stopped(ground, log).await {

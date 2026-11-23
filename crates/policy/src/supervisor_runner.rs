@@ -56,6 +56,12 @@ pub struct Log {
   pub handoff_documents: String,
   pub handoff_road: String,
   pub handoff_reset: String,
+  /// A turn carrying the receiver's handoff, which asks for none of its own.
+  pub handoff_inside: String,
+  /// Why a handoff was not had where the receiver did not answer within the ceiling, {seconds} it.
+  pub handoff_waited_out: String,
+  /// Why a handoff was not had where a stop ended the wait.
+  pub handoff_stopped: String,
   pub handoff_paced: String,
   pub no_handoff: String,
   pub handed_over: String,
