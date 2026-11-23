@@ -2288,8 +2288,10 @@ prompt composed it asks both for that person with `GET /chain/kinds/{key}/resolv
 documented route of the unit that holds what must reach it; agency keeps no client of these units and no
 store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
 at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none
-left, the receiver's `POST /instructions` is handed, through the outbox, one order for the supervisor in the
-room the run answers (`docs/supply.md`, 「The facts told」).
+left, the receiver's `POST /instructions` is handed, through the outbox, one fact for the supervisor in the
+room the run answers, marked `ridesForGood` so it opens no turn, and no source left is withdrawn with `DELETE
+/instructions/{instructionId}` once a run of that supervisor there goes out again (`docs/supply.md`, 「The facts
+told」).
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
 base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket

@@ -197,6 +197,7 @@ pub async fn settle_choice(
   let before = chosen_for(&ground.roots.data, agent);
 
   remember(&ground.roots.data, agent, chosen);
+  told::reopened(ground, told).await;
 
   let Some(before) = before.filter(|before| chosen.account.is_some() && before.account == chosen.account)
   else {

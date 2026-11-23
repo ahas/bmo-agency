@@ -1,6 +1,7 @@
 //! The facts of a person's supply (docs/supply.md, 「The facts told」): `supply.changed` published once as a run
-//! moves to another source or finds none left, and the one order told, through the outbox, to the supervisor in
-//! the room the run answers. The owner is not told.
+//! moves to another source or finds none left, and the fact told, through the outbox, to the supervisor in the
+//! room the run answers as a row that opens no turn; no source left told once while it stays so. The owner is not
+//! told.
 
 use policy::fill_marks;
 use policy::supply::SUPPLY;
@@ -61,8 +62,10 @@ pub struct Told {
   pub room: Option<i64>,
 }
 
-// The one order to the person's own supervisor in the run's room, owed in the outbox under the run and the fact.
-async fn order(ground: &Ground, told: &Told, run: &str, fact: &str, said: String) {
+// The fact told to the person's own supervisor in the run's room, owed in the outbox under its key. It rides that
+// room's rounds for good: a turn it opened could fail for want of supply, and a fact told of that failure would
+// wake the next.
+async fn order(ground: &Ground, told: &Told, key: String, said: String, keep: Keep) {
   let (Some(supervisor), Some(room)) = (&told.supervisor, told.room) else {
     return;
   };
@@ -71,15 +74,19 @@ async fn order(ground: &Ground, told: &Told, run: &str, fact: &str, said: String
     "room": room,
     "said": { "fact": said },
     "sort": "notice",
-    "kind": format!("supply:{fact}:{run}"),
+    "kind": key,
     "summary": said,
+    "ridesForGood": true,
   });
 
-  if let Err(why) =
-    crate::outbox::owe(&ground.db, ground.vars(), Notice::instruction(body, Keep::Once)).await
-  {
-    eprintln!("agency: the supply notice of {run}: {why}");
+  if let Err(why) = crate::outbox::owe(&ground.db, ground.vars(), Notice::instruction(body, keep)).await {
+    eprintln!("agency: the supply notice {key}: {why}");
   }
+}
+
+// The key no source left is kept under: one a supervisor and room, so it is told once while it stays so.
+fn closed_key(supervisor: &str, room: i64) -> String {
+  format!("supply:supply-closed:{supervisor}:{room}")
 }
 
 /// A run moved from one source to another, published and told once.
@@ -118,7 +125,7 @@ pub async fn moved_on(
 
   let said = fill_marks(&SUPPLY.words.moved_told, &[("from", from), ("to", to), ("why", why)]);
 
-  order(ground, told, &chosen.run, "supply-moved", said).await;
+  order(ground, told, format!("supply:supply-moved:{}", chosen.run), said, Keep::Once).await;
 }
 
 /// A run that found no source left, published and told once.
@@ -146,14 +153,39 @@ pub async fn closed(
     reopens_at: closed.reopens_at,
     sentence: closed.sentence.clone(),
   });
-  order(ground, told, run, "supply-closed", closed.sentence.clone()).await;
+  let (Some(supervisor), Some(room)) = (&told.supervisor, told.room) else {
+    return;
+  };
+  let key = closed_key(supervisor, room);
+
+  // Told already while none is left: a later run finding none tells nothing again.
+  match crate::outbox::owed(&ground.db, &key).await {
+    Ok(owed) if owed.contains_key("") => return,
+    Ok(_) => {}
+    Err(why) => eprintln!("agency: the supply notice {key} could not be read: {why}"),
+  }
+
+  order(ground, told, key, closed.sentence.clone(), Keep::Kept).await;
+}
+
+/// A run of the supervisor gone out on a source in the room: no source left, told there, is taken away and its row
+/// withdrawn where no round took it, so the next closing is told afresh.
+pub async fn reopened(ground: &Ground, told: &Told) {
+  let (Some(supervisor), Some(room)) = (&told.supervisor, told.room) else {
+    return;
+  };
+  let key = closed_key(supervisor, room);
+
+  if let Err(why) = crate::outbox::let_go(&ground.db, ground.vars(), &key).await {
+    eprintln!("agency: the supply notice {key} was not let go: {why}");
+  }
 }
 
 /// A person's own key or login the provider refused, told to their own supervisor room once.
 pub async fn refused(ground: &Ground, told: &Told, run: &str, source: &str, why: &str) {
   let said = fill_marks(&SUPPLY.words.refused_told, &[("source", source), ("why", why)]);
 
-  order(ground, told, run, "supply-refused", said).await;
+  order(ground, told, format!("supply:supply-refused:{run}"), said, Keep::Once).await;
 }
 
 /// The supervisor an agent's runs answer for: the agent itself where it is a supervisor.

@@ -260,8 +260,15 @@ platform pays for takes it.
 
 - **`supply.changed`** carries a person's run moving to another source (`supply-moved`) or finding none left
   (`supply-closed`), published once each after agency has acted (`docs/api.md`, 「Events」).
-- **The person's own supervisor room is told once,** through the receiver's instruction route by the outbox:
-  the room the run answers, for its supervisor. The owner is not told.
+- **The person's own supervisor room is told, and the telling never opens a turn.** Each fact goes through the
+  receiver's instruction route by the outbox to the room the run answers, for its supervisor, as a row that rides
+  that room's rounds for good (the receiver's `docs/bmo-window.md`, 「Rows that ride」): while no source is left a
+  turn of that supervisor can only fail, so a fact that opened one would only fail it. The person hears it at the
+  next round that goes out. The owner is not told.
+- **No source left is told once while it stays so.** It is kept in the outbox under the supervisor and the room;
+  while it stands, a later run of that supervisor there that finds none left tells nothing again. The first run of
+  that supervisor in that room that goes out on a source takes it away, withdrawing the row where no round has
+  taken it yet, so the next time none is left it is told afresh.
 
 ## What stands and what is left
 
