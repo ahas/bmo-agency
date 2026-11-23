@@ -36,6 +36,11 @@ absent = "The {server} server is absent from this session: {why}."
 absent_summary = "The {server} server is absent from the session"
 # What kept a tool host namespace out where nothing but the host's own account says so.
 unreached = "the tool host saw no client of this session reach it"
+# The fact a session is told as a turn begins where the apps its person reaches changed since the last turn
+# (docs/tools.md, 「The apps a person reaches」): {off} names the apps turned off, {on} those turned on, each
+# `none` where there are none. It carries no instruction.
+apps_changed = "The apps your person's organisation settings let this session use changed: turned off: {off}; turned on: {on}. A tool of an app turned off is refused from now on; one of an app turned on is found again with `bmo use --tools`."
+apps_changed_summary = "The apps this session reaches changed"
 
 # The base persona after the system prompt: the agent's brain's layer named here, or the caller's where the
 # brain gives none, under the header that follows. A room's tone layer is the caller's, in the room's block.

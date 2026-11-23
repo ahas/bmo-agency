@@ -138,7 +138,8 @@ const RECORD_BACKSTOP: Duration = Duration::from_secs(24 * 3_600);
 /// variables of `run_env` laid over it: a program's environment holds no turn's variables, and the role a run
 /// holds and the record its caller named stand among them, so a record
 /// issued from the program's environment alone would hold none of its role's bundles. `road` names the
-/// provider and model the turn goes out on, for the record's `reads` label.
+/// provider and model the turn goes out on, for the record's `reads` label. Before anything, the apps the
+/// program's person reaches are resolved again for the turn.
 #[allow(clippy::too_many_arguments)]
 pub async fn stand_resident<F, Fut>(
   ground: &Ground,
@@ -155,6 +156,19 @@ where
   F: Fn() -> Fut,
   Fut: Future<Output = bool>,
 {
+  // The apps the program's person reaches, resolved again as each turn begins, so a setting changed while the
+  // session stands holds from this turn; a chat session in a room is told of a change (docs/tools.md, 「The apps
+  // a person reaches」).
+  let room = run_env.get("BMO_TURN_CHAT").and_then(|chat| chat.trim().parse::<i64>().ok());
+
+  crate::apps::turn_begins(
+    ground,
+    &place.path,
+    &home.agent,
+    room.filter(|_| line == crate::lines::chat::LINE),
+  )
+  .await;
+
   // A program is stood afresh only between its turns: one whose own record says a turn works is left
   // standing, the turn asking for it going in as it stands, and the next stand after that turn replaces it.
   if let Some(up) = place.program_alive()

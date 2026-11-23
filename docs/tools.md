@@ -57,6 +57,9 @@ its own, not a folder here.
   `BMO_GATE_URL` and `BMO_GATE_TOKEN_FILE`, the gate's address and the path of its token file, which the
   gate's translate tool and the job service's queue tools call it with, so no token enters the record. A tool reads only the parts it needs and passes over
   the rest.
+- **The apps the record withholds** stand in the file its `withheldAppsFile` names, on the record of every session
+  agency issues for a caller acting for a person's account other than the administrator's (「The apps a person
+  reaches」); a record of the deployment's own, and one holding the administrator's grants, names none.
 - **The turn a request is made in** is read afresh from the record: the run the agent's place names
   in its `run.json` — none for a person's turn — or else the run's own variables. Its variables are
   `BMO_TURN_AGENT`, the agent the turn is; `BMO_TURN_BEGAN`, when it took its words, in epoch
@@ -64,6 +67,38 @@ its own, not a folder here.
 - **The tree a tool reads `prompts/` from** is the nearest folder above the one it runs in that holds
   `prompts/`, which is the deploy tree the tool is placed in; else the tree `BMO_DEPLOY_DIR` names;
   else agency's deploy link, `$HOME/.local/share/bmo-agency/deploy`.
+
+## The apps a person reaches
+
+- **An app is a tool of the tool host whose manifest names one** (the tool host's `docs/mcp-host.md`, 「Apps」), and
+  each has two settings on the account service's delegation chain, `app.<key>.offered` and `app.<key>.on`, declared
+  as the tool is put. An app reaches a person where both resolve true for them; a tool naming no app is the
+  system's and is never withheld.
+- **Agency resolves them for the person a session acts for:** the account its caller acts for (`docs/person-nodes.md`,
+  「Who reaches a node」), where it is a person's account other than the administrator's. A caller of the
+  deployment's own, and one holding the administrator's grants, has no app withheld, as the system's own sessions
+  and the owner's supervisors have.
+- **What it writes:** a JSON object, `apps`, the keys of the apps that do not reach the person, and `account`, the
+  account they were resolved for, written whole into the file the record's `withheldAppsFile` names. The tool host
+  reads it at every listing, description and call, so a write holds from the session's next request.
+  - A resident program's file stands in its place, `withheld-apps.json`, and so does a run's that names its place;
+    a run that names none has a file of its own under the data root's `agency/withheld-apps/`, named by when its
+    record lapses, and the files whose records have lapsed are taken away as another is written.
+- **When it resolves:**
+  - as it issues a record, before the record is asked of the tool host;
+  - as each turn of a resident program begins, before the turn's words go in: the place's file, where it stands, is
+    resolved again for the account it names. So a setting changed while a session stands holds from its next turn,
+    and a call in hand runs to its end.
+- **How it resolves:** it lists the declared kinds (`GET /chain/kinds`), takes each key `app.<key>.offered`, and
+  asks both of each app's settings for the person (`GET /chain/kinds/{key}/resolve?person=`), every ask of one
+  resolution side by side. A setting that does not resolve to `true` withholds its app.
+- **Where the account service cannot be asked,** the file is left as it stands, so a session keeps what it last
+  reached; a record issued with no file yet names one that does not stand, which the tool host reads as every app
+  withheld until a turn writes it.
+- **The session is told when its apps change.** Where a turn's resolution withholds other apps than the file held
+  before, and the turn is a chat session's in a room, a notice is owed in agency's outbox to the supervisor in that room, as the
+  fact the chat line's policy words for it, naming the apps turned off and on, so the session does not reach for a
+  tool it no longer has. It carries no instruction.
 
 ## The procedures
 

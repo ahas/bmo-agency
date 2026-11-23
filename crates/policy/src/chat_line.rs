@@ -21,6 +21,8 @@ pub struct Tools {
   pub absent: String,
   pub absent_summary: String,
   pub unreached: String,
+  pub apps_changed: String,
+  pub apps_changed_summary: String,
 }
 
 #[derive(Debug, Deserialize)]

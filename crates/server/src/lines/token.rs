@@ -247,9 +247,28 @@ fn record(
     entries: None,
     variables,
     variables_file: None,
+    // Named by the issue that resolves the apps the record's person reaches, where it acts for one.
+    withheld_apps_file: None,
     labels,
     ttl_ms,
   }
+}
+
+// The record named the file its person's withheld apps stand in, written first, where it acts for a person's
+// account (docs/tools.md, 「The apps a person reaches」).
+async fn withhold(
+  ground: &Ground,
+  request: &mut SessionRequest,
+  person: Option<String>,
+  file: impl FnOnce() -> PathBuf,
+) {
+  let Some(person) = person else {
+    return;
+  };
+  let file = file();
+
+  crate::apps::write_for(ground, &file, &person).await;
+  request.withheld_apps_file = Some(file);
 }
 
 /// A token for a resident program of `line` standing in `place` for `agent` and working in `checkout`, or
@@ -299,15 +318,13 @@ pub async fn issue(
   labels.insert("place".to_owned(), json!(place));
 
   let folder = checkout.to_string_lossy();
-  let grants = granted(
-    ground,
-    Caller {
-      agent,
-      role: role.as_deref(),
-      checkout: Some(&folder),
-    },
-  )
-  .await?;
+  let caller = Caller {
+    agent,
+    role: role.as_deref(),
+    checkout: Some(&folder),
+  };
+  let grants = granted(ground, caller).await?;
+  let person = crate::apps::person_of(ground, caller).await?;
 
   if let Some(role) = role {
     labels.insert("role".to_owned(), json!(role));
@@ -315,8 +332,9 @@ pub async fn issue(
 
   reads_label(ground, road, standing, &mut labels).await;
 
-  let request = record(line, agent, capabilities, grants, variables, labels, None);
+  let mut request = record(line, agent, capabilities, grants, variables, labels, None);
 
+  withhold(ground, &mut request, person, || crate::apps::place_file(place)).await;
   issue_record(ground, &request).await.map(Some)
 }
 
@@ -461,15 +479,13 @@ pub async fn issue_for_run(
     variables.insert(BRAIN_AGENT.to_owned(), supervisor);
   }
 
-  let grants = granted(
-    ground,
-    Caller {
-      agent: &agent,
-      role: role.as_deref(),
-      checkout: Some(cwd),
-    },
-  )
-  .await?;
+  let caller = Caller {
+    agent: &agent,
+    role: role.as_deref(),
+    checkout: Some(cwd),
+  };
+  let grants = granted(ground, caller).await?;
+  let person = crate::apps::person_of(ground, caller).await?;
   let mut labels = Map::new();
   labels.insert("line".to_owned(), json!(line));
   labels.insert("checkout".to_owned(), json!(cwd));
@@ -490,7 +506,8 @@ pub async fn issue_for_run(
   reads_label(ground, road, standing, &mut labels).await;
 
   let now = u64::try_from(crate::now_ms()).unwrap_or_default();
-  let request = record(
+  let place = given("BMO_AGENT_PLACE");
+  let mut request = record(
     line,
     &agent,
     capabilities,
@@ -500,6 +517,11 @@ pub async fn issue_for_run(
     Some(deadline.saturating_sub(now)),
   );
 
+  withhold(ground, &mut request, person, || match place {
+    Some(place) => crate::apps::place_file(Path::new(&place)),
+    None => crate::apps::run_file(&ground.roots.data, deadline, now),
+  })
+  .await;
   issue_record(ground, &request).await.map(Some)
 }
 
