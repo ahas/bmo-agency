@@ -1,5 +1,6 @@
-//! The text of the repository holds no Hangul outside the prompts and no personal literal anywhere. The
-//! prompts are the one place Korean stands, since it is what the agents are told and answer in.
+//! The text of the repository holds no Hangul outside the prompts and the README's translations, and no
+//! personal literal anywhere. The prompts are where Korean stands for the agents, since it is what they are
+//! told and answer in; the README at the root comes in English, Korean, Japanese and Chinese.
 //!
 //! A personal literal is read off the machine the test runs on rather than written here, since a list of
 //! them would itself be one: the account's name where its home is a person's, the machine's host name and
@@ -14,6 +15,15 @@ const NOT_WRITTEN: &[&str] = &[".git", "target", "node_modules"];
 
 /// The folders of code, tests and documents, which hold no Hangul.
 const ENGLISH: &[&str] = &["crates", "tools", "packages", "tests", "policy", "deploy", "docs"];
+
+/// The README's language line and its translations at the root, which name and hold the other languages.
+fn readme(path: &Path) -> bool {
+  path.parent() == Some(root().as_path())
+    && path
+      .file_name()
+      .and_then(|name| name.to_str())
+      .is_some_and(|name| name.starts_with("README") && name.ends_with(".md"))
+}
 
 /// The folder of prompts, read for personal literals alone.
 const PROMPTS: &str = "prompts";
@@ -135,6 +145,10 @@ fn no_code_test_or_document_holds_hangul() {
   let mut found = Vec::new();
 
   for (path, text) in files(ENGLISH) {
+    if readme(&path) {
+      continue;
+    }
+
     for (index, line) in text.lines().enumerate() {
       if line.chars().any(hangul) {
         found.push(shown(&path, index + 1));

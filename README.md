@@ -1,3 +1,5 @@
+**English** | [한국어](README.ko.md) | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
+
 # agency
 
 The service that supplies, delivers and controls agents. Two axes run in it: the supervisors, who own rooms
@@ -51,6 +53,8 @@ its turns, reads what it says and ends it. herdr is one backend behind the sessi
 | `crates/node-link` | the link between machines |
 | `crates/llm-gateway` | the front of the registered models |
 | `crates/policy` | the readers of `policy/` |
+| `crates/cache-siren` | the accounts' usage windows, their readers and the cache-lifetime judgement |
+| `crates/client` | the crate `bmo-agency-client`: every body and member of agency's API as a Rust type, and one method for each route |
 | `crates/store` | agency's tables, their migrations and the statements over them |
 | `crates/tool-call` | agency's side of the tool host's call protocol, which its tools share |
 | `crates/server` | the service: sessions, places, lines, the role slots, control routes, verbs; its binaries `agency-server` and `bmo-agency` |

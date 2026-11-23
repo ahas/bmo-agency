@@ -66,8 +66,9 @@ them.
   first database it drops those of its own two names whose process no longer runs on this machine and that
   no session is on, and names on the error stream any it cannot; it reads no other name.
 - **English only** in code, comments, strings, tests and documents, and in commit messages. Korean stands
-  in `prompts/` alone, where it is what the agents are told and answer in; `tests/literals.rs` fails on
-  Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status
+  in `prompts/`, where it is what the agents are told and answer in, and in the README's language line and
+  its translations at the root (`README.ko.md`, `README.ja.md`, `README.zh-CN.md`); `tests/literals.rs`
+  fails on Hangul anywhere else. Messages a service shows are English sentences; machine-read outcomes are status
   codes and kebab-case codes.
 - **No names of agents, owners or hosts, and no personal paths** in code, prompts, documents or commits.
   Write the role instead: the owner, a worker, a node. A path is written from `$HOME` or from a variable.
