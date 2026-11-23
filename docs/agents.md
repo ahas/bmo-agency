@@ -17,8 +17,8 @@ program is spoken to is `docs/agent-control.md`.
 - **A role is one row of the `roles` table:** what a run executing work is for. It holds a prompt, the
   tool bundles its runs are given, its agents each on one road, its session
   policy and its compaction threshold (`docs/agent-roles.md`). The job worker, the coder, the
-  helper, the producer, the voyager, the seeker, the translator, the transliterator, the actor and any the
-  owner adds are roles.
+  helper, the producer, the voyager, the seeker, the translator, the transliterator, the actor, the
+  note assistant and any the owner adds are roles.
 - **Nothing else is an agent.** No row stands for a worker, a runner or a gate: a job's worker is a run of
   a role in a repository's checkout, a search is a run of the voyager role, and a subagent a run's program
   opens is part of that run. No code lists the supervisors or the roles or answers a question about one by its name;

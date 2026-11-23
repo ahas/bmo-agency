@@ -17,8 +17,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **A bundle is a capability of the tool host** (`mcp-host.md`, 「Namespaces and capabilities」): a named set
   of tools a session is shown once its record holds it, and the right the tools' own refusals read.
 - **The workers, the coder, the helper, the producer, the voyager, the seeker, the translator,
-  the transliterator and the actor are roles alike.** Nothing tells one role from another but what its row
-  says.
+  the transliterator, the actor and the note assistant are roles alike.** Nothing tells one role from another
+  but what its row says.
 
 ## What a role row holds
 
@@ -119,6 +119,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `transliterator` | Transliterator | search | none | 4 | none | none | policy | keep |
   | `upkeep` | Upkeep | worker | none | 1 | none | none | policy | fresh |
   | `actor` | Actor | worker | none | 1 | `actor.md` | none | policy | fresh |
+  | `note-assistant` | Note assistant | search | none | 2 | none | none | policy | fresh |
 
   A prompt and a provider prompt named by file are files under `prompts/roles/`. A `policy` description is
   the sentence the role's declaration states.
@@ -277,6 +278,25 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its agent is seeded `fresh`:** every turn hands it the whole of what it knows, so no turn resumes another's
   session.
 
+## The note-assistant role
+
+- **The note unit's Agent** (the note's `docs/design.md`, 「Agent」): one passage of a note, or the whole note,
+  worked for the person asking — rewritten, translated, summarized, continued or answered over — and handed back
+  in the note's own line grammar for the person to place.
+- **Its line is the search line, and it carries no prompt:** the note unit starts each session naming the
+  instructions it opens on, `systemPrompt`, and `toolsAllowed` empty, so a run reads the passage it is handed and
+  nothing else (`docs/api.md`, 「sessions」). It holds no bundle.
+- **Its runs stand under the person's account.** The note unit asks its slot under the person's own supervisor,
+  their BMO, so a run is let in on an agent of that account alone (`docs/role-slots.md`, 「Accounts」), and the
+  platform administrator's under no supervisor, on the deployment's own agents; an account that holds no agent
+  of the role is given one by the note unit with `POST /role-agents`, on the road of the role's agent of no
+  account.
+- **Its road is the one the deployment's default answerer stands on as the owner set it:** the policy seeds two
+  agents of no account on Claude Code's Opus 5.5 at medium effort with thinking on, changed afterwards like any
+  agent's road. They name their road and do not follow their asker, so an ask under no supervisor is let in.
+- **Its agents are seeded `fresh`:** every ask hands the whole passage and the rounds before it, so no run
+  resumes another's session.
+
 ## A role's provider prompts
 
 - **A role may give its runs a text beside its prompt by the provider their program stands on:** a run of
@@ -319,7 +339,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **A worker ask:** `worker` (`docs/tools.md`, 「The worker ask」).
 - **A session a caller starts:** the role the start names (`docs/api.md`, 「sessions」): the research unit
   names `voyager` or `seeker`, the voice unit `transliterator`, a translation's caller `translator`, the
-  rehearsal `actor`.
+  rehearsal `actor`, the note unit `note-assistant`.
 - **A run standing for no one's work:** `upkeep`.
 - **A role the store does not hold gives nothing,** and every one of these refuses it with the name.
 

@@ -213,3 +213,17 @@ max_concurrent = 1
 bundles = []
 sessions = "fresh"
 order = [{ provider = "deepseek", model = "deepseek-flash", effort = "low" }]
+
+# The note assistant: the note unit's Agent, which works one passage or one whole note for the person asking,
+# on the instructions the note unit hands each session (docs/agent-roles.md, 「The note-assistant role」). It
+# reaches nothing: no bundle, and every session it is asked for allows no tool. Its road is the deployment's
+# default answerer's as the owner set it, Claude Code's Opus 5.5 at medium effort with thinking on.
+[[roles]]
+name = "note-assistant"
+label = "Note assistant"
+description = "Works one passage or one whole note for the person asking — rewrites, translates, summarizes or answers over it — from the note unit's instructions, using no tool."
+line = "search"
+max_concurrent = 2
+bundles = []
+sessions = "fresh"
+order = [{ provider = "claude-code", model = "claude-opus-5-5", effort = "medium", thinking = true }]

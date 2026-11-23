@@ -1,4 +1,4 @@
-//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the ten seeded roles with their
+//! The roles policy (docs/agent-roles.md, 「The roles the policy seeds」): the eleven seeded roles with their
 //! lines, caps, sessions, descriptions, provider prompts and orders, the defaults nothing names, the
 //! supervisor bundles and the shape of a role's name.
 
@@ -8,7 +8,7 @@ use policy::roles::*;
 use regex::Regex;
 
 #[test]
-fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
+fn the_policy_seeds_the_eleven_roles_in_the_order_a_screen_lists_them() {
   let names: Vec<&str> = ROLES.roles.iter().map(|role| role.name.as_str()).collect();
 
   assert_eq!(
@@ -23,7 +23,8 @@ fn the_policy_seeds_the_ten_roles_in_the_order_a_screen_lists_them() {
       "translator",
       "transliterator",
       "upkeep",
-      "actor"
+      "actor",
+      "note-assistant"
     ]
   );
 }
@@ -177,6 +178,28 @@ fn the_actor_reads_its_prompt_on_the_worker_line_holds_no_bundle_and_starts_on_a
     [("deepseek", "deepseek-flash")]
   );
   assert!(!ROLES.default_role("actor"), "the actor is a role its caller names");
+}
+
+#[test]
+fn the_note_assistant_reaches_nothing_and_starts_on_the_default_answerers_road() {
+  let assistant = ROLES.role("note-assistant").unwrap();
+
+  assert_eq!(
+    assistant.line, "search",
+    "the line whose sessions run on the instructions their caller hands in"
+  );
+  assert_eq!(assistant.prompt, None, "the note unit hands every session its instructions");
+  assert!(assistant.bundles.is_empty(), "the note assistant reaches nothing itself");
+  assert_eq!(assistant.sessions, Sessions::Fresh, "every ask hands it the whole passage");
+  assert_eq!(
+    assistant
+      .order
+      .iter()
+      .map(|entry| (entry.provider.as_str(), entry.model.as_str(), entry.effort.as_deref(), entry.thinking))
+      .collect::<Vec<_>>(),
+    [("claude-code", "claude-opus-5-5", Some("medium"), Some(true))]
+  );
+  assert!(!ROLES.default_role("note-assistant"), "the note assistant is a role its caller names");
 }
 
 #[test]
