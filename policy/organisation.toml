@@ -145,3 +145,32 @@ levels = ["platform", "unit", "person"]
 unit_permission = "manage"
 person_writer = "heads"
 default = true
+
+# A person's own agents (docs/role-agents.md, 「A person's own agents」): the organisation supplies the agents its
+# people are given — the sign-up composition above — and each person lays their own changes over that set. Each change
+# a person may make is a setting of its own, allowed or locked by their organisation.
+[own_agents]
+# The most characters one of a person's instructions holds.
+most_characters = 20000
+
+[own_agents.add]
+key = "agency.own-agents"
+description = "Whether a person here may change the set of agents their organisation supplies: add agents of their own to a role the organisation leaves on, and switch a supplied agent off. Off, the set stands as supplied."
+shape = "flag"
+mode = "nearest"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
+[own_agents.road]
+key = "agency.road-choice"
+description = "Whether a person here may choose the road of their own agents: the provider, the model and the effort, among what their supply carries. Off, every agent stands on the road its organisation supplies."
+shape = "flag"
+mode = "nearest"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true

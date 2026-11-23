@@ -75,6 +75,8 @@ pub fn kinds() -> Vec<Kind> {
   vec![
     own(&PROMPT_LAYERS.organisation.kind),
     own(&PROMPT_LAYERS.persona.kind),
+    own(&PROMPT_LAYERS.personal.allowed),
+    own(&PROMPT_LAYERS.personal.text),
     own(&organisation.sources.platform),
     own(&organisation.sources.organisation),
     own(&organisation.sources.personal),
@@ -86,6 +88,8 @@ pub fn kinds() -> Vec<Kind> {
     own(&organisation.personal_apps.share_scope),
     own(&organisation.personal_apps.share_review),
     own(&organisation.personal_apps.install),
+    own(&organisation.own_agents.add),
+    own(&organisation.own_agents.road),
   ]
 }
 

@@ -183,7 +183,7 @@ fn the_platform_s_rules_and_the_organisation_s_instructions_stand_between_the_ha
   let layers = Layers {
     platform: true,
     organisation: organisation(&["Never reach the company's ledger.".to_owned()]),
-    persona_none: false,
+    ..Layers::default()
   };
   let composed = system(&roots, PAL, &Composition::default(), None, true, &layers).unwrap();
   let bare = system(&roots, PAL, &Composition::default(), None, true, &Layers::default()).unwrap();
@@ -249,4 +249,45 @@ fn only_a_platform_supervisor_is_told_its_folder_s_path() {
   assert!(named.contains(&format!("tools at {home}")), "{named}");
   assert!(!unnamed.contains(&home), "{unnamed}");
   assert!(unnamed.contains(&format!("tools at {}", PROMPT_LAYERS.workplace_unnamed)), "{unnamed}");
+}
+
+// The person's instructions stand after the role and before the persona (docs/prompt-layers.md, 「The person's
+// instructions」): the text for every agent first, then the agent's own; another agent's own reaches it not.
+#[test]
+fn the_person_s_instructions_stand_after_the_role_and_before_the_persona() {
+  let dir = tempfile::tempdir().unwrap();
+  let roots = roots(dir.path());
+  let settings = Composition {
+    persona: Some("a cheerful pirate".into()),
+  };
+  let layers = Layers {
+    personal: Personal {
+      all: Some("Answer in short lines.".into()),
+      agents: [
+        (PAL.name.to_owned(), "Call me by my first name.".to_owned()),
+        ("someone-else".to_owned(), "Speak only of the weather.".to_owned()),
+      ]
+      .into_iter()
+      .collect(),
+    },
+    ..Layers::default()
+  };
+  let composed = system(&roots, PAL, &settings, None, false, &layers).unwrap();
+  let role_at = composed.find("RULEBOOK prompts/rules/agent-words.md").unwrap();
+  let header_at = composed.find(&PROMPT_LAYERS.personal.header).unwrap();
+  let all_at = composed.find("Answer in short lines.").unwrap();
+  let own_at = composed.find("Call me by my first name.").unwrap();
+  let persona_at = composed.find("a cheerful pirate").unwrap();
+
+  assert!(
+    role_at < header_at && header_at < all_at && all_at < own_at && own_at < persona_at,
+    "{composed}"
+  );
+  assert!(!composed.contains("weather"), "{composed}");
+  assert_eq!(Personal::default().of(PAL.name), None);
+  assert!(
+    !system(&roots, PAL, &settings, None, false, &Layers::default())
+      .unwrap()
+      .contains(&PROMPT_LAYERS.personal.header)
+  );
 }

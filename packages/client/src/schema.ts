@@ -1787,6 +1787,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/own-agents/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The agents supplied to a person, their own changes over them, and what they may change. */
+        get: operations["ownAgents"];
+        put?: never;
+        /** Add an agent of the person's own to a role their organisation leaves on. */
+        post: operations["createOwnAgent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/own-agents/{ownerAccount}/models/{providerName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The models of a provider a person may stand an agent on, each with whether their supply carries it now. */
+        get: operations["ownAgentModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/own-agents/{ownerAccount}/{agentName}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an agent of the person's own; a supplied one is switched off instead. */
+        delete: operations["removeOwnAgent"];
+        options?: never;
+        head?: never;
+        /** Lay a person's agent on another road, or switch it on or off. */
+        patch: operations["changeOwnAgent"];
+        trace?: never;
+    };
+    "/own-agents/{ownerAccount}/{agentName}/back": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stand a seat supplied to the person again as supplied, made where it no longer stands. */
+        post: operations["ownAgentBack"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/own-instructions/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A person's own instructions, whether they may give any, and the organisation's, which stand before them. */
+        get: operations["ownInstructions"];
+        /** Replace a person's own instructions, written on their own link of the delegation chain in their name. */
+        put: operations["setOwnInstructions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/signup-composition": {
         parameters: {
             query?: never;
@@ -5199,6 +5287,124 @@ export interface components {
         ComposedAgents: {
             items: components["schemas"]["RoleAgent"][];
         };
+        /** @description The agents supplied to a person and their own changes over them. */
+        OwnAgents: {
+            /** Format: int64 */
+            account: number;
+            /** @description Whether they may add agents of their own and switch a supplied one off. */
+            add: components["schemas"]["OwnPermission"];
+            /** @description Whether they may choose their agents' roads. */
+            road: components["schemas"]["OwnPermission"];
+            roles: components["schemas"]["OwnRole"][];
+            providers: components["schemas"]["OwnProvider"][];
+        };
+        /** @description Whether a person may make one kind of change over the agents supplied to them, and the link that said so. */
+        OwnPermission: {
+            allowed: boolean;
+            /** @description `platform` or `unit:<id>`, none where the default stands. */
+            from: string | null;
+        };
+        /** @description One role as it stands for a person, with their agents of it. */
+        OwnRole: {
+            role: string;
+            label: string;
+            description: string | null;
+            line: string;
+            off: boolean;
+            /** @description The link that turned the role off, where one did. */
+            offFrom: string | null;
+            /**
+             * Format: int64
+             * @description The most agents of the role a person holds.
+             */
+            most: number;
+            agents: components["schemas"]["OwnAgent"][];
+        };
+        /**
+         * @description One agent of a person's: the agent where it stands, the seat supplied where it is one, and whether the person's
+         *     own changes stand over that seat.
+         */
+        OwnAgent: {
+            name: string;
+            /** @description The agent's row as the role agents' routes answer it; none for a seat supplied that no longer stands. */
+            agent: components["schemas"]["RoleAgent"] | null;
+            /**
+             * @description The seat supplied: its `road` (`provider`, `model`, `effort`, or null to follow the asker) and `from`, the link
+             *     whose composition supplied it, null for the platform's own rule. None for an agent of the person's own.
+             */
+            supplied: unknown;
+            /** @description Whether the agent stands otherwise than supplied: on another road, or switched off. */
+            changed: boolean;
+        };
+        /** @description A provider a person's road may name. */
+        OwnProvider: {
+            name: string;
+            label: string;
+            lines: string[];
+        };
+        /** @description The models of a provider a person may stand an agent on. */
+        OwnModels: {
+            provider: string;
+            models: components["schemas"]["OwnModel"][];
+        };
+        /** @description A model a person may stand an agent on. */
+        OwnModel: {
+            id: string;
+            /** @description The levels it takes, null in the list for the provider's own default. */
+            efforts: (string | null)[];
+            inService: boolean | null;
+            /** @description Whether the person's supply carries it now. */
+            supplied: boolean;
+        };
+        /** @description An agent of a person's own asked for: its role, and its road where they name one. */
+        OwnAgentAsk: {
+            role: string;
+            /** @default null */
+            provider: string | null;
+            /** @default null */
+            model: string | null;
+            /** @default null */
+            effort: string | null;
+        };
+        /** @description A change of a person's agent: its road, a provider with a model or both null to follow the asker, or its switch. */
+        OwnAgentChange: {
+            /** @default null */
+            provider: string | null;
+            /** @default null */
+            model: string | null;
+            /** @default null */
+            effort: string | null;
+            /** @default null */
+            enabled: boolean | null;
+        };
+        /**
+         * @description A person's own instructions, whether they may give any, the agents they may give one to, and the organisation's,
+         *     which stand before them.
+         */
+        OwnInstructions: {
+            allowed: components["schemas"]["OwnPermission"];
+            /** @description The text every agent of theirs is given. */
+            all: string | null;
+            /** @description One agent's own text, by its name. */
+            agents: {
+                [key: string]: string;
+            };
+            /** @description The agents an instruction may name, each `name`, `label`, `kind` (`supervisor` or `agent`) and `role`. */
+            named: unknown[];
+            /** @description The organisation's instructions, outermost first, each `from`, its link, and `text`. */
+            organisation: unknown[];
+            /** Format: int64 */
+            mostCharacters: number;
+        };
+        /** @description A person's own instructions written whole. */
+        OwnInstructionsAsk: {
+            /** @default null */
+            all: string | null;
+            /** @default null */
+            agents: {
+                [key: string]: string;
+            } | null;
+        };
         /**
          * @description A sign-up composition as it stands for a unit or a person, with the subject's own link where the caller reads
          *     it.
@@ -6083,6 +6289,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description bad-instructions */
+        BadInstructions: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description bad-request */
         BadRequest: {
             headers: {
@@ -6157,6 +6372,15 @@ export interface components {
         };
         /** @description install-withheld */
         InstallWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description instructions-withheld */
+        InstructionsWithheld: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6389,6 +6613,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description not-supplied */
+        NotSupplied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description not-this-job */
         NotThisJob: {
             headers: {
@@ -6416,6 +6649,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description own-agents-withheld */
+        OwnAgentsWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description own-repository */
         OwnRepository: {
             headers: {
@@ -6436,6 +6678,33 @@ export interface components {
         };
         /** @description personal-apps-withheld */
         PersonalAppsWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description road-choice-withheld */
+        RoadChoiceWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description road-not-supplied */
+        RoadNotSupplied: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description role-off */
+        RoleOff: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6524,8 +6793,26 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description supplied-agent */
+        SuppliedAgent: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description too-large */
         TooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description too-many-agents */
+        TooManyAgents: {
             headers: {
                 [name: string]: unknown;
             };
@@ -10573,6 +10860,234 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    ownAgents: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnAgents"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    createOwnAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnAgentAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnAgent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["TooManyAgents"];
+            422: components["responses"]["UnknownRole"];
+        };
+    };
+    ownAgentModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                providerName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnModels"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    removeOwnAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["SuppliedAgent"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    changeOwnAgent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnAgentChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnAgent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["RoadNotSupplied"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    ownAgentBack: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnAgent"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    ownInstructions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnInstructions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    setOwnInstructions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnInstructionsAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnInstructions"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Locked"];
+            422: components["responses"]["BadInstructions"];
         };
     };
     signupComposition: {

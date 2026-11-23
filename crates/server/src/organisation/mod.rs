@@ -1,9 +1,11 @@
 //! What agency reads off the account service's delegation chain for an organisation beside the prompt layers and
 //! the supply sources: the agents an account is given as it is made ready (docs/role-agents.md, 「The agents an
 //! account is given」), and who may add and change repositories and which a unit owns (docs/repositories.md,
-//! 「Who may add and change a repository」 and 「An organisation's repository」).
+//! 「Who may add and change a repository」 and 「An organisation's repository」); and a person's own changes over the
+//! agents their organisation supplies (docs/role-agents.md, 「A person's own agents」).
 
 pub mod composition;
+pub mod own_agents;
 pub mod repositories;
 
 use axum::http::StatusCode;

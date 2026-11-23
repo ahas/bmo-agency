@@ -196,6 +196,9 @@
       "name": "roles"
     },
     {
+      "name": "own-agents"
+    },
+    {
       "name": "nodes"
     },
     {
@@ -7297,6 +7300,495 @@
             }
           }
         ]
+      }
+    },
+    "/own-agents/{ownerAccount}": {
+      "get": {
+        "operationId": "ownAgents",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "The agents supplied to a person, their own changes over them, and what they may change.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAgents"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createOwnAgent",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "Add an agent of the person's own to a role their organisation leaves on.",
+        "responses": {
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnknownRole"
+          },
+          "409": {
+            "$ref": "#/components/responses/TooManyAgents"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "own-agents-withheld",
+          "road-choice-withheld",
+          "role-off",
+          "unknown-role",
+          "too-many-agents",
+          "road-not-supplied",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnAgentAsk"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/own-agents/{ownerAccount}/models/{providerName}": {
+      "get": {
+        "operationId": "ownAgentModels",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "The models of a provider a person may stand an agent on, each with whether their supply carries it now.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnModels"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          },
+          {
+            "name": "providerName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the provider"
+            }
+          }
+        ]
+      }
+    },
+    "/own-agents/{ownerAccount}/{agentName}": {
+      "patch": {
+        "operationId": "changeOwnAgent",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "Lay a person's agent on another road, or switch it on or off.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/RoadNotSupplied"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "own-agents-withheld",
+          "road-choice-withheld",
+          "road-not-supplied",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          },
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the agent's name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnAgentChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeOwnAgent",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "Remove an agent of the person's own; a supplied one is switched off instead.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/SuppliedAgent"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "supplied-agent",
+          "agent-busy",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          },
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the agent's name"
+            }
+          }
+        ]
+      }
+    },
+    "/own-agents/{ownerAccount}/{agentName}/back": {
+      "post": {
+        "operationId": "ownAgentBack",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "Stand a seat supplied to the person again as supplied, made where it no longer stands.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "not-supplied",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          },
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the agent's name"
+            }
+          }
+        ]
+      }
+    },
+    "/own-instructions/{ownerAccount}": {
+      "get": {
+        "operationId": "ownInstructions",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "A person's own instructions, whether they may give any, and the organisation's, which stand before them.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnInstructions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "setOwnInstructions",
+        "tags": [
+          "own-agents"
+        ],
+        "summary": "Replace a person's own instructions, written on their own link of the delegation chain in their name.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnInstructions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/BadInstructions"
+          },
+          "409": {
+            "$ref": "#/components/responses/Locked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "instructions-withheld",
+          "bad-instructions",
+          "unknown-agent",
+          "locked",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the person's account"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnInstructionsAsk"
+              }
+            }
+          }
+        }
       }
     },
     "/signup-composition": {
@@ -17428,6 +17920,373 @@
         ],
         "description": "The agents made for a person by their composition."
       },
+      "OwnAgents": {
+        "type": "object",
+        "properties": {
+          "account": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "add": {
+            "$ref": "#/components/schemas/OwnPermission",
+            "description": "Whether they may add agents of their own and switch a supplied one off."
+          },
+          "road": {
+            "$ref": "#/components/schemas/OwnPermission",
+            "description": "Whether they may choose their agents' roads."
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnRole"
+            }
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnProvider"
+            }
+          }
+        },
+        "required": [
+          "account",
+          "add",
+          "road",
+          "roles",
+          "providers"
+        ],
+        "description": "The agents supplied to a person and their own changes over them."
+      },
+      "OwnPermission": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`platform` or `unit:<id>`, none where the default stands."
+          }
+        },
+        "required": [
+          "allowed",
+          "from"
+        ],
+        "description": "Whether a person may make one kind of change over the agents supplied to them, and the link that said so."
+      },
+      "OwnRole": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line": {
+            "type": "string"
+          },
+          "off": {
+            "type": "boolean"
+          },
+          "offFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The link that turned the role off, where one did."
+          },
+          "most": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The most agents of the role a person holds."
+          },
+          "agents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnAgent"
+            }
+          }
+        },
+        "required": [
+          "role",
+          "label",
+          "description",
+          "line",
+          "off",
+          "offFrom",
+          "most",
+          "agents"
+        ],
+        "description": "One role as it stands for a person, with their agents of it."
+      },
+      "OwnAgent": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleAgent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent's row as the role agents' routes answer it; none for a seat supplied that no longer stands."
+          },
+          "supplied": {
+            "description": "The seat supplied: its `road` (`provider`, `model`, `effort`, or null to follow the asker) and `from`, the link\nwhose composition supplied it, null for the platform's own rule. None for an agent of the person's own."
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "Whether the agent stands otherwise than supplied: on another road, or switched off."
+          }
+        },
+        "required": [
+          "name",
+          "agent",
+          "supplied",
+          "changed"
+        ],
+        "description": "One agent of a person's: the agent where it stands, the seat supplied where it is one, and whether the person's\nown changes stand over that seat."
+      },
+      "OwnProvider": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "lines"
+        ],
+        "description": "A provider a person's road may name."
+      },
+      "OwnModels": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "models": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OwnModel"
+            }
+          }
+        },
+        "required": [
+          "provider",
+          "models"
+        ],
+        "description": "The models of a provider a person may stand an agent on."
+      },
+      "OwnModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "efforts": {
+            "type": "array",
+            "items": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "description": "The levels it takes, null in the list for the provider's own default."
+          },
+          "inService": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "supplied": {
+            "type": "boolean",
+            "description": "Whether the person's supply carries it now."
+          }
+        },
+        "required": [
+          "id",
+          "efforts",
+          "inService",
+          "supplied"
+        ],
+        "description": "A model a person may stand an agent on."
+      },
+      "OwnAgentAsk": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "role",
+          "provider",
+          "model",
+          "effort"
+        ],
+        "description": "An agent of a person's own asked for: its role, and its road where they name one."
+      },
+      "OwnAgentChange": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "effort",
+          "enabled"
+        ],
+        "description": "A change of a person's agent: its road, a provider with a model or both null to follow the asker, or its switch."
+      },
+      "OwnInstructions": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "$ref": "#/components/schemas/OwnPermission"
+          },
+          "all": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The text every agent of theirs is given."
+          },
+          "agents": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "One agent's own text, by its name."
+          },
+          "named": {
+            "type": "array",
+            "items": true,
+            "description": "The agents an instruction may name, each `name`, `label`, `kind` (`supervisor` or `agent`) and `role`."
+          },
+          "organisation": {
+            "type": "array",
+            "items": true,
+            "description": "The organisation's instructions, outermost first, each `from`, its link, and `text`."
+          },
+          "mostCharacters": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "allowed",
+          "all",
+          "agents",
+          "named",
+          "organisation",
+          "mostCharacters"
+        ],
+        "description": "A person's own instructions, whether they may give any, the agents they may give one to, and the organisation's,\nwhich stand before them."
+      },
+      "OwnInstructionsAsk": {
+        "type": "object",
+        "properties": {
+          "all": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "agents": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "all",
+          "agents"
+        ],
+        "description": "A person's own instructions written whole."
+      },
       "SignupComposition": {
         "type": "object",
         "properties": {
@@ -19965,6 +20824,16 @@
           }
         }
       },
+      "BadInstructions": {
+        "description": "bad-instructions",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "BadRequest": {
         "description": "bad-request",
         "content": {
@@ -20047,6 +20916,16 @@
       },
       "InstallWithheld": {
         "description": "install-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "InstructionsWithheld": {
+        "description": "instructions-withheld",
         "content": {
           "application/json": {
             "schema": {
@@ -20305,6 +21184,16 @@
           }
         }
       },
+      "NotSupplied": {
+        "description": "not-supplied",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NotThisJob": {
         "description": "not-this-job",
         "content": {
@@ -20335,6 +21224,16 @@
           }
         }
       },
+      "OwnAgentsWithheld": {
+        "description": "own-agents-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "OwnRepository": {
         "description": "own-repository",
         "content": {
@@ -20357,6 +21256,36 @@
       },
       "PersonalAppsWithheld": {
         "description": "personal-apps-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RoadChoiceWithheld": {
+        "description": "road-choice-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RoadNotSupplied": {
+        "description": "road-not-supplied",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RoleOff": {
+        "description": "role-off",
         "content": {
           "application/json": {
             "schema": {
@@ -20455,8 +21384,28 @@
           }
         }
       },
+      "SuppliedAgent": {
+        "description": "supplied-agent",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "TooLarge": {
         "description": "too-large",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "TooManyAgents": {
+        "description": "too-many-agents",
         "content": {
           "application/json": {
             "schema": {

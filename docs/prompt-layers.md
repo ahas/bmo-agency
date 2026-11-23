@@ -8,7 +8,7 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 
 ## The order
 
-- **Five layers, in this order, each whole:**
+- **Six layers, in this order, each whole:**
   1. **the harness** — the base prompt the supervisor chooses, else the platform's harness opening, else none
      on a program whose own prompt is its harness (`docs/base-prompts.md`);
   2. **the platform's rules** — the platform's own operations, for the platform administrator's supervisors
@@ -19,8 +19,14 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
      after the role prompt of an agent that holds a role; on the pieces shape the pieces role. Every role
      opens its rulebooks or its pieces with, or carries among them, the rule against destroying the system,
      `prompts/rules/self-preservation.md`, which binds every agent;
-  5. **the persona** — the supervisor's own, unless the delegation chain chose none for the person it serves
+  5. **the person's instructions** — what the person the supervisor serves asks of their own agents, where their
+     organisation lets them give any (「The person's instructions」 below);
+  6. **the persona** — the supervisor's own, unless the delegation chain chose none for the person it serves
      (「The persona's choice」 below).
+- **What comes from whom.** The harness and the platform's rules are the platform's, the organisation's
+  instructions are supplied down the delegation chain from the company to each unit, the role is the preset every
+  agent of it shares, and the person's instructions are the person's own layer over what their organisation
+  supplies: they stand after everything the platform and the organisation set and take none of it away.
 - **A layer with nothing to say is left out,** and no layer knows the others. A supervisor of an account still
   has its account's mark lead the whole prompt (`docs/agent-ownership.md`, 「What the supervisor's row
   carries」).
@@ -81,6 +87,33 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
   lock at a link cuts the chain there, so no link below it adds any instruction of its own while the lock
   stands; what they held stays kept and unread, as the chain keeps everything below a lock.
 
+## The person's instructions
+
+- **A person may give their agents instructions of their own:** one text for every agent of theirs, and one for a
+  single agent by its name — their BMO, another supervisor of theirs or one of their role agents. An agent is given
+  the text for every agent and then its own, under the header and end line the policy holds
+  (`policy/prompt-layers.toml`), which say that they stand within everything before them and that one asking what
+  those forbid is not followed.
+- **Kept on the person's own link of the delegation chain,** the kind `agency.personal-instructions.text`: a JSON
+  object, `{ all, agents }`, held at the person's link alone and written by the person. Agency judges it on its own
+  route — each text at most the policy's characters (`policy/organisation.toml`), each name an agent of the
+  person's — and writes it in the person's name (`docs/api.md`, 「own-agents」).
+- **Whether the person may give them** is the kind `agency.personal-instructions`: a flag, `nearest`, allowed by
+  default, held at the platform's link, a unit's and the person's, with rules, a head writing a unit's and a
+  person's. A unit that sets it off with a lock decides it for everyone under it. Withheld, what the person wrote is
+  kept and given to no agent, and stands again once it is allowed.
+- **Never in place of the organisation's:** the organisation's instructions stand before the role whatever the person
+  writes, and nothing of the person's removes or edits them.
+
+## A role's agents of an account
+
+- **A run seated on a role's agent of an account** (`docs/role-agents.md`, 「What a run reads off its agent」) on the
+  worker line is given the same layers around its role's prompt: the organisation's instructions of the person the
+  agent belongs to before it, and that person's instructions for every agent and for that agent after it. A run on
+  an agent of no account keeps its role's prompt alone. Where the account service is named and does not answer, the
+  layers this process last read for the account stand; with none read yet, the run is refused with the sentence of
+  why.
+
 ## The persona's choice
 
 - **A setting of the delegation chain,** the kind `agency.persona`: keys out of `own` and `none`, `nearest`,
@@ -96,16 +129,19 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 
 ## The settings agency declares
 
-- **Agency declares both kinds on the account service** (`PUT /chain/kinds/{key}`, under the unit name
-  `agency`) as its server stands, from the declarations `policy/prompt-layers.toml` holds, and again wherever a
+- **Agency declares the kinds of its layers on the account service** (`PUT /chain/kinds/{key}`, under the unit
+  name `agency`) as its server stands, from the declarations `policy/prompt-layers.toml` holds — the organisation's
+  instructions, the persona's choice, and the person's instructions with whether they may give them — and again wherever a
   resolution finds a kind undeclared. A process on a copy of the data root declares nothing as it stands. Its
   other kinds are declared with them, from `policy/organisation.toml`: the supply sources (`docs/supply.md`,
   「The sources a person's chain leaves open」), the sign-up composition (`docs/role-agents.md`, 「The agents an
   account is given」), repository management (`docs/repositories.md`, 「Who may add and change a
-  repository」) personal apps (`docs/person-nodes.md`, 「Personal apps」) and the sharing of them (`docs/person-nodes.md`, 「Shared apps」). A `json` kind's value agency judges on its own route and writes on the chain naming itself the
+  repository」), a person's own changes over the agents supplied to them (`docs/role-agents.md`, 「A person's own
+  agents」), personal apps (`docs/person-nodes.md`, 「Personal apps」) and the sharing of them (`docs/person-nodes.md`, 「Shared apps」). A `json` kind's value agency judges on its own route and writes on the chain naming itself the
   kind's declarer.
 - **Every value is read afresh** as a supervisor's prompt is composed — each turn, and each read of its prompt
-  on the console — with `GET /chain/kinds/{key}/resolve?person=`, both kinds side by side. A changed answer
+  on the console — and as a run of an account's role agent starts, with `GET /chain/kinds/{key}/resolve?person=`,
+  every kind side by side. A changed answer
   changes the prompt, which reaches the session as any moved prompt does (`docs/sessions.md`, 「Session
   replacement」).
 - **An answer that says nothing** — a person the account service does not hold, or a kind that stays
@@ -121,4 +157,6 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 - **The proof is composed prompts:** a supervisor of no account and one of the administrator's account carry
   the platform's rulebooks and one of another account does not, on either turn shape; the organisation's
   instructions stand between the platform's rules and the role in the chain's order, and a lock above leaves
-  a unit's below out; a persona chosen `none` leaves no persona text in the prompt.
+  a unit's below out; the person's instructions stand after the role and before the persona, the text for every
+  agent before the agent's own, and none stands where the chain withholds them; a persona chosen `none` leaves no
+  persona text in the prompt.

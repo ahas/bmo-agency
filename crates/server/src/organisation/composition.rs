@@ -60,6 +60,8 @@ pub struct Standing {
   pub agents: Option<Vec<Road>>,
   /// The link that said the agents, where one did.
   pub from: Option<String>,
+  /// The outermost link that turned the role off, where one did.
+  pub off_from: Option<String>,
 }
 
 fn key() -> &'static str {
@@ -122,7 +124,12 @@ pub fn standing(answer: Option<&Value>) -> BTreeMap<String, Standing> {
         off: false,
         agents: None,
         from: None,
+        off_from: None,
       });
+
+      if said.off && !held.off {
+        held.off_from = Some(link.to_owned());
+      }
 
       held.off |= said.off;
       if let Some(agents) = said.agents {
@@ -151,8 +158,8 @@ pub async fn role_off(ground: &Ground, person: i64, role: &str) -> bool {
   }
 }
 
-// An agent of no road, as an added agent starts.
-fn fresh(role: &str, name: Option<String>) -> RoleAgent {
+/// An agent of no road, as an added agent starts.
+pub(crate) fn fresh(role: &str, name: Option<String>) -> RoleAgent {
   RoleAgent {
     name: name.unwrap_or_default(),
     role: role.to_owned(),
@@ -175,13 +182,13 @@ fn fresh(role: &str, name: Option<String>) -> RoleAgent {
   }
 }
 
-fn road_body(road: &Road) -> Value {
+pub(crate) fn road_body(road: &Road) -> Value {
   json!({ "provider": road.provider, "model": road.model, "effort": road.effort })
 }
 
 /// The name of a person's `index`th agent of a role: the role and the person's mark, numbered from the second,
 /// at most 32 characters as a seat's name is.
-fn seat_name(role: &str, user: i64, index: usize) -> String {
+pub(crate) fn seat_name(role: &str, user: i64, index: usize) -> String {
   let name = if index == 0 {
     format!("{role}-u{user}")
   } else {

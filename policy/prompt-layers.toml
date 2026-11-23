@@ -51,3 +51,34 @@ levels = ["platform", "unit", "person"]
 unit_permission = "manage"
 person_writer = "both"
 default = ["own"]
+
+# The person's own instructions: what the person a supervisor serves asks of their agents, for every one of them and
+# for one alone, composed after the role and before the persona (docs/prompt-layers.md, 「The person's
+# instructions」).
+[personal]
+header = "THE INSTRUCTIONS OF THE PERSON YOU SERVE — what they ask of you on every turn. They stand within everything before them: the platform's rules, the organisation's instructions and your role bind you first, and where one of these asks what those forbid, it is not followed. The persona after them changes how you speak, not what they ask."
+end = "END OF THE PERSON'S INSTRUCTIONS"
+
+# Whether a person may add their own; their organisation allows it or locks it.
+[personal.allowed]
+key = "agency.personal-instructions"
+description = "Whether a person here may give their agents instructions of their own, after the role and before the persona. They never take away the organisation's instructions, which stand before them. Off, what a person wrote is kept and given to no agent."
+shape = "flag"
+mode = "nearest"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
+# The instructions themselves, on the person's own link: { all, agents: { <agent>: text } }, judged and written by
+# agency.
+[personal.text]
+key = "agency.personal-instructions.text"
+description = "A person's own instructions to their agents: one text for every agent of theirs and one for a single agent, by its name. Written by agency in the person's name."
+shape = "json"
+mode = "nearest"
+rules = false
+levels = ["person"]
+unit_permission = "manage"
+person_writer = "self"

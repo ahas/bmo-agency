@@ -482,6 +482,31 @@ async fn with_provider_prompt(
   }
 }
 
+/// The role's prompt of a run seated on a person's agent, between that person's organisation's instructions and
+/// their own instructions for the agent (docs/prompt-layers.md, 「A role's agents of an account」); a run on an
+/// agent of no account keeps its role's prompt alone. Where the account service does not answer, the instructions
+/// this process last read for the account stand, and with none read yet the run is refused.
+async fn around_role(
+  ground: &Ground,
+  seat: Option<&crate::role_agents::RoleAgent>,
+  role: Option<String>,
+) -> Result<Option<String>, Refusal> {
+  let Some((seat, account)) =
+    seat.and_then(|seat| Some((seat, seat.owner_account.as_deref()?.trim().parse::<i64>().ok()?)))
+  else {
+    return Ok(role);
+  };
+  let layers = crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), Some(account))
+    .await
+    .map_err(fault)?;
+  let parts: Vec<String> = [layers.organisation, role, layers.personal.of(&seat.name)]
+    .into_iter()
+    .flatten()
+    .collect();
+
+  Ok((!parts.is_empty()).then(|| parts.join("\n\n")))
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn run_on_line(
   ground: &Ground,
@@ -525,6 +550,7 @@ async fn run_on_line(
     documents.as_deref(),
     languages.as_deref(),
   )?;
+  let seat = crate::role_agents::seated_at(&ground.db, role, Some(cwd)).await?;
   let above = match role {
     Some(role) => {
       with_provider_prompt(ground, role, provider, super::role_prompt(&ground.db, role, Some(cwd)).await)
@@ -532,6 +558,7 @@ async fn run_on_line(
     }
     None => None,
   };
+  let above = around_role(ground, seat.as_ref(), above).await?;
   let system_prompt = worker_system_prompt(
     ground,
     trees,
@@ -552,7 +579,6 @@ async fn run_on_line(
     .map(|role| trees.agent_dir(role).join("plugin"))
     .filter(|dir| dir.exists())
     .unwrap_or_else(|| worker_dir.join("plugin"));
-  let seat = crate::role_agents::seated_at(&ground.db, role, Some(cwd)).await?;
   let role_skills = match role {
     Some(role) => crate::agent_roles::named(&ground.db, role)
       .await

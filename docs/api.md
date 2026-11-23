@@ -458,6 +458,54 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   window they filled, and `valid`, whether the next run of that key would resume it (`docs/sessions.md`,
   「The session history of a role」).
 
+### own-agents
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/own-agents/{ownerAccount}` | The agents supplied to a person, their own changes over them, and what they may change. |
+| GET | `/own-agents/{ownerAccount}/models/{providerName}` | The models of a provider a person may stand an agent on, each with whether their supply carries it now. |
+| POST | `/own-agents/{ownerAccount}` | Add an agent of the person's own to a role their organisation leaves on. |
+| PATCH | `/own-agents/{ownerAccount}/{agentName}` | Lay a person's agent on another road, or switch it on or off. |
+| POST | `/own-agents/{ownerAccount}/{agentName}/back` | Stand a seat supplied to the person again as supplied, made where it no longer stands. |
+| DELETE | `/own-agents/{ownerAccount}/{agentName}` | Remove an agent of the person's own; a supplied one is switched off instead. |
+| GET | `/own-instructions/{ownerAccount}` | A person's own instructions, whether they may give any, and the organisation's, which stand before them. |
+| PUT | `/own-instructions/{ownerAccount}` | Replace a person's own instructions, written on their own link of the delegation chain in their name. |
+
+- **What they do is `docs/role-agents.md`, 「A person's own agents」, and `docs/prompt-layers.md`, 「The person's
+  instructions」.** A caller naming a person with `Owner-Key` and `Owner-Role: member` acts on that person's own
+  account alone, any other account in the path refused 403 `forbidden`; the deployment's own caller acts on the
+  account the path names, as the console does for the signed-in person. These paths stand under no part of agent
+  management: whether the person may make a change is the delegation chain's word for that person, never a console
+  section.
+- **`GET /own-agents/{ownerAccount}`** answers `account`; `add` and `road`, each `allowed` and `from`, the link that
+  said it where one did; `roles`, every role the store holds, each with `role`, `label`, `description`, `line`,
+  `off` and `offFrom`, `most`, the most agents of one role a person holds, and `agents`, the seats supplied in their
+  order and then the person's own, each `name`, `agent` (the row as `GET /role-agents` answers it, null for a seat
+  supplied that no longer stands), `supplied` (`road`, its `provider`, `model` and `effort` or null to follow the
+  asker, and `from`, the link whose composition supplied it or null for the platform's own rule; null for an agent
+  of the person's own) and `changed`; and `providers`, each provider on now with its `name`, `label` and `lines`.
+- **`GET /own-agents/{ownerAccount}/models/{providerName}`** answers `provider` and `models`, the provider's offered
+  models less any another person owns, each `id`, `efforts`, `inService` and `supplied`, whether the person's supply
+  carries it now.
+- **`POST /own-agents/{ownerAccount}`** takes `role` and, optionally, `provider`, `model` and `effort`; it answers
+  201 with the agent. Refusals: 403 `own-agents-withheld`, 403 `role-off`, 422 `unknown-role`, 409
+  `too-many-agents`, and for a road named 403 `road-choice-withheld` and 409 `road-not-supplied`.
+- **`PATCH /own-agents/{ownerAccount}/{agentName}`** takes a road — `provider` with `model` and `effort`, or both
+  null to follow the asker — and `enabled`; 404 `not-found` for no agent of the person's, 403
+  `road-choice-withheld` and 409 `road-not-supplied` for a road, 403 `own-agents-withheld` for a supplied agent
+  switched off.
+- **`POST /own-agents/{ownerAccount}/{agentName}/back`** answers the agent standing as supplied; 404 `not-supplied`
+  for a name no seat supplied to the person holds. **`DELETE`** answers 204; 409 `supplied-agent` for a seat
+  supplied and 409 `agent-busy` while it carries a run.
+- **`GET /own-instructions/{ownerAccount}`** answers `allowed` (`allowed`, `from`), `all`, `agents` (a text by an
+  agent's name, the names of agents the person no longer holds left out), `named` (the person's supervisors and role
+  agents, each `name`, `label`, `kind` and `role`), `organisation` (every link's text of the organisation's
+  instructions, outermost first, each `from` and `text`) and `mostCharacters`. **`PUT`** takes `all` and `agents`
+  and answers the same; 403 `instructions-withheld`, 422 `bad-instructions` for a text out of shape, 422
+  `unknown-agent` for a name that is no agent of the person's, and the account service's own refusal of the write
+  as it answered it.
+- Every route answers 503 `access-unchecked` where the account service does not answer.
+
 ### prompt-documents
 
 | Method | Path | Does |
@@ -2333,10 +2381,12 @@ under the data root as the owner's gate reaches it (`docs/launch-lines.md`, 「T
 service is asked, as a record is issued for a person's account and as a resident program's turn begins, for the
 declared kinds with `GET /chain/kinds` and for each app's two settings for that person with `GET
 /chain/kinds/{key}/resolve?person=` (`docs/tools.md`, 「The apps a person reaches」). As its server stands, and
-again where a resolution finds one undeclared, it declares the two settings its prompt layers read with `PUT
-/chain/kinds/{key}`, `agency.org-instructions` and `agency.persona`, and as a supervisor of an account has its
-prompt composed it asks both for that person with `GET /chain/kinds/{key}/resolve?person=`
-(`docs/prompt-layers.md`, 「The settings agency declares」). Each is the
+again where a resolution finds one undeclared, it declares the settings its prompt layers read with `PUT
+/chain/kinds/{key}`, `agency.org-instructions`, `agency.persona`, `agency.personal-instructions` and
+`agency.personal-instructions.text`, and as a prompt of an agent of an account is composed it asks them for that
+person with `GET /chain/kinds/{key}/resolve?person=` (`docs/prompt-layers.md`, 「The settings agency declares」).
+A person's own instructions are written on their own link with `PUT /chain/kinds/{key}/links/{link}/value` in their
+name, naming agency in `Declared-By` (「own-agents」). Each is the
 documented route of the unit that holds what must reach it; agency keeps no client of these units and no
 store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
 at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none

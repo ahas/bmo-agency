@@ -53,6 +53,41 @@ pub struct Layers {
   pub organisation: Option<String>,
   /// Whether the chain chose no persona, so none closes the prompt.
   pub persona_none: bool,
+  /// The person's own instructions, where the chain lets them give any; each agent takes its own part of them.
+  #[serde(default)]
+  pub personal: Personal,
+}
+
+/// The instructions a person gives their own agents: one text for every agent of theirs, and one for a single
+/// agent by its name (docs/prompt-layers.md, 「The person's instructions」).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Personal {
+  #[serde(default)]
+  pub all: Option<String>,
+  #[serde(default)]
+  pub agents: BTreeMap<String, String>,
+}
+
+impl Personal {
+  /// What an agent named `agent` is given of them: the text for every agent, then its own, under their header and
+  /// closed by their end line; none where neither says anything.
+  pub fn of(&self, agent: &str) -> Option<String> {
+    let said: Vec<&str> = [self.all.as_deref(), self.agents.get(agent).map(String::as_str)]
+      .into_iter()
+      .flatten()
+      .map(str::trim)
+      .filter(|text| !text.is_empty())
+      .collect();
+
+    if said.is_empty() {
+      return None;
+    }
+
+    let words = &PROMPT_LAYERS.personal;
+
+    Some(format!("{}\n\n{}\n\n{}", words.header, said.join("\n\n"), words.end))
+  }
 }
 
 /// The organisation's instructions as a prompt carries them: every link's text, the outermost first, under
@@ -307,7 +342,8 @@ pub fn piece(
 /// The whole system prompt, its layers each whole in their order (docs/prompt-layers.md): its harness; the
 /// platform's rules where `layers` attaches them; its organisation's instructions where it has any; every
 /// supervisor's role whole — the rulebook against destroying the system and the role's parts in their fixed
-/// order — and its persona, unless the chain chose none. The harness is the base prompt it chooses; where it
+/// order — then the instructions of the person it serves where they give any, and its persona, unless the chain
+/// chose none. The harness is the base prompt it chooses; where it
 /// chooses none, the platform's harness opening when `harnessed` says its program takes one, and none for a
 /// program whose own prompt is its harness.
 pub fn system(
@@ -338,6 +374,8 @@ pub fn system(
   for name in &SUPERVISORS.pieces_role {
     parts.extend(Some(piece(roots, supervisor, name, (settings, layers))?).filter(|text| !text.is_empty()));
   }
+
+  parts.extend(layers.personal.of(supervisor.name));
 
   if !layers.persona_none {
     parts.extend(

@@ -465,6 +465,57 @@ pub async fn platform_open(
   )
 }
 
+/// Whether the person's supply carries a run on each of `models` of a provider now, as a run's start walks it but
+/// reserving nothing (docs/role-agents.md, 「A person's own agents」): a source of their order, shaped by what their
+/// chain leaves open, holding a credential for the road. The administrator's and the deployment's own runs go out on
+/// every road.
+pub async fn carries(
+  ground: &Ground,
+  account: i64,
+  provider: &str,
+  models: &[String],
+) -> Result<Vec<bool>, Refusal> {
+  let Some(account) = person(ground, Some(account)).await? else {
+    return Ok(vec![true; models.len()]);
+  };
+  let open = sources::open_for(ground, account).await;
+  let ask = hook::OrderAsk {
+    run: format!("road-choice-{account}-{}", crate::now_ms()),
+    account,
+    provider: provider.to_owned(),
+    model: models.first().cloned().unwrap_or_default(),
+    kind: Kind::Turn,
+    job: None,
+    supervisor: None,
+    room: None,
+  };
+  let order = hook::order(&ground.hooks, ask).await.unwrap_or_else(|| vec![PERSONAL.to_owned()]);
+  let order = sources::shaped(&order, &open);
+  let mut carried = Vec::with_capacity(models.len());
+
+  for model in models {
+    let mut any = false;
+
+    for source in &order {
+      any = if source == PERSONAL {
+        personal_source(ground, account, provider, model).await?.is_some()
+      } else if source == organisation_word() {
+        organisation_source(ground, &open.units, provider, model).await?.is_some()
+      } else {
+        platform_open(ground, account, provider, model).await?
+      };
+
+      if any {
+        break;
+      }
+    }
+
+    carried.push(any);
+  }
+
+  Ok(carried)
+}
+
 /// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, as the
 /// sources their chain leaves open shape it (`sources::shaped`).
 ///

@@ -239,10 +239,18 @@ pub fn chat_system(
 
   let system = parts.join("\n\n");
 
-  Ok(match base_persona.map(str::trim).filter(|persona| !persona.is_empty()) {
-    Some(persona) => format!("{system}\n\n{}\n{persona}", CHAT_LINE.persona.header),
+  Ok(match persona_part(base_persona) {
+    Some(persona) => format!("{system}\n\n{persona}"),
     None => system,
   })
+}
+
+/// The persona as the chat's system prompt closes with it: under its header; none where it is empty.
+fn persona_part(persona: Option<&str>) -> Option<String> {
+  persona
+    .map(str::trim)
+    .filter(|persona| !persona.is_empty())
+    .map(|persona| format!("{}\n{persona}", CHAT_LINE.persona.header))
 }
 
 /// The chat's tools paragraph (docs/agent-documents.md, 「A supervisor of the window shape」): the program's own tools by name,
@@ -273,6 +281,8 @@ pub fn tools_paragraph(program: &[&str], servers: &[String], shown: &[String]) -
 pub struct SystemParts {
   /// What stands between the harness and the role, and whether the persona is left out (docs/prompt-layers.md).
   pub layers: Layers,
+  /// The supervisor the prompt is for, which takes its own part of the person's instructions.
+  pub agent: String,
   pub above: Option<String>,
   pub persona: Option<String>,
   pub discipline: Option<String>,
@@ -294,8 +304,8 @@ impl SystemParts {
 
   /// What follows the harness for a program whose own tools are these, which a program that is a harness of
   /// its own, as dsh is, carries after its own prompt: the platform's rules where its layers attach them, its
-  /// organisation's instructions where it has any, the chat's role, and its persona unless the chain chose none
-  /// (docs/prompt-layers.md).
+  /// organisation's instructions where it has any, the chat's role, the instructions of the person it serves
+  /// where they give any, and its persona unless the chain chose none (docs/prompt-layers.md).
   pub fn compose(&self, trees: &Trees, program: &[&str]) -> Result<String, Refusal> {
     let mut shown = RUN_LINES.shown(LINE).to_vec();
 
@@ -310,14 +320,25 @@ impl SystemParts {
 
     let tools = tools_paragraph(program, &self.servers, &shown);
     let persona = if self.layers.persona_none { None } else { self.persona.as_deref() };
+    let personal = self.layers.personal.of(&self.agent);
+    // The person's instructions stand between the role and the persona, so the role is composed without the
+    // persona where they stand and the persona follows them.
     let system = chat_system(
       trees,
       &self.documents,
-      persona,
+      if personal.is_some() { None } else { persona },
       self.discipline.as_deref(),
       self.tool_discipline.as_deref(),
       Some(&tools),
     )?;
+    let system = match personal {
+      Some(personal) => [Some(system), Some(personal), persona_part(persona)]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join("\n\n"),
+      None => system,
+    };
     let mut parts = vec![];
 
     if self.layers.platform {
@@ -628,6 +649,7 @@ pub async fn composed_system(
   let limits = Limits::of(&ground.db, agent).await?;
   let parts = SystemParts {
     layers,
+    agent: agent.to_owned(),
     above,
     persona: persona.text.clone(),
     discipline,

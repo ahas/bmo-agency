@@ -263,6 +263,43 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   in the caller's name, null following the link above; the chain's answer, its refusal among them, is the
   route's.
 
+## A person's own agents
+
+- **The organisation supplies a person's agents, and the person lays their own changes over that set.** The set
+  supplied is the sign-up composition resolved for the person now (「The agents an account is given」): for each role
+  that does not stand off, the seats it names, each `<role>-u<user>` and then numbered in the composition's order, on
+  the road the composition names, else on the road of the role's agent of no account that is on, else on none, which
+  follows the asker. Each seat is supplied by the link whose composition named it, or by the platform's own rule
+  where none did. The person's own layer is everything else of their agents: an agent of their own added beside the
+  seats, a road chosen for an agent, a supplied agent switched off.
+- **Each change a person may make is a setting of the delegation chain,** a flag, `nearest`, allowed by default, held
+  at the platform's link, a unit's and the person's, with rules for a person, a group or a unit, a head writing a
+  unit's and a person's; a unit that sets it and locks it decides it for everyone under it. Agency declares them with
+  its other kinds (`docs/prompt-layers.md`, 「The settings agency declares」):
+  - `agency.own-agents`: whether the person may change the set — add agents of their own to a role that does not
+    stand off, at most the policy's number of one role's agents (`policy/organisation.toml`) counting the seats, and
+    switch a seat supplied to them off;
+  - `agency.road-choice`: whether the person may choose an agent's road — a provider and a model on it with an
+    effort, or none to follow the asker.
+  A person's own instructions are a third, `agency.personal-instructions` (`docs/prompt-layers.md`, 「The person's
+  instructions」).
+- **A road a person chooses is one their supply carries now:** a source of the order their run would walk (the
+  hook's order shaped by what their chain leaves open, `docs/supply.md`, 「Choosing a source as a run starts」) that
+  holds a credential for the road, judged as a run's start judges it but reserving nothing. A model another person
+  owns is offered to nobody else, and a road is judged against its role's line as every agent's is. A road naming
+  none is always open, since the agent's runs then go out on the road of the supervisor that asks them.
+- **Putting a seat back takes the person's own change away:** the seat stands on, on the road supplied now, made
+  again where it no longer stands. It is open whatever the chain withholds, since it only returns to the set the
+  organisation supplies. A seat supplied is never removed, only switched off; an agent of the person's own is
+  removed, and is refused while it carries a run.
+- **The settings are judged as a change is asked.** Withholding a change later keeps the person from making another;
+  the agents keep the roads and the switches they stand at until the person puts them back.
+- **Everything the organisation supplies is set by its heads on the organisation's own settings** (the web's
+  `docs/web.md`, 「Organisation」, the agents tab): the composition's roles and their agents' roads, the organisation's
+  instructions, and whether its people may make each change; none of it needs the platform's agent management.
+- **The routes** are `docs/api.md`, 「own-agents」: each acts on one person's account, the person's own caller on
+  theirs alone.
+
 ## The roles the policy seeds
 
 - **A role the policy seeds is seeded with its agents:** as many as its declaration's count, each on the road

@@ -4637,3 +4637,139 @@ pub struct RelayPage {
   pub items: Vec<Relay>,
   pub more: bool,
 }
+
+/// Whether a person may make one kind of change over the agents supplied to them, and the link that said so.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnPermission {
+  pub allowed: bool,
+  /// `platform` or `unit:<id>`, none where the default stands.
+  pub from: Option<String>,
+}
+
+/// One agent of a person's: the agent where it stands, the seat supplied where it is one, and whether the person's
+/// own changes stand over that seat.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnAgent {
+  pub name: String,
+  /// The agent's row as the role agents' routes answer it; none for a seat supplied that no longer stands.
+  pub agent: Option<RoleAgent>,
+  /// The seat supplied: its `road` (`provider`, `model`, `effort`, or null to follow the asker) and `from`, the link
+  /// whose composition supplied it, null for the platform's own rule. None for an agent of the person's own.
+  pub supplied: Option<Value>,
+  /// Whether the agent stands otherwise than supplied: on another road, or switched off.
+  pub changed: bool,
+}
+
+/// One role as it stands for a person, with their agents of it.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnRole {
+  pub role: String,
+  pub label: String,
+  pub description: Option<String>,
+  pub line: String,
+  pub off: bool,
+  /// The link that turned the role off, where one did.
+  pub off_from: Option<String>,
+  /// The most agents of the role a person holds.
+  pub most: i64,
+  pub agents: Vec<OwnAgent>,
+}
+
+/// A provider a person's road may name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnProvider {
+  pub name: String,
+  pub label: String,
+  pub lines: Vec<String>,
+}
+
+/// The agents supplied to a person and their own changes over them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnAgents {
+  pub account: i64,
+  /// Whether they may add agents of their own and switch a supplied one off.
+  pub add: OwnPermission,
+  /// Whether they may choose their agents' roads.
+  pub road: OwnPermission,
+  pub roles: Vec<OwnRole>,
+  pub providers: Vec<OwnProvider>,
+}
+
+/// An agent of a person's own asked for: its role, and its road where they name one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnAgentAsk {
+  pub role: String,
+  #[serde(default)]
+  pub provider: Option<String>,
+  #[serde(default)]
+  pub model: Option<String>,
+  #[serde(default)]
+  pub effort: Option<String>,
+}
+
+/// A change of a person's agent: its road, a provider with a model or both null to follow the asker, or its switch.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnAgentChange {
+  #[serde(default)]
+  pub provider: Option<String>,
+  #[serde(default)]
+  pub model: Option<String>,
+  #[serde(default)]
+  pub effort: Option<String>,
+  #[serde(default)]
+  pub enabled: Option<bool>,
+}
+
+/// A model a person may stand an agent on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnModel {
+  pub id: String,
+  /// The levels it takes, null in the list for the provider's own default.
+  pub efforts: Vec<Option<String>>,
+  pub in_service: Option<bool>,
+  /// Whether the person's supply carries it now.
+  pub supplied: bool,
+}
+
+/// The models of a provider a person may stand an agent on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnModels {
+  pub provider: String,
+  pub models: Vec<OwnModel>,
+}
+
+/// A person's own instructions, whether they may give any, the agents they may give one to, and the organisation's,
+/// which stand before them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnInstructions {
+  pub allowed: OwnPermission,
+  /// The text every agent of theirs is given.
+  pub all: Option<String>,
+  /// One agent's own text, by its name.
+  pub agents: BTreeMap<String, String>,
+  /// The agents an instruction may name, each `name`, `label`, `kind` (`supervisor` or `agent`) and `role`.
+  pub named: Vec<Value>,
+  /// The organisation's instructions, outermost first, each `from`, its link, and `text`.
+  pub organisation: Vec<Value>,
+  pub most_characters: i64,
+}
+
+/// A person's own instructions written whole.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnInstructionsAsk {
+  #[serde(default)]
+  pub all: Option<String>,
+  #[serde(default)]
+  pub agents: Option<BTreeMap<String, String>>,
+}

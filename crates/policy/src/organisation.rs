@@ -66,6 +66,16 @@ pub struct PersonalApps {
   pub install: Kind,
 }
 
+/// A person's own changes over the agents their organisation supplies: whether they may change the set, whether they
+/// may choose their agents' roads, and the most one of their instructions holds.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OwnAgents {
+  pub most_characters: usize,
+  pub add: Kind,
+  pub road: Kind,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Organisation {
@@ -73,6 +83,7 @@ pub struct Organisation {
   pub composition: Composition,
   pub repositories: Kind,
   pub personal_apps: PersonalApps,
+  pub own_agents: OwnAgents,
 }
 
 crate::part!(pub ORGANISATION: Organisation = "organisation.toml");

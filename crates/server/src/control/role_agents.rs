@@ -243,8 +243,8 @@ fn filed(acting: Acting, agent: &mut RoleAgent) -> Result<(), Refused> {
   Ok(())
 }
 
-// A role whose seats changed lets in at once the reserved slots a seat more frees.
-async fn seats_changed(
+/// A role whose seats changed lets in at once the reserved slots a seat more frees.
+pub(crate) async fn seats_changed(
   db: &sea_orm::DatabaseConnection,
   events: &crate::events::Bus,
   role: &str,

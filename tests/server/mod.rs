@@ -18,6 +18,7 @@ mod clock;
 mod composition;
 mod conversation_session;
 mod node_tools;
+mod own_agents;
 mod role_runs;
 mod role_sessions;
 mod command_reading {

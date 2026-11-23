@@ -1,6 +1,6 @@
 //! The layers of a supervisor's system prompt between its harness and its role, and the persona's choice
-//! (docs/prompt-layers.md): the platform's rules' folder and the two settings agency declares on the account
-//! service's delegation chain.
+//! (docs/prompt-layers.md): the platform's rules' folder, the person's own instructions, and the settings agency
+//! declares on the account service's delegation chain for them.
 
 use serde::Deserialize;
 
@@ -41,6 +41,17 @@ pub struct Persona {
   pub kind: Kind,
 }
 
+/// The person's own instructions: the lines that open and close them in a prompt, whether a person may give
+/// them, and the kind they are kept under on the person's own link.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Personal {
+  pub header: String,
+  pub end: String,
+  pub allowed: Kind,
+  pub text: Kind,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PromptLayers {
@@ -54,12 +65,13 @@ pub struct PromptLayers {
   pub ask_seconds: u64,
   pub organisation: Organisation,
   pub persona: Persona,
+  pub personal: Personal,
 }
 
 impl PromptLayers {
   /// Every kind agency declares.
-  pub fn kinds(&self) -> [&Kind; 2] {
-    [&self.organisation.kind, &self.persona.kind]
+  pub fn kinds(&self) -> [&Kind; 4] {
+    [&self.organisation.kind, &self.persona.kind, &self.personal.allowed, &self.personal.text]
   }
 }
 

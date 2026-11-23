@@ -44,6 +44,9 @@ type Shared = Arc<Mutex<Chain>>;
 fn path(person: &str) -> Option<Vec<(&'static str, HashMap<&'static str, Entry>)>> {
   let org: &'static str = PROMPT_LAYERS.organisation.kind.key.as_str();
   let persona: &'static str = PROMPT_LAYERS.persona.kind.key.as_str();
+  let allowed: &'static str = PROMPT_LAYERS.personal.allowed.key.as_str();
+  let personal: &'static str = PROMPT_LAYERS.personal.text.key.as_str();
+  let own = |agent: &str| json!({ "all": "Person: answer in short lines.", "agents": { agent: "Person: call me by my first name." } });
   let held = |entries: &[(&'static str, Entry)]| entries.iter().cloned().collect::<HashMap<_, _>>();
   let platform = (
     "platform",
@@ -62,7 +65,7 @@ fn path(person: &str) -> Option<Vec<(&'static str, HashMap<&'static str, Entry>)
       platform,
       ("unit:3", held(&[(org, (json!("Company: answer in the company's own terms."), false))])),
       ("unit:4", held(&[(org, (json!("Team: file every request under its project."), false))])),
-      ("person:7", HashMap::new()),
+      ("person:7", held(&[(personal, (own("u7"), false))])),
     ]),
     "8" => Some(vec![
       platform,
@@ -74,10 +77,11 @@ fn path(person: &str) -> Option<Vec<(&'static str, HashMap<&'static str, Entry>)
             (json!("Company: never try to reach the company's internal confidential systems."), true),
           ),
           (persona, (json!(["none"]), true)),
+          (allowed, (json!(false), true)),
         ]),
       ),
       leak,
-      ("person:8", HashMap::new()),
+      ("person:8", held(&[(personal, (own("u8"), false))])),
     ]),
     "9" => Some(vec![platform, ("person:9", HashMap::new())]),
     _ => None,
@@ -211,13 +215,18 @@ fn trees(scratch: &Path) -> Trees {
 
 // A pieces-shaped turn's prompt with these layers, its settings holding the tester's persona.
 fn pieces(layers: &Layers) -> String {
+  pieces_of(layers, "tester-pal")
+}
+
+// The same, for the supervisor of this name.
+fn pieces_of(layers: &Layers, name: &str) -> String {
   let scratch = tempfile::tempdir().unwrap();
   let roots = Roots {
     assets: checkout(),
     data: scratch.path().join("data"),
   };
   let supervisor = Supervisor {
-    name: "tester-pal",
+    name,
     label: Some("Dear"),
     call_names: &[],
     prompts: None,
@@ -307,6 +316,10 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
     HashSet::from([
       "agency.org-instructions",
       "agency.persona",
+      "agency.personal-instructions",
+      "agency.personal-instructions.text",
+      "agency.own-agents",
+      "agency.road-choice",
       "supply.platform",
       "supply.organisation",
       "supply.personal",
@@ -482,4 +495,42 @@ fn an_organisation_s_agent_s_prompt_names_nothing_of_the_platform_s_own() {
     "the prompt names the data root"
   );
   assert!(composed.contains("RULEBOOK prompts/rules/self-preservation.md:\n"), "the rule stays");
+}
+
+// The person's instructions stand after the role and before the persona on either shape, the text for every agent
+// before the agent's own; a lock withholding them leaves none, what the person wrote kept unread.
+#[tokio::test]
+async fn the_person_s_instructions_stand_after_the_role_and_a_lock_withholds_them() {
+  let scratch = store().await;
+  let (service, _chain) = account_service(true).await;
+  let free = prompt_layers::of(scratch.db(), &service, Some(FREE_PERSON)).await.unwrap();
+  let locked = prompt_layers::of(scratch.db(), &service, Some(LOCKED_PERSON)).await.unwrap();
+
+  assert_eq!(free.personal.all.as_deref(), Some("Person: answer in short lines."));
+  assert_eq!(locked.personal, Default::default(), "a lock above withholds them");
+
+  let mut layers = free.clone();
+
+  layers.persona_none = false;
+
+  let parts = SystemParts {
+    layers: layers.clone(),
+    agent: "u7".to_owned(),
+    persona: Some(PERSONA.to_owned()),
+    ..SystemParts::default()
+  };
+  let scratch_dir = tempfile::tempdir().unwrap();
+  let window = parts.whole(&trees(scratch_dir.path()), &["Bash"]).unwrap();
+  let pieces = pieces_of(&layers, "u7");
+
+  for (shape, composed) in [("window", window), ("pieces", pieces)] {
+    let role_at = composed.find("RULEBOOK prompts/rules/self-preservation.md").unwrap();
+    let all_at = composed
+      .find("Person: answer in short lines.")
+      .unwrap_or_else(|| panic!("{shape}: {composed}"));
+    let own_at = composed.find("Person: call me by my first name.").unwrap();
+    let persona_at = composed.find(PERSONA).unwrap();
+
+    assert!(role_at < all_at && all_at < own_at && own_at < persona_at, "{shape}: {composed}");
+  }
 }
