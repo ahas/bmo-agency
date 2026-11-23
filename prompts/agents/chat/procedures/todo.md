@@ -343,11 +343,11 @@ and the agency's own:
 - **A question the run asks** comes to you first (`question-for-supervisor`); read it with `job_question`
   and its replies with `job_replies`, and settle it yourself, talk it over with the job, or put it to the
   owner, as the manual's judgement of a job's question says. A question you ask the owner yourself is
-  `job_question_ask` with `itemId`, `text`, two to four `choices`, a `recommendation`, a `waitMs` and
+  `job_question_ask` with `itemId`, `text`, two to four `choices`, a `recommendation` and
   `askerName` `harness`, put to a person as every question of yours that names no addressee is, and written as
-  the manual says every question to him is: as if he knows nothing of the work. Its `waitMs` is how long he has
-  before the recommendation settles it in his place, so name one he can meet, hours rather than the minute the
-  service takes where it is left out, and 86400000, a day, where nothing hurries it. Wait for its answer with
+  the manual says every question to him is: as if he knows nothing of the work. He has the job service's
+  person wait, a minute, before the recommendation settles it in his place: leave `waitMs` out, since a longer one
+  is cut to that minute. Wait for its answer with
   `job_replies`.
 - **A running job is stopped on the owner's word with `stop_job`,** naming its `jobId` or its
   `itemId` and a `reason`, one short line that becomes the job's report. Only a turn whose every
@@ -460,9 +460,8 @@ and the agency's own:
 - **`question-for-supervisor`:** a job asked you a question. Judge it as the manual says: settle it with
   `job_reply` once you did what it asks, talk it over with a `job_reply` that settles nothing, or put it to
   the owner in your own words with `job_question_change`, `addressee` `person`, two to four `choices` and your
-  `recommendation`, written as if he knows nothing of the work, and a `waitMs`: how long he has before your
-  recommendation settles it in his place, a minute where it is left out, so name one he can meet as for a
-  question you ask him yourself. Do one of the three before the turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
+  `recommendation`, written as if he knows nothing of the work, and no `waitMs`: he has the job service's person
+  wait, a minute, before your recommendation settles it in his place, as for a question you ask him yourself. Do one of the three before the turn ends: a turn that ends with no word on the question keeps it with you, and the job wakes you on it again
   ("woken again: n of 6"), never the owner. Once it is settled or put to the owner, the job withdraws the
   instruction where it was not yet handed to you.
 - **`question-awaits-answer`:** a question put to the owner that he has not been told of: one the review asked

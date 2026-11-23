@@ -172,8 +172,8 @@ The orderer gives its verdict on each instruction by calling `review_job` (`POST
 - **`escalate` asks the owner through the job service:** a question on the item (`POST /questions`), asked by
   agency, its text the supervisor's words with the job, the stage and the rejections named and what each answer
   leads to, written for an owner who knows nothing of the work, its choices to send the work back or to take it
-  as it stands, each saying what follows, and its due time the policy's `owner_wait_seconds`, six hundred
-  seconds. It is put to a person, the owner, since the supervisor itself escalates it: agency asks it with the
+  as it stands, each saying what follows, and its due time the policy's `owner_wait_seconds`, sixty
+  seconds, the job service's person wait, which holds any longer wait to it. It is put to a person, the owner, since the supervisor itself escalates it: agency asks it with the
   supervisors' own token (`BMO_JOB_CHAT_TOKEN`), the one the job service lets ask a person, and names the
   person as its addressee; the question is told
   to the orderer as every question asked of the owner is (`question-awaits-answer`), and the orderer puts it to

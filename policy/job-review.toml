@@ -4,7 +4,7 @@
 # read is asked again, the two checks in their order with what each requires, what the orderer is told, and what
 # each turn the review asks for is told. Each line names the marks it is filled with.
 escalate_after = 10
-owner_wait_seconds = 600
+owner_wait_seconds = 60
 actor = "agency"
 # How a work order that could not be read is asked again (docs/job-review.md, 「Stages」): after a pause that
 # doubles from the first to the longest, however long it takes, with the job's `heldFor` naming the wait. A
