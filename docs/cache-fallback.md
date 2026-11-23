@@ -358,6 +358,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   file was written.
 - **A login whose file stands but states no end this side can read is left standing and nothing is said
   about it;** a login with no file at all is not held (「The account judgement」).
+- **The account list tells each login as the account judgement holds it:** `none` where this machine holds
+  no login for the account (「The account judgement」), so a CLI that was never signed in is never shown as
+  signed in; `gone` where it waits for a person or is past its end; `ending` inside the notice window; and
+  `standing` otherwise. A login held nowhere here has no end to tell of, so no ending notice is said for it.
 - **A renewal is timed against the CLI's own margin.** The CLI renews a token only as a run goes out
   inside the last minutes before the moment its file states, and passes it by before them, so a login
   counts as near its end only inside that margin, which the provider's usage declaration names.

@@ -252,7 +252,8 @@ pub async fn tell(
 ) -> Result<(), Refusal> {
   let standing = login_standing(account, now);
 
-  if standing == "standing" || account.credential_file().is_none() {
+  // A login never held here has no end to tell of; the account list and the road's sentence say it.
+  if matches!(standing, "standing" | "none") || account.credential_file().is_none() {
     return Ok(());
   }
 

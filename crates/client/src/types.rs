@@ -1091,7 +1091,7 @@ pub struct FallbackAccount {
   /// Whether the account goes out for another person's run on a platform source.
   #[serde(default)]
   pub lendable: bool,
-  /// One of `standing`, `ending` or `gone`.
+  /// One of `none` (no login held on this machine), `standing`, `ending` or `gone`.
   pub login: String,
   /// epoch seconds
   pub login_ends_at: Option<i64>,

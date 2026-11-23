@@ -1218,9 +1218,15 @@ fn notice_ahead_ms() -> f64 {
   CLAUDE_CODE.login.notice_ahead_hours as f64 * 60.0 * 60_000.0
 }
 
-/// How a login stands: gone where it waits for a person or is past its end, ending inside the notice
-/// window, standing otherwise, a login whose end nothing can read included.
+/// How a login stands: none where this machine holds no login for it (the account judgement's own test, so a
+/// CLI never signed in is never told as standing; a person's login on their node is theirs), gone where it
+/// waits for a person or is past its end, ending inside the notice window, standing otherwise, a login whose
+/// end nothing can read included.
 pub fn login_standing(account: &Account, now: i64) -> &'static str {
+  if !account.on_own_node() && !account.credential.login_held() {
+    return "none";
+  }
+
   if account.needs_login_at.is_some() {
     return "gone";
   }

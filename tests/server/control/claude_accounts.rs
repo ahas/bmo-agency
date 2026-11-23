@@ -398,3 +398,37 @@ fn the_earliest_moment_under_an_expiring_name_answers_in_milliseconds() {
 
   assert_eq!(credential_expiry(&account), Some(1_780_000_000_000.0));
 }
+
+// The list tells a login as the account judgement holds it: a directory account whose CLI was never signed
+// in here is `none`, never `standing`, and stands once its credentials file does (docs/cache-fallback.md,
+// 「A login that is about to end」).
+#[tokio::test]
+async fn an_account_never_signed_in_here_is_listed_as_holding_no_login() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let windows = Keeping::new(db.clone(), vec![Arc::new(HalfHour)]);
+  let judging = Judging {
+    db,
+    windows: &windows,
+    data_root: Path::new("/nonexistent"),
+  };
+  let logins = tempfile::tempdir().unwrap();
+  let home = logins.path().join("fresh");
+
+  scratch.run(r#"DELETE FROM "claude_accounts""#, vec![]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at")
+         VALUES ('fresh', 'fresh', 1, 1, 'directory', $1, 0)"#,
+      vec![home.to_string_lossy().into_owned().into()],
+    )
+    .await;
+
+  let login = || async { views(judging).await.unwrap()[0]["login"].clone() };
+
+  assert_eq!(login().await, "none", "a CLI never signed in holds no login");
+
+  signed_in(&home);
+
+  assert_eq!(login().await, "standing", "a credentials file that stands is a login");
+}

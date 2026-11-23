@@ -3714,7 +3714,7 @@ export interface components {
              * @default false
              */
             lendable: boolean;
-            /** @description One of `standing`, `ending` or `gone`. */
+            /** @description One of `none` (no login held on this machine), `standing`, `ending` or `gone`. */
             login: string;
             /**
              * Format: int64
