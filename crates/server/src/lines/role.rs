@@ -144,6 +144,7 @@ impl RoleLine {
       tools_denied: None,
       tools_kept: None,
       mcp_config: self.mcp_config,
+      plugin_dir: None,
       mcp_tools: None,
       prompt: turned.prompt,
       persona_unused: None,

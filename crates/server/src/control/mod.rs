@@ -5,6 +5,7 @@
 mod account_routes;
 mod agent_roles;
 mod agent_sampling;
+mod attachment_routes;
 mod background_work;
 mod base_prompts;
 pub mod borrowings;
@@ -36,6 +37,7 @@ mod own_agent_routes;
 pub mod own_llm;
 mod person_node_routes;
 mod personal_app_routes;
+mod personal_skill_routes;
 pub mod personal_supply;
 pub mod pool;
 mod pool_routes;

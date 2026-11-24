@@ -130,6 +130,9 @@ pub struct ChatRun {
   /// every built-in tool but those it is denied.
   pub tools_kept: Option<String>,
   pub mcp_config: PathBuf,
+  /// The supervisor's own plugin of the skills attached to it, where it holds any (docs/person-nodes.md, 「Attaching
+  /// skills and MCP servers」).
+  pub plugin_dir: Option<PathBuf>,
   /// The digest of what the deployment's own server shows, where the tool host says it.
   pub mcp_tools: Option<String>,
   pub prompt: String,
@@ -727,6 +730,7 @@ pub async fn chat_run(
   let system_path = system_prompt_file(&trees, agent, &system)?;
   let limits = Limits::of(&ground.db, agent).await?;
   let mcp = mcp_config(ground, &trees, agent, &limits)?;
+  let plugin_dir = crate::attachments::supervisor_plugin(ground, agent).await?;
   let mut env: BTreeMap<String, String> = ground.env().clone();
 
   for (name, value) in &CLAUDE_CODE.launch.variables {
@@ -769,6 +773,7 @@ pub async fn chat_run(
     tools_denied: Some(limits.denied(&denied())),
     tools_kept: limits.kept(),
     mcp_config: mcp,
+    plugin_dir,
     mcp_tools: server_digest(ground).await,
     prompt: prompt.to_owned(),
     persona_unused: persona.unused,
@@ -982,6 +987,7 @@ pub fn gate_run(
     tools_denied: None,
     tools_kept: None,
     mcp_config,
+    plugin_dir: None,
     mcp_tools: None,
     prompt: prompt.to_owned(),
     persona_unused: None,
@@ -1009,6 +1015,8 @@ pub struct Words<'a> {
   /// harness, a gate's is its instructions.
   pub system: &'a Path,
   pub mcp: &'a Path,
+  /// The plugin of the skills attached to the program's holder, where it holds any.
+  pub plugin: Option<&'a Path>,
   pub hands: Hands<'a>,
   pub host_commands: bool,
 }
@@ -1049,6 +1057,10 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
     "--mcp-config".to_owned(),
   ]);
   args.push(handed(LINE, line.mcp)?);
+
+  if let Some(plugin) = line.plugin {
+    args.extend(["--plugin-dir".to_owned(), handed(LINE, plugin)?]);
+  }
 
   if !line.host_commands {
     args.push("--disable-slash-commands".to_owned());
@@ -1112,6 +1124,7 @@ impl ChatRun {
       advisor: self.advisor.as_deref(),
       system: &self.system_path,
       mcp: &self.mcp_config,
+      plugin: self.plugin_dir.as_deref(),
       hands: match &self.tools_denied {
         Some(denied) => Hands::AllBut {
           denied,

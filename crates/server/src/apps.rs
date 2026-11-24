@@ -3,8 +3,10 @@
 //! acts for, and the apps that are not both written into the file the session's record names as its
 //! `withheldAppsFile`, which the tool host reads at every listing, description and call; and beside them what the
 //! person's personal tools may reach, the chain's `personal-apps.network` and `personal-apps.secrets` for the person
-//! (docs/person-nodes.md, 「The network and secrets of a call」). Resolved as a record is issued and again as each
-//! turn of a resident program begins.
+//! (docs/person-nodes.md, 「The network and secrets of a call」); and with them the keys of the account's MCP servers
+//! not attached to the record's holder (docs/person-nodes.md, 「Attaching skills and MCP servers」), for the
+//! administrator's account alone where it is theirs. Resolved as a record is issued and again as each turn of a
+//! resident program begins.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -36,6 +38,19 @@ pub struct Withheld {
   pub account: String,
   #[serde(default)]
   pub personal: Personal,
+  /// The holder the record is issued for, whose attached MCP servers it reaches.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub holder: Option<crate::attachments::Holder>,
+  /// The line the record's runs go out on.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub line: Option<String>,
+}
+
+/// Whom a record is issued for: its holder and its line, which decide the MCP servers it reaches.
+#[derive(Clone, Debug, Default)]
+pub struct Issued {
+  pub holder: Option<crate::attachments::Holder>,
+  pub line: Option<String>,
 }
 
 /// What a person's personal tools may reach beyond their own folders, as the chain allows it for them: the network
@@ -213,16 +228,19 @@ pub fn service(ground: &Ground) -> AccountService {
 }
 
 /// The file written for `person` before a record naming it is issued; where the account service cannot be asked,
-/// left as it stands, which a file never written yet reads to the tool host as every app withheld.
-pub async fn write_for(ground: &Ground, file: &Path, person: &str) {
+/// left as it stands, which a file never written yet reads to the tool host as every app
+/// withheld.
+pub async fn write_for(ground: &Ground, file: &Path, person: &str, issued: &Issued) {
   let service = service(ground);
 
-  match resolve(&service, person).await {
+  match resolve_all(ground, &service, person, issued).await {
     Ok(apps) => {
       let withheld = Withheld {
         apps,
         account: person.to_owned(),
         personal: personal(&service, person).await,
+        holder: issued.holder.clone(),
+        line: issued.line.clone(),
       };
 
       if let Err(why) = write(file, &withheld) {
@@ -235,6 +253,60 @@ pub async fn write_for(ground: &Ground, file: &Path, person: &str) {
   }
 }
 
+// The apps the chain withholds from the person, and the MCP servers of theirs the record's holder is not attached to.
+async fn resolve_all(
+  ground: &Ground,
+  service: &AccountService,
+  person: &str,
+  issued: &Issued,
+) -> Result<BTreeSet<String>, String> {
+  let mut apps = resolve(service, person).await?;
+
+  // A registry that cannot be read names no MCP server, which the tool host then cannot serve either.
+  match crate::attachments::withheld_mcp(ground, person, issued.holder.as_ref(), issued.line.as_deref())
+    .await
+  {
+    Ok(mcp) => apps.extend(mcp),
+    Err(why) => eprintln!("the MCP servers of account {person} were not read: {why}"),
+  }
+
+  Ok(apps)
+}
+
+/// The file written for a record of the administrator's account: the keys of its MCP servers the record's holder is
+/// not attached to alone, and `personal` both true, so its sessions keep every other app. Whether it was written: a
+/// record whose file was not names none.
+pub async fn write_for_administrator(ground: &Ground, file: &Path, account: &str, issued: &Issued) -> bool {
+  match crate::attachments::withheld_mcp(ground, account, issued.holder.as_ref(), issued.line.as_deref())
+    .await
+  {
+    Ok(apps) => {
+      let withheld = Withheld {
+        apps,
+        account: account.to_owned(),
+        personal: Personal {
+          network: true,
+          secrets: true,
+        },
+        holder: issued.holder.clone(),
+        line: issued.line.clone(),
+      };
+
+      match write(file, &withheld) {
+        Ok(()) => true,
+        Err(why) => {
+          eprintln!("the withheld apps were not written: {why}");
+          false
+        }
+      }
+    }
+    Err(why) => {
+      eprintln!("the MCP servers of account {account} were not read, so its record names no file: {why}");
+      false
+    }
+  }
+}
+
 /// As a resident program's turn begins: the place's file, where it stands, resolved again for the account it
 /// names, and how its apps changed, none where they did not; what the person's personal tools reach is written
 /// again with them. Nothing changes where the account service cannot be asked.
@@ -242,7 +314,24 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
   let file = place_file(place);
   let before = read(&file)?;
   let service = service(ground);
-  let apps = match resolve(&service, &before.account).await {
+  let issued = Issued {
+    holder: before.holder.clone(),
+    line: before.line.clone(),
+  };
+  let administrator =
+    crate::account_isolation::owners_own(&ground.db, &before.account).await.unwrap_or(false);
+  let resolved = if administrator {
+    crate::attachments::withheld_mcp(
+      ground,
+      &before.account,
+      issued.holder.as_ref(),
+      issued.line.as_deref(),
+    )
+    .await
+  } else {
+    resolve_all(ground, &service, &before.account, &issued).await
+  };
+  let apps = match resolved {
     Ok(apps) => apps,
     Err(why) => {
       eprintln!(
@@ -253,7 +342,14 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
     }
   };
 
-  let personal = personal(&service, &before.account).await;
+  let personal = if administrator {
+    Personal {
+      network: true,
+      secrets: true,
+    }
+  } else {
+    personal(&service, &before.account).await
+  };
 
   if apps == before.apps && personal == before.personal {
     return None;

@@ -107,6 +107,13 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   changed, or a release moved a skill's text — and stands at the same path run after run. A named skill no
   plugin of the release carries any longer is left out and said in the log. A list that names none hands
   the run a plugin with no skill.
+- **Its attached skills and MCP servers,** for an agent of an account (`docs/person-nodes.md`, 「Attaching skills
+  and MCP servers」): each skill of the account's attached to the agent is added to the skills above, copied from the
+  account's skills at home, and the plugin is then the agent's own, `role-agents/<agent>/plugin`, whichever list
+  its role's skills came from; a skill whose name the role's skills hold already is left out and said in the log.
+  Each MCP server of the account's attached to the agent is reached by its runs, and every other one is withheld
+  from their records. A line whose carries take neither (`docs/launch-lines.md`, 「What a line carries」) carries
+  none of them.
 - **Its sessions:** the agent's `sessions` says whether the run resumes the session the last answered run
   left at its key and keeps its own (`docs/sessions.md`, 「A role's session」).
 - **Its compaction threshold:** the agent's `foldRatio`, where it sets one, is the share a run's kept

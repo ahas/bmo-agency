@@ -585,17 +585,38 @@ async fn run_on_line(
       .and_then(|held| held.skills.map(|skills| (held.name, skills))),
     None => None,
   };
+  // The skills of the account's attached to the seat join the role's, in the seat's own plugin
+  // (docs/person-nodes.md, 「Attaching skills and MCP servers」).
+  let attached = match &seat {
+    Some(seat) => {
+      crate::attachments::attached_skills(ground, LINE, &crate::attachments::Holder::agent(&seat.name))
+        .await?
+    }
+    None => Vec::new(),
+  };
+  let own = seat.as_ref().map(|seat| seat.name.as_str());
   let plugin_dir = match (
     seat.as_ref().and_then(|agent| agent.skills.as_ref().map(|skills| (agent, skills))),
     role_skills.as_ref(),
+    own.filter(|_| !attached.is_empty()),
   ) {
-    (Some((agent, skills)), _) => {
-      super::agent_plugin::placed(trees, &role_plugin, Whose::Agent(&agent.name), skills)?
+    (Some((agent, skills)), _, _) => {
+      super::agent_plugin::placed(trees, &role_plugin, Whose::Agent(&agent.name), skills, &attached)?
     }
-    (None, Some((role, skills))) => {
-      super::agent_plugin::placed(trees, &role_plugin, Whose::Role(role), skills)?
+    (None, Some((_, skills)), Some(own)) => {
+      super::agent_plugin::placed(trees, &role_plugin, Whose::Agent(own), skills, &attached)?
     }
-    (None, None) => role_plugin,
+    (None, Some((role, skills)), None) => {
+      super::agent_plugin::placed(trees, &role_plugin, Whose::Role(role), skills, &[])?
+    }
+    (None, None, Some(own)) => super::agent_plugin::placed(
+      trees,
+      &role_plugin,
+      Whose::Agent(own),
+      &super::agent_plugin::held_in(&role_plugin),
+      &attached,
+    )?,
+    (None, None, None) => role_plugin,
   };
   let reasoning = match worker {
     Some(worker) => Some(reasoning_of(ground, worker).await?),

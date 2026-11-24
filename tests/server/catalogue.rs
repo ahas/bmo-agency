@@ -24,7 +24,7 @@ use crate::support::scratch::Scratch;
 // A stand-in of `bmo-pocket`: the owner verbs as the personal apps' tests keep them, `--app` kept on the pointer, and
 // the catalogue verbs agency speaks, each record and bundle kept as the tool host's catalogue keeps them.
 const POCKET: &str = r#"#!/usr/bin/env python3
-import hashlib, json, os, shutil, sys, time, tomllib
+import hashlib, json, os, shutil, sys, time, tomllib, urllib.parse
 args = sys.argv[1:]
 root = args[args.index("--data-root") + 1]
 def opt(name, default=None):
@@ -59,16 +59,38 @@ if args[2] == "catalogue":
         print(json.dumps(load(positional[0])))
     elif verb == "share":
         bundle = json.load(open(opt("--bundle")))
-        manifest = tomllib.loads(bundle["files"]["tool.toml"])
-        name = manifest["tool"]["name"]
+        files = bundle["files"]
+        roots = [root for root in ("tool.toml", "SKILL.md", "mcp.toml") if root in files]
+        if len(roots) != 1:
+            sys.stderr.write("bmo-pocket: the bundle names no kind, or several\n"); sys.exit(1)
+        if roots[0] == "tool.toml":
+            manifest = tomllib.loads(files["tool.toml"])
+            kind, name, title, description = "app", manifest["tool"]["name"], manifest["tool"]["name"], manifest["entry"][0]["description"]
+            permissions = manifest.get("permissions", {})
+        elif roots[0] == "mcp.toml":
+            manifest = tomllib.loads(files["mcp.toml"])
+            server = manifest["server"]
+            kind, name, title, description = "mcp", server["name"], server["title"], server["description"]
+            permissions = {key: list(value) for key, value in manifest.get("permissions", {}).items()}
+            if server["transport"] == "remote":
+                permissions.setdefault("network", []).append(urllib.parse.urlparse(server["url"]).netloc)
+                if server.get("secret"):
+                    permissions.setdefault("secrets", []).append(server["secret"])
+        else:
+            front = dict(line.split(":", 1) for line in files["SKILL.md"].split("---")[1].strip().splitlines())
+            kind, name, title, description = "skill", front["name"].strip(), front["name"].strip(), front["description"].strip()
+            permissions = {}
+        language = opt("--language") or "en"
         maker = opt("--maker")
         id_ = maker + "-" + name
         file = os.path.join(kept, "apps", id_ + ".json")
-        record = json.load(open(file)) if os.path.exists(file) else {"id": id_, "key": "shared-%s-%s-%s" % (company, maker, name.replace("_", "-")), "name": name, "title": name, "description": manifest["entry"][0]["description"], "maker": maker, "owner": maker, "unit": opt("--unit"), "targets": [], "versions": [], "withdrawn": None, "installs": {}, "promotion": None, "sharedAt": 1, "updatedAt": 1}
+        record = json.load(open(file)) if os.path.exists(file) else {"id": id_, "kind": kind, "key": "shared-%s-%s-%s" % (company, maker, name.replace("_", "-")), "name": name, "maker": maker, "owner": maker, "unit": opt("--unit"), "targets": [], "versions": [], "withdrawn": None, "installs": {}, "promotion": None, "sharedAt": 1, "updatedAt": 1, "titles": {}, "descriptions": {}, "machine": []}
+        record.update({"title": title, "description": description, "language": language})
+        record["titles"][language] = title
+        record["descriptions"][language] = description
         version = opt("--version")
         os.makedirs(os.path.join(kept, "sources", id_), exist_ok=True)
         json.dump(bundle, open(os.path.join(kept, "sources", id_, version + ".json"), "w"))
-        permissions = manifest.get("permissions", {})
         record["targets"] = json.loads(opt("--targets"))
         record["withdrawn"] = None
         record["versions"].append({"version": version, "sourceHash": source_hash(bundle["files"]), "permissions": {"network": permissions.get("network", []), "secrets": permissions.get("secrets", [])}, "sharedAt": int(time.time() * 1000), "review": {"state": "pending"}, "approval": {"required": "--review-required" in args, "by": None}})
@@ -94,6 +116,15 @@ if args[2] == "catalogue":
         for one in record["versions"]:
             if one["version"] == opt("--version"):
                 one["review"] = {"state": opt("--state"), "report": open(opt("--report")).read(), "at": 1}
+        save(record)
+    elif verb == "text":
+        record = load(positional[0])
+        locale = opt("--locale")
+        if "--clear" in args:
+            record["titles"].pop(locale, None); record["descriptions"].pop(locale, None)
+        else:
+            record["titles"][locale] = opt("--title"); record["descriptions"][locale] = opt("--description")
+        record["machine"] = [one for one in record["machine"] if one != locale] + ([locale] if "--machine" in args else [])
         save(record)
     elif verb == "seen":
         os.makedirs(os.path.join(kept, "seen"), exist_ok=True)
@@ -447,6 +478,7 @@ fn home_pointer(stood: &Stood, account: i64, name: &str) -> Option<Value> {
 #[test]
 fn a_review_is_handed_what_the_manifest_asks_and_every_file_under_its_path() {
   let input = catalogue::review_input(
+    "app",
     &Asks {
       network: vec!["rates.example.org".to_owned()],
       secrets: Vec::new(),
@@ -487,15 +519,15 @@ async fn an_app_is_shared_seen_installed_updated_and_recalled_within_the_company
 
   // A target beyond the maker's ceiling, and one of another company, are refused.
   assert!(matches!(
-    catalogue::share(ground, &maker, "weekly", &[json!({ "company": true })]).await,
+    catalogue::share(ground, &maker, "weekly", &[json!({ "company": true })], (None, None)).await,
     Err(Fault::ScopeWithheld(scope)) if scope == "company"
   ));
   assert!(matches!(
-    catalogue::share(ground, &maker, "weekly", &[json!({ "person": STRANGER })]).await,
+    catalogue::share(ground, &maker, "weekly", &[json!({ "person": STRANGER })], (None, None)).await,
     Err(Fault::OtherCompany(_))
   ));
 
-  let shared = catalogue::share(ground, &maker, "weekly", &[]).await.unwrap();
+  let shared = catalogue::share(ground, &maker, "weekly", &[], (None, None)).await.unwrap();
 
   // It is offered to the maker's company alone, by the platform's rule naming it.
   assert_eq!(
@@ -538,7 +570,7 @@ async fn an_app_is_shared_seen_installed_updated_and_recalled_within_the_company
 
   let second = personal_apps::put(ground, &MAKER.to_string(), "weekly").await.unwrap().version.unwrap();
 
-  catalogue::share(ground, &maker, "weekly", &[]).await.unwrap();
+  catalogue::share(ground, &maker, "weekly", &[], (None, None)).await.unwrap();
   catalogue::keep(ground, &TEAMMATE.to_string()).await.unwrap();
 
   let moved = catalogue::entry(ground, &teammate, "17-weekly").await.unwrap();
@@ -573,7 +605,7 @@ async fn a_head_turns_an_app_on_for_their_unit_and_a_copy_is_dropped_or_adopted(
 
   let maker = reader(&stood, MAKER).await;
 
-  catalogue::share(ground, &maker, "tally", &[]).await.unwrap();
+  catalogue::share(ground, &maker, "tally", &[], (None, None)).await.unwrap();
 
   // The head turns it on for unit 40, locked: the teammate's copy is installed as their copies are kept, and they may
   // neither drop it nor adopt it.
@@ -634,10 +666,14 @@ async fn the_administrator_installs_in_their_own_company_alone() {
   // An app of the administrator's own company, and one of another.
   app(&own_pc, "daily", "Says the day.");
   personal_apps::put(ground, &STRANGER.to_string(), "daily").await.unwrap();
-  catalogue::share(ground, &reader(&stood, STRANGER).await, "daily", &[]).await.unwrap();
+  catalogue::share(ground, &reader(&stood, STRANGER).await, "daily", &[], (None, None))
+    .await
+    .unwrap();
   app(&other_pc, "weekly", "Sums up the week.");
   personal_apps::put(ground, &MAKER.to_string(), "weekly").await.unwrap();
-  catalogue::share(ground, &reader(&stood, MAKER).await, "weekly", &[]).await.unwrap();
+  catalogue::share(ground, &reader(&stood, MAKER).await, "weekly", &[], (None, None))
+    .await
+    .unwrap();
 
   let own = catalogue::reader(ground, ADMINISTRATOR, Some(5)).await.unwrap();
   let other = catalogue::reader(ground, ADMINISTRATOR, Some(3)).await.unwrap();
@@ -670,4 +706,399 @@ async fn the_administrator_installs_in_their_own_company_alone() {
     "the source reaches the administrator's runner"
   );
   assert_eq!(home_pointer(&stood, 1, "daily").unwrap()["app"], "shared-5-51-daily");
+}
+
+// A stand-in of a PC's runner holding one MCP server, `tracker`, remote at `mcp.example.com`, signing in with the
+// person's secret `tracker_token`: it answers each ask as the runner's passage does, a place that carries no secret
+// with what it wants, and writes every ask down.
+const TRACKER: &str = "[server]\nname = \"tracker\"\ntitle = \"Tracker\"\ndescription = \"Reads the team's issues.\"\ntransport = \"remote\"\nurl = \"https://mcp.example.com/mcp\"\nauth = \"bearer\"\nsecret = \"tracker_token\"\n";
+
+const TRACKER_MANIFEST: &str = "[tool]\nname = \"tracker\"\nprotocol = 1\nrun = [\"/.bmo/node-link\", \"mcp\"]\n\n[[entry]]\nnamespace = \"my\"\nname = \"list_issues\"\ndescription = \"Lists the issues.\"\ninput = \"schemas/list_issues.json\"\ncapabilities = [\"my.own\"]\n\n[permissions]\nnetwork = [\"mcp.example.com\"]\nsecrets = [\"tracker_token\"]\n";
+
+type RunnerAsks = Arc<Mutex<Vec<Value>>>;
+
+fn serve_mcp_runner(socket: &Path, asks: RunnerAsks) {
+  use std::io::{BufRead, Write};
+
+  let listener = std::os::unix::net::UnixListener::bind(socket).unwrap();
+
+  std::thread::spawn(move || {
+    for stream in listener.incoming().flatten() {
+      let mut line = String::new();
+
+      if std::io::BufReader::new(&stream).read_line(&mut line).is_err() {
+        continue;
+      }
+
+      let asked: Value = serde_json::from_str(&line).unwrap_or(Value::Null);
+      let answer = if asked.get("versions").is_some() {
+        json!({ "t": "versions", "tools": { "tracker": { "current": "v1", "kept": [] } } })
+      } else if asked.get("source").is_some() {
+        json!({ "t": "source", "version": "v1", "files": { "mcp.toml": TRACKER } })
+      } else if asked.get("receive").is_some() {
+        json!({ "t": "received" })
+      } else if asked["place"].get("secrets").is_some() {
+        json!({ "t": "placed", "version": "v1", "files": {
+          "tool.toml": TRACKER_MANIFEST, "schemas/list_issues.json": "{\"type\": \"object\"}"
+        } })
+      } else if asked.get("place").is_some() {
+        json!({ "t": "wants", "network": ["mcp.example.com"], "secrets": ["tracker_token"] })
+      } else if asked.get("point").is_some() {
+        json!({ "t": "pointed", "version": "v1", "kept": [] })
+      } else {
+        json!({ "t": "taken" })
+      };
+
+      asks.lock().unwrap().push(asked);
+
+      let mut stream = stream;
+      let _ = writeln!(stream, "{answer}");
+    }
+  });
+}
+
+impl Stood {
+  // A person's PC whose runner is the stand-in holding `tracker`, the asks it was asked written down.
+  async fn mcp_pc(&self, person: i64) -> RunnerAsks {
+    let node = format!("u{person}pc");
+    let socket = self.ground.roots.runner_socket(&node);
+    let spec_path = self.ground.roots.spec_path(&node);
+    let asks = RunnerAsks::default();
+
+    std::fs::create_dir_all(spec_path.parent().unwrap()).unwrap();
+    sea_orm::ConnectionTrait::execute_unprepared(
+      &self.ground.db,
+      &format!(
+        r#"INSERT INTO "person_nodes" ("owner_account", "node", "shared", "set_at") VALUES ('{person}', '{node}', false, 1)"#
+      ),
+    )
+    .await
+    .unwrap();
+    std::fs::write(
+      &spec_path,
+      json!({
+        "node": node, "ssh": [], "root": "/pc", "binary": "/pc/deploy/bin/node-link",
+        "herdr": { "local": "/h.sock", "remote": "/rh.sock" }, "bridge": "/b.sock", "deploy": "/d",
+        "control": "/c.sock", "proc": "/proc-here", "state": "/state.json",
+        "runner": socket, "runner_owner": person.to_string(),
+      })
+      .to_string(),
+    )
+    .unwrap();
+    serve_mcp_runner(&socket, asks.clone());
+    asks
+  }
+
+  // A secret saved in the person's own space of the secret store.
+  fn secret(&self, person: i64, name: &str, value: &str) {
+    let space = self.ground.roots.data.join("env/users").join(person.to_string());
+
+    std::fs::create_dir_all(&space).unwrap();
+    std::fs::write(space.join(name), value).unwrap();
+  }
+
+  // The chain lets the company's personal tools reach the network and secrets.
+  fn reach_allowed(&self) {
+    let mut links = self.chain.links.lock().unwrap();
+
+    links.insert(("personal-apps.network".to_owned(), "unit:3".to_owned()), json!(true));
+    links.insert(("personal-apps.secrets".to_owned(), "unit:3".to_owned()), json!(true));
+  }
+}
+
+fn skill_files(name: &str, said: &str) -> BTreeMap<String, String> {
+  BTreeMap::from([
+    (
+      "SKILL.md".to_owned(),
+      format!("---\nname: {name}\ndescription: {said}\ntitle: Tidy notes\n---\nTidy the notes as asked.\n"),
+    ),
+    ("references/style.md".to_owned(), "Short lines.".to_owned()),
+  ])
+}
+
+// "a skill is shared from the maker's skills at home, installed into the receiver's with no PC, kept on its newest
+// version whether or not their PC is heard, dropped with its attachments, and adopted as their own"
+#[tokio::test]
+async fn a_skill_is_shared_installed_moved_dropped_and_adopted_at_home_with_no_pc() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+  let data = &ground.roots.data;
+
+  agency_server::skills::save(
+    ground,
+    &MAKER.to_string(),
+    "tidy-notes",
+    &skill_files("tidy-notes", "Tidies."),
+  )
+  .await
+  .unwrap();
+
+  let maker = reader(&stood, MAKER).await;
+  let shared = catalogue::share(ground, &maker, "tidy-notes", &[], (Some("skill"), Some("ko")))
+    .await
+    .unwrap();
+
+  assert_eq!(shared.kind, "skill");
+  assert_eq!(shared.language.as_deref(), Some("ko"));
+  assert_eq!(shared.titles.get("ko").map(String::as_str), Some("tidy-notes"));
+  assert!(shared.permissions.network.is_empty() && shared.permissions.secrets.is_empty());
+  assert!(shared.server.is_none());
+
+  // The teammate holds no PC at all, and installs it into their skills at home.
+  let teammate = reader(&stood, TEAMMATE).await;
+  let installed = catalogue::install(ground, &teammate, "17-tidy-notes").await.unwrap();
+  let copy = agency_server::skills::one(data, &TEAMMATE.to_string(), "tidy-notes").unwrap();
+
+  assert_eq!(installed.installed.as_ref().unwrap().version, shared.version);
+  assert_eq!(copy.received, Some(("17-tidy-notes".to_owned(), shared.version.clone())));
+  assert_eq!(copy.origin(), "installed");
+  assert!(
+    data.join("agency/skills/21/tidy-notes/references/style.md").is_file(),
+    "the reference file reaches the receiver's skills"
+  );
+  assert!(matches!(
+    agency_server::skills::save(
+      ground,
+      &TEAMMATE.to_string(),
+      "tidy-notes",
+      &skill_files("tidy-notes", "Mine.")
+    )
+    .await,
+    Err(agency_server::skills::Fault::NameTaken(_))
+  ));
+
+  // A new version asking for nothing more moves the copy as the copies are kept, with no PC heard.
+  tokio::time::sleep(std::time::Duration::from_millis(3)).await;
+  agency_server::skills::save(
+    ground,
+    &MAKER.to_string(),
+    "tidy-notes",
+    &skill_files("tidy-notes", "Tidier."),
+  )
+  .await
+  .unwrap();
+
+  let second = catalogue::share(ground, &maker, "tidy-notes", &[], (Some("skill"), None))
+    .await
+    .unwrap()
+    .version;
+
+  catalogue::keep(ground, &TEAMMATE.to_string()).await.unwrap();
+  assert_eq!(
+    catalogue::entry(ground, &teammate, "17-tidy-notes")
+      .await
+      .unwrap()
+      .installed
+      .unwrap()
+      .version,
+    second
+  );
+  assert!(
+    std::fs::read_to_string(data.join("agency/skills/21/tidy-notes/SKILL.md"))
+      .unwrap()
+      .contains("Tidier."),
+    "the copy stands on the newest version"
+  );
+
+  // Dropped, the folder goes with its attachments; installed again and adopted, it is the teammate's own.
+  sea_orm::ConnectionTrait::execute_unprepared(
+    &ground.db,
+    r#"INSERT INTO "agent_attachments" VALUES ('21', 'supervisor', 'mate-bmo', 'skill', 'tidy-notes', 1)"#,
+  )
+  .await
+  .unwrap();
+  catalogue::uninstall(ground, &teammate, "17-tidy-notes").await.unwrap();
+  assert!(agency_server::skills::one(data, &TEAMMATE.to_string(), "tidy-notes").is_none());
+  assert!(
+    agency_server::attachments::holders_of(&ground.db, "21", "skill", "tidy-notes")
+      .await
+      .unwrap()
+      .is_empty(),
+    "a dropped copy's attachments go with it"
+  );
+
+  catalogue::install(ground, &teammate, "17-tidy-notes").await.unwrap();
+
+  let adopted = catalogue::adopt(ground, &teammate, "17-tidy-notes").await.unwrap();
+
+  assert!(adopted.installed.is_none());
+  assert_eq!(
+    agency_server::skills::one(data, &TEAMMATE.to_string(), "tidy-notes").unwrap().origin(),
+    "own"
+  );
+}
+
+// "an MCP server is put under its own key; its place asks for what it wants, carried read from the person's own
+// secret space; it is shared as an app, shown with how it is reached, and installed with its place carrying what its
+// version asks for, refused where the receiver's space holds no file of its secret"
+#[tokio::test]
+async fn an_mcp_server_is_put_under_its_own_key_shared_and_installed_carrying_its_secret() {
+  use base64::Engine;
+
+  let stood = stood().await;
+  let ground = &stood.ground;
+  let maker_asks = stood.mcp_pc(MAKER).await;
+  let mate_asks = stood.mcp_pc(TEAMMATE).await;
+
+  stood.reach_allowed();
+
+  // The maker's secret is not saved yet: the place wants it, and the put is refused naming it.
+  assert!(matches!(
+    personal_apps::put(ground, &MAKER.to_string(), "tracker").await,
+    Err(personal_apps::Fault::SecretMissing(name)) if name == "tracker_token"
+  ));
+
+  stood.secret(MAKER, "tracker_token", "maker-value");
+  personal_apps::put(ground, &MAKER.to_string(), "tracker").await.unwrap();
+
+  let places: Vec<Value> = maker_asks
+    .lock()
+    .unwrap()
+    .iter()
+    .filter_map(|asked| asked.get("place").cloned())
+    .collect();
+  let encoded = base64::engine::general_purpose::STANDARD.encode("maker-value");
+
+  assert_eq!(places.last().unwrap()["secrets"], json!({ "tracker_token": encoded }));
+  assert_eq!(places.last().unwrap()["network"], json!(["mcp.example.com"]));
+  assert_eq!(home_pointer(&stood, MAKER, "tracker").unwrap()["app"], "own-17-tracker");
+
+  // Shared as an app is, its kind read off its source, and shown with how it is reached.
+  let maker = reader(&stood, MAKER).await;
+  let shared = catalogue::share(ground, &maker, "tracker", &[], (None, None)).await.unwrap();
+  let server = shared.server.clone().unwrap();
+
+  assert_eq!(shared.kind, "mcp");
+  assert_eq!(shared.permissions.secrets, ["tracker_token"]);
+  assert_eq!(
+    (
+      server.transport.as_str(),
+      server.url.as_deref(),
+      server.auth.as_deref(),
+      server.secret.as_deref()
+    ),
+    ("remote", Some("https://mcp.example.com/mcp"), Some("bearer"), Some("tracker_token"))
+  );
+
+  // The teammate's space holds no file of the secret: refused, naming it.
+  let teammate = reader(&stood, TEAMMATE).await;
+  let refused = catalogue::install(ground, &teammate, "17-tracker").await.unwrap_err();
+
+  assert!(format!("{refused:?}").contains("SecretMissing"), "{refused:?}");
+
+  stood.secret(TEAMMATE, "tracker_token", "mate-value");
+  catalogue::install(ground, &teammate, "17-tracker").await.unwrap();
+
+  let first_place = mate_asks
+    .lock()
+    .unwrap()
+    .iter()
+    .filter_map(|asked| asked.get("place").cloned())
+    .find(|place| place.get("secrets").is_some())
+    .unwrap();
+
+  assert_eq!(
+    first_place["secrets"],
+    json!({ "tracker_token": base64::engine::general_purpose::STANDARD.encode("mate-value") }),
+    "a received copy's place carries its version's permissions from the first ask"
+  );
+  assert_eq!(home_pointer(&stood, TEAMMATE, "tracker").unwrap()["app"], "shared-3-17-tracker");
+}
+
+// "the maker asks for the other languages: each locale holding no text is filled and marked machine; the maker sets
+// one locale, which takes its mark away, or clears it; a reader who is neither maker, owner nor head may do neither"
+#[tokio::test]
+async fn filled_languages_are_marked_machine_and_a_correction_takes_the_mark_away() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+
+  agency_server::skills::save(
+    ground,
+    &MAKER.to_string(),
+    "tidy-notes",
+    &skill_files("tidy-notes", "Tidies."),
+  )
+  .await
+  .unwrap();
+
+  let maker = reader(&stood, MAKER).await;
+
+  catalogue::share(ground, &maker, "tidy-notes", &[], (Some("skill"), Some("ko")))
+    .await
+    .unwrap();
+
+  let translated = |language: &'static str, text: String| async move {
+    Ok::<String, String>(format!("[{language}] {text}"))
+  };
+  let teammate = reader(&stood, TEAMMATE).await;
+
+  assert!(matches!(
+    catalogue::fill_languages(ground, &teammate, "17-tidy-notes", translated).await,
+    Err(Fault::Forbidden(_))
+  ));
+
+  let filled = catalogue::fill_languages(ground, &maker, "17-tidy-notes", translated).await.unwrap();
+
+  assert_eq!(filled.titles.get("en").map(String::as_str), Some("[English] tidy-notes"));
+  assert_eq!(filled.descriptions.get("ja").map(String::as_str), Some("[Japanese] Tidies."));
+  assert_eq!(filled.titles.get("ko").map(String::as_str), Some("tidy-notes"), "the maker's own stays");
+  assert_eq!(filled.machine, ["en", "ja", "zh-CN"]);
+
+  // The head of the maker's unit may fill them too; a teammate may set none.
+  assert!(
+    catalogue::entry(ground, &reader(&stood, HEAD).await, "17-tidy-notes")
+      .await
+      .unwrap()
+      .may
+      .translate
+  );
+  assert!(matches!(
+    catalogue::text(ground, &teammate, "17-tidy-notes", "en", Some("Mine"), None).await,
+    Err(Fault::Forbidden(_))
+  ));
+
+  let corrected =
+    catalogue::text(ground, &maker, "17-tidy-notes", "en", Some("Tidy notes"), Some("Tidies the notes."))
+      .await
+      .unwrap();
+
+  assert_eq!(corrected.titles.get("en").map(String::as_str), Some("Tidy notes"));
+  assert_eq!(corrected.machine, ["ja", "zh-CN"]);
+
+  let cleared = catalogue::text(ground, &maker, "17-tidy-notes", "ja", None, None).await.unwrap();
+
+  assert!(!cleared.titles.contains_key("ja"));
+  assert_eq!(cleared.machine, ["zh-CN"]);
+  assert!(matches!(
+    catalogue::text(ground, &maker, "17-tidy-notes", "fr", Some("x"), None).await,
+    Err(Fault::BadRequest(_))
+  ));
+}
+
+#[test]
+fn a_review_names_the_item_s_kind_on_its_first_line() {
+  let files = json!({ "SKILL.md": "---\nname: a\ndescription: b\n---\n", "mcp.toml": "[server]" });
+
+  for (kind, first) in [
+    ("skill", "The item is a skill"),
+    ("mcp", "The item is an MCP server"),
+    ("app", "The item is an app"),
+  ] {
+    let input = catalogue::review_input(kind, &Asks::default(), &files);
+
+    assert!(input.lines().next().unwrap().starts_with(first), "{input}");
+    assert!(input.contains("=== SKILL.md ===") && input.contains("=== mcp.toml ==="), "{input}");
+  }
+}
+
+#[test]
+fn an_mcp_server_s_reach_reads_off_its_mcp_toml() {
+  let local = catalogue::server_in(
+    "[server]\nname = \"files\"\ntitle = \"Files\"\ndescription = \"d\"\ntransport = \"local\"\ncommand = [\"python3\", \"server.py\"]\n",
+  )
+  .unwrap();
+
+  assert_eq!(local.transport, "local");
+  assert_eq!(local.command, Some(vec!["python3".to_owned(), "server.py".to_owned()]));
+  assert!(catalogue::server_in("[app]").is_none());
 }

@@ -310,14 +310,21 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 
 ## The app-reviewer role
 
-- **It reads a shared personal app and writes its review report** (`docs/person-nodes.md`, 「Shared apps」): what the
-  app does, in a few sentences a receiver reads before installing it, and whether anything in its code reaches for
-  more than its manifest declares — the network, a secret, a file outside its own folders, another program — each
-  named with the file it stands in.
+- **It reads a shared item of any kind and writes its review report** (`docs/person-nodes.md`, 「Shared apps」):
+  what the item does, in a few sentences a receiver reads before installing it, and what it reaches for, each named
+  with the file it stands in:
+  - an app: anything in its code that reaches for more than its manifest declares — the network, a secret, a file
+    outside its own folders, another program;
+  - a skill: what it instructs an agent to do, any hidden or dangerous instruction (a destructive command, a check
+    disabled, a permission bypassed), any ask to send data, secrets, files or the conversation anywhere, and any
+    prompt injection — text overriding the agent's rules, impersonating the system or the owner, or hidden in
+    comments, encodings or reference files;
+  - an MCP server: what it reaches — a remote server's address, the auth it asks and what its secret grants; a local
+    server's command, what its code does, the network and secrets it asks, and anything beyond its permissions.
 - **Its line is the translate line,** one turn with no tools and no session, the way a translation goes out
   (`docs/launch-lines.md`, 「Translate runner」): its prompt, `prompts/roles/app-reviewer.md`, is the system prompt,
-  and the input is the app's manifest, the permissions it asks for and every file of its source. It holds no seat
-  and no bundle, and its runs stand under no account.
+  and the input's first line names the item's kind, then the permissions it asks for and every file of its source.
+  It holds no seat and no bundle, and its runs stand under no account.
 
 ## A role's provider prompts
 

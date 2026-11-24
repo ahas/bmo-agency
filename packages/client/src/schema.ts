@@ -2120,6 +2120,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/personal-skills/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's skills at home, its own and its installed copies. */
+        get: operations["listPersonalSkills"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-skills/{ownerAccount}/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One skill's files. */
+        get: operations["getPersonalSkill"];
+        /** Save one of the account's own skills whole. */
+        put: operations["putPersonalSkill"];
+        post?: never;
+        /** Remove one of the account's own skills and every attachment of it. */
+        delete: operations["removePersonalSkill"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/attachments/{ownerAccount}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The account's holders, what each line takes and what is attached to each, and the skills and MCP servers that may be. */
+        get: operations["listAttachments"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/attachments/{ownerAccount}/{holderKind}/{holder}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one holder's attached skills and MCP servers whole. */
+        put: operations["setAttachments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/catalogue/{ownerAccount}": {
         parameters: {
             query?: never;
@@ -2302,6 +2372,40 @@ export interface paths {
         put?: never;
         /** Ask for the app to be made a platform app. */
         post: operations["promoteCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/text": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set one locale's text of the item, or clear it, for its maker or owner. */
+        post: operations["textCatalogueApp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/catalogue/{ownerAccount}/apps/{appId}/translate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fill each locale the item holds no text in by the translator role. */
+        post: operations["translateCatalogueApp"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5800,6 +5904,105 @@ export interface components {
             /** Format: uint64 */
             expiresAt: number;
         };
+        /** @description PersonalSkillList: an account's skills at home. */
+        PersonalSkillList: {
+            skills: components["schemas"]["PersonalSkill"][];
+        };
+        /**
+         * @description PersonalSkill: one of an account's skills at home: its front matter's text, its version, whether it is the
+         *     person's own or an installed copy, the catalogue id a copy is of, and the holders it is attached to.
+         */
+        PersonalSkill: {
+            name: string;
+            description: string;
+            /** @default null */
+            title: string | null;
+            /** @default null */
+            summary: string | null;
+            /** @default {} */
+            titles: {
+                [key: string]: string;
+            };
+            /** @default {} */
+            summaries: {
+                [key: string]: string;
+            };
+            /** @default null */
+            language: string | null;
+            version: string;
+            origin: string;
+            /** @default null */
+            app: string | null;
+            /** @default [] */
+            attachedTo: string[];
+        };
+        /** @description PersonalSkillFiles: one skill's files, by path, with its version and origin. */
+        PersonalSkillFiles: {
+            name: string;
+            version: string;
+            origin: string;
+            files: {
+                [key: string]: string;
+            };
+        };
+        /** @description PersonalSkillSave: an own skill's files, by path, `SKILL.md` among them, saved whole. */
+        PersonalSkillSave: {
+            files: {
+                [key: string]: string;
+            };
+        };
+        /** @description PersonalSkillRemoved: the skill removed. */
+        PersonalSkillRemoved: {
+            name: string;
+        };
+        /** @description AttachmentList: an account's holders and what is attached to each, and the skills and MCP servers that may be. */
+        AttachmentList: {
+            holders: components["schemas"]["AttachmentHolder"][];
+            skills: components["schemas"]["AttachableItem"][];
+            mcp: components["schemas"]["AttachableItem"][];
+        };
+        /**
+         * @description AttachmentHolder: one of an account's holders — a `supervisor` or a role's `agent` — its line, what that line
+         *     takes, and the skills and MCP servers attached to it, by name.
+         */
+        AttachmentHolder: {
+            kind: string;
+            name: string;
+            /** @default null */
+            label: string | null;
+            /** @default null */
+            role: string | null;
+            line: string;
+            takes: components["schemas"]["AttachmentTakes"];
+            skills: string[];
+            mcp: string[];
+        };
+        /** @description AttachmentTakes: whether a holder's line takes attached skills, and attached MCP servers. */
+        AttachmentTakes: {
+            skills: boolean;
+            mcp: boolean;
+        };
+        /**
+         * @description AttachableItem: a skill or an MCP server of an account's that may be attached: its name, its title and titles
+         *     where it has them, and whether it is the person's own or an installed copy.
+         */
+        AttachableItem: {
+            name: string;
+            /** @default null */
+            title: string | null;
+            /** @default {} */
+            titles: {
+                [key: string]: string;
+            };
+            origin: string;
+        };
+        /** @description AttachmentSet: one holder's attached skills and MCP servers, by name, set whole. */
+        AttachmentSet: {
+            /** @default [] */
+            skills: string[];
+            /** @default [] */
+            mcp: string[];
+        };
         /**
          * @description CatalogueList: the reader's company's catalogue as they see it: the targets they may share with, the apps, their
          *     notices, and when they last looked.
@@ -5818,10 +6021,39 @@ export interface components {
         /** @description CatalogueApp: a shared app as its reader sees it in their company's catalogue. */
         CatalogueApp: {
             id: string;
+            /** @description `app`, `skill` or `mcp`. */
+            kind: string;
             key: string;
             name: string;
+            /** @description The maker's language's title and description. */
             title: string;
             description: string;
+            /**
+             * @description The maker's language, where the item names one.
+             * @default null
+             */
+            language: string | null;
+            /**
+             * @description The text by locale, each locale it is written in.
+             * @default {}
+             */
+            titles: {
+                [key: string]: string;
+            };
+            /** @default {} */
+            descriptions: {
+                [key: string]: string;
+            };
+            /**
+             * @description The locales whose text a translation wrote.
+             * @default []
+             */
+            machine: string[];
+            /**
+             * @description How an MCP server is reached; none for any other kind.
+             * @default null
+             */
+            server: components["schemas"]["CatalogueServer"] | null;
             maker: string;
             owner: string;
             targets: unknown[];
@@ -5844,6 +6076,24 @@ export interface components {
             updateWaiting: boolean;
             permissionsGrown: boolean;
             may: components["schemas"]["CatalogueMay"];
+        };
+        /**
+         * @description CatalogueServer: how a shared MCP server is reached, read off its newest version's `mcp.toml`: `local`, its
+         *     `command`; or `remote`, its `url`, its `auth` (`none`, `bearer` or `header`), the `header` it is sent in and the
+         *     name of the `secret` each receiver holds, never its value.
+         */
+        CatalogueServer: {
+            transport: string;
+            /** @default null */
+            url: string | null;
+            /** @default null */
+            auth: string | null;
+            /** @default null */
+            header: string | null;
+            /** @default null */
+            secret: string | null;
+            /** @default null */
+            command: string[] | null;
         };
         /**
          * @description CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its
@@ -5890,6 +6140,17 @@ export interface components {
             withdraw: boolean;
             approve: boolean;
             promote: boolean;
+            /**
+             * @description Whether the reader sets a locale's text: the maker and the owner.
+             * @default false
+             */
+            text: boolean;
+            /**
+             * @description Whether the reader asks for the other languages to be filled: the maker, the owner and a head of the maker's
+             *     home unit.
+             * @default false
+             */
+            translate: boolean;
             recall: string[];
             turnOn: string[];
         };
@@ -5920,6 +6181,16 @@ export interface components {
             name: string;
             /** @default [] */
             targets: unknown[];
+            /**
+             * @description `app` where left out, for an app or an MCP server of the PC's 'my apps'; `skill` for an own skill at home.
+             * @default null
+             */
+            kind: string | null;
+            /**
+             * @description The language its plain text is written in, one of `ko`, `en`, `ja` and `zh-CN`; `en` where left out.
+             * @default null
+             */
+            language: string | null;
         };
         /** @description CatalogueUnitSwitch: a shared app turned on or off for a unit, locked for those under it where `lock` says so. */
         CatalogueUnitSwitch: {
@@ -5943,6 +6214,17 @@ export interface components {
         CataloguePromote: {
             /** @default  */
             note: string;
+        };
+        /**
+         * @description CatalogueText: one locale's title and description set on a shared item, or the locale cleared where both are
+         *     null.
+         */
+        CatalogueText: {
+            locale: string;
+            /** @default null */
+            title: string | null;
+            /** @default null */
+            description: string | null;
         };
         /** @description CatalogueSeen: when the reader last looked at what was shared with them. */
         CatalogueSeen: {
@@ -6444,8 +6726,26 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description installed-copy */
+        InstalledCopy: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description instructions-withheld */
         InstructionsWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description line-takes-none */
+        LineTakesNone: {
             headers: {
                 [name: string]: unknown;
             };
@@ -6806,6 +7106,15 @@ export interface components {
         };
         /** @description screen-session-unissued */
         ScreenSessionUnissued: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description secret-missing */
+        SecretMissing: {
             headers: {
                 [name: string]: unknown;
             };
@@ -11698,6 +12007,178 @@ export interface operations {
             422: components["responses"]["ScreenSessionUnissued"];
         };
     };
+    listPersonalSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSkillList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getPersonalSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSkillFiles"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    putPersonalSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalSkillSave"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSkill"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NameTaken"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    removePersonalSkill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalSkillRemoved"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["InstalledCopy"];
+        };
+    };
+    listAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["AppRefused"];
+        };
+    };
+    setAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                holderKind: string;
+                holder: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachmentSet"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentHolder"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["LineTakesNone"];
+            422: components["responses"]["AppRefused"];
+        };
+    };
     listCatalogue: {
         parameters: {
             query?: {
@@ -12057,6 +12538,66 @@ export interface operations {
                 "application/json": components["schemas"]["CataloguePromote"];
             };
         };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    textCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogueText"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogueApp"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    translateCatalogueApp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ownerAccount: string;
+                appId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Answered. */
             200: {

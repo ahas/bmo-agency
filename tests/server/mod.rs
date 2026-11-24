@@ -11,6 +11,7 @@ mod agent_fold;
 mod agent_roles;
 mod apart_session;
 mod apps;
+mod attachments;
 mod cards;
 mod chat_runs;
 mod chat_stand_in;
@@ -32,6 +33,7 @@ mod command_reading {
 }
 
 mod setting_handovers;
+mod skills;
 mod sleep;
 mod supervisor_homes;
 mod supervisor_limits;

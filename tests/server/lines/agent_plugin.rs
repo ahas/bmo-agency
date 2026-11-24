@@ -68,7 +68,7 @@ fn an_agents_plugin_holds_the_skills_it_names_alone_under_its_roles_manifest() {
 
   let base = trees.agent_dir("coder").join("plugin");
   let names = ["clean", "closing", "gone", "clean"].map(str::to_owned);
-  let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &names).unwrap();
+  let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &names, &[]).unwrap();
 
   assert_eq!(placed_at, root.path().join("agents/role-agents/coder-03/plugin"));
   // Its role's own text of a skill stands before another plugin's, and a skill nothing carries is left out.
@@ -95,8 +95,8 @@ fn a_roles_list_stands_in_a_folder_of_its_own_beside_an_agents() {
   skill(root.path(), "coder", "design", "design");
 
   let base = trees.agent_dir("coder").join("plugin");
-  let of_role = placed(&trees, &base, Whose::Role("coder"), &["design".to_owned()]).unwrap();
-  let of_agent = placed(&trees, &base, Whose::Agent("coder"), &["clean".to_owned()]).unwrap();
+  let of_role = placed(&trees, &base, Whose::Role("coder"), &["design".to_owned()], &[]).unwrap();
+  let of_agent = placed(&trees, &base, Whose::Agent("coder"), &["clean".to_owned()], &[]).unwrap();
 
   assert_eq!(of_role, root.path().join("agents/role-skills/coder/plugin"));
   assert_eq!(of_agent, root.path().join("agents/role-agents/coder/plugin"));
@@ -114,21 +114,21 @@ fn an_agents_plugin_is_written_again_only_when_what_it_should_hold_moved() {
   skill(root.path(), "coder", "clean", "first");
 
   let base = trees.agent_dir("coder").join("plugin");
-  let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
+  let placed_at = placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()], &[]).unwrap();
 
   // A file of the run's own left in the folder stands while nothing moved.
   std::fs::write(placed_at.join("kept"), "x").unwrap();
-  placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
+  placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()], &[]).unwrap();
   assert!(placed_at.join("kept").exists());
 
   // The release's text of the skill moved, so the folder is written whole again.
   skill(root.path(), "coder", "clean", "second");
-  placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()]).unwrap();
+  placed(&trees, &base, Whose::Agent("coder-03"), &["clean".to_owned()], &[]).unwrap();
   assert!(!placed_at.join("kept").exists());
   assert_eq!(std::fs::read_to_string(placed_at.join("skills/clean/SKILL.md")).unwrap(), "second");
 
   // A list that names none leaves a plugin that carries no skill.
-  placed(&trees, &base, Whose::Agent("coder-03"), &[]).unwrap();
+  placed(&trees, &base, Whose::Agent("coder-03"), &[], &[]).unwrap();
   assert!(placed_at.join("skills").is_dir());
   assert!(!placed_at.join("skills/clean").exists());
 }

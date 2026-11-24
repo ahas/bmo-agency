@@ -1,8 +1,9 @@
 //! A person's personal apps shared within their company (docs/person-nodes.md, 「Shared apps」): the company's
 //! catalogue at home, kept by `bmo-pocket catalogue` (the tool host's `docs/catalogue.md`), read for each reader as the
 //! delegation chain lets them see it; a share judged against the maker's ceiling and reviewed; a copy installed,
-//! moved, dropped and adopted on the receiver's PC through its runner; an app turned on and recalled for a unit;
-//! and each person's copies kept to what the chain and the catalogue say as their PC is heard.
+//! moved, dropped and adopted on the receiver's PC through its runner — a skill at home, with no PC
+//! (docs/person-nodes.md, 「Skills at home」); an app turned on and recalled for a unit; an item's text set or filled
+//! in other languages; and each person's copies kept to what the chain and the catalogue say as their PC is heard.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
@@ -10,7 +11,7 @@ use std::sync::{Arc, LazyLock};
 use axum::http::StatusCode;
 use bmo_agency_client::{
   CatalogueApp, CatalogueApproval, CatalogueCopy, CatalogueList, CatalogueMay, CatalogueNotice,
-  CatalogueReview, CatalogueSource, CatalogueVersion, PersonalAppPermissions,
+  CatalogueReview, CatalogueServer, CatalogueSource, CatalogueVersion, PersonalAppPermissions,
 };
 use policy::organisation::ORGANISATION;
 use serde::Deserialize;
@@ -28,6 +29,18 @@ const STAGING: &str = "agency/catalogue";
 /// The targets a share names where it names none.
 const DEFAULT_TARGETS: [&str; 2] = ["team", "heads"];
 
+/// The kinds of item the catalogue keeps.
+pub const APP: &str = "app";
+pub const SKILL: &str = "skill";
+pub const MCP: &str = "mcp";
+
+/// The locales an item's text is written in, each with the language's name a translation is asked in.
+pub const LOCALES: [(&str, &str); 4] =
+  [("ko", "Korean"), ("en", "English"), ("ja", "Japanese"), ("zh-CN", "Simplified Chinese")];
+
+/// The maker's language where a share names none.
+const DEFAULT_LANGUAGE: &str = "en";
+
 /// Why a catalogue's ask was not done.
 #[derive(Debug)]
 pub enum Fault {
@@ -40,6 +53,7 @@ pub enum Fault {
   AwaitingApproval(String),
   NotOffered(String),
   NameTaken(String),
+  Skill(crate::skills::Fault),
   Locked(String),
   Forbidden(String),
   BadRequest(String),
@@ -51,6 +65,16 @@ impl From<AppFault> for Fault {
     match fault {
       AppFault::Refused(why) if why.contains("that is no copy of") => Self::NameTaken(why),
       other => Self::App(other),
+    }
+  }
+}
+
+impl From<crate::skills::Fault> for Fault {
+  fn from(fault: crate::skills::Fault) -> Self {
+    match fault {
+      crate::skills::Fault::NameTaken(why) => Self::NameTaken(why),
+      crate::skills::Fault::App(fault) => Self::App(fault),
+      other => Self::Skill(other),
     }
   }
 }
@@ -88,6 +112,7 @@ impl From<Fault> for Refused {
       )
       .with_code("not-offered"),
       Fault::NameTaken(why) => Refused::new(StatusCode::CONFLICT, why).with_code("name-taken"),
+      Fault::Skill(fault) => fault.into(),
       Fault::Locked(why) => Refused::new(StatusCode::CONFLICT, why).with_code("locked"),
       Fault::Forbidden(why) => Refused::new(StatusCode::FORBIDDEN, why).with_code("forbidden"),
       Fault::BadRequest(why) => Refused::new(StatusCode::BAD_REQUEST, why),
@@ -157,10 +182,20 @@ struct KeptCopy {
 #[serde(rename_all = "camelCase")]
 struct Kept {
   id: String,
+  #[serde(default = "app_kind")]
+  kind: String,
   key: String,
   name: String,
   title: String,
   description: String,
+  #[serde(default)]
+  language: Option<String>,
+  #[serde(default)]
+  titles: BTreeMap<String, String>,
+  #[serde(default)]
+  descriptions: BTreeMap<String, String>,
+  #[serde(default)]
+  machine: Vec<String>,
   maker: String,
   owner: String,
   unit: String,
@@ -172,6 +207,30 @@ struct Kept {
   installs: BTreeMap<String, KeptCopy>,
   #[serde(default)]
   promotion: Option<Value>,
+}
+
+fn app_kind() -> String {
+  APP.to_owned()
+}
+
+/// What the catalogue's record of a key says of its item: its kind and its text.
+#[derive(Clone, Debug)]
+pub struct Facts {
+  pub kind: String,
+  pub title: String,
+  pub titles: BTreeMap<String, String>,
+}
+
+/// The record of the company's catalogue standing for the key, where one does.
+pub async fn record_of_key(ground: &Ground, company: &str, key: &str) -> Option<Facts> {
+  let company: i64 = company.parse().ok()?;
+  let (apps, _) = listed(ground, company, None).await.ok()?;
+
+  apps.into_iter().find(|app| app.key == key).map(|app| Facts {
+    kind: app.kind,
+    title: app.title,
+    titles: app.titles,
+  })
 }
 
 impl Kept {
@@ -552,15 +611,29 @@ async fn view(
   }
 
   may.withdraw = app.withdrawn.is_none() && (administrator || app.maker == account || app.owner == account);
+  may.text = app.maker == account || app.owner == account;
+  may.translate = may.text || heads_maker;
   may.recall = headed.to_vec();
   may.turn_on = if open && !administrator { headed.to_vec() } else { Vec::new() };
 
+  let server = if app.kind == MCP {
+    server_of(ground, reader.company(), &app.id, &latest.version).await
+  } else {
+    None
+  };
+
   Some(CatalogueApp {
     id: app.id.clone(),
+    kind: app.kind.clone(),
     key: app.key.clone(),
     name: app.name.clone(),
     title: app.title.clone(),
     description: app.description.clone(),
+    language: app.language.clone(),
+    titles: app.titles.clone(),
+    descriptions: app.descriptions.clone(),
+    machine: app.machine.clone(),
+    server,
     maker: app.maker.clone(),
     owner: app.owner.clone(),
     targets: app.targets(),
@@ -593,6 +666,66 @@ async fn view(
     permissions_grown: grown,
     may,
   })
+}
+
+// How each MCP server's version is reached, read once off its source's `mcp.toml`: a version's source never changes.
+static SERVERS: LazyLock<std::sync::Mutex<BTreeMap<String, Option<CatalogueServer>>>> =
+  LazyLock::new(Default::default);
+
+// The `[server]` of an MCP server's `mcp.toml`, as the console shows how it is reached.
+#[derive(Deserialize)]
+struct McpFile {
+  server: McpServer,
+}
+
+#[derive(Deserialize)]
+struct McpServer {
+  transport: String,
+  #[serde(default)]
+  url: Option<String>,
+  #[serde(default)]
+  auth: Option<String>,
+  #[serde(default)]
+  header: Option<String>,
+  #[serde(default)]
+  secret: Option<String>,
+  #[serde(default)]
+  command: Option<Vec<String>>,
+}
+
+/// How an MCP server's `mcp.toml` says it is reached, where it reads.
+pub fn server_in(mcp_toml: &str) -> Option<CatalogueServer> {
+  let read: McpFile = toml::from_str(mcp_toml).ok()?;
+  let server = read.server;
+
+  Some(CatalogueServer {
+    transport: server.transport,
+    url: server.url,
+    auth: server.auth,
+    header: server.header,
+    secret: server.secret,
+    command: server.command,
+  })
+}
+
+async fn server_of(ground: &Ground, company: i64, id: &str, version: &str) -> Option<CatalogueServer> {
+  let held = format!("{company}/{id}@{version}");
+
+  if let Some(known) = SERVERS.lock().unwrap_or_else(std::sync::PoisonError::into_inner).get(&held) {
+    return known.clone();
+  }
+
+  let company = company.to_string();
+  let source = kept_json(ground, &["source", "--company", &company, id, "--version", version])
+    .await
+    .ok()?;
+  let server = source["files"]["mcp.toml"].as_str().and_then(server_in);
+
+  SERVERS
+    .lock()
+    .unwrap_or_else(std::sync::PoisonError::into_inner)
+    .insert(held, server.clone());
+  server
 }
 
 // Every app whose owner left passed to a head of the maker's home unit, the nearest unit up its line holding one
@@ -857,20 +990,34 @@ impl Drop for Staged {
   }
 }
 
-/// One of the maker's personal apps shared with the targets named: judged against their ceiling, its version in place
-/// read from their PC with the source it was placed from, kept in the catalogue, and reviewed after.
+/// One of the maker's items shared with the targets named: judged against their ceiling, its version in place read
+/// with the source it was placed from — an app's or an MCP server's from their PC, a skill's from their skills at home
+/// — kept in the catalogue under the maker's language, `en` where none is named, and reviewed after.
 pub async fn share(
   ground: &Arc<Ground>,
   reader: &Reader,
   name: &str,
   targets: &[Value],
+  (kind, language): (Option<&str>, Option<&str>),
 ) -> Result<CatalogueApp, Fault> {
   let Reader::Person(maker) = reader else {
     return Err(Fault::Forbidden("the administrator shares no personal app".to_owned()));
   };
+  let kind = kind.map(str::trim).filter(|kind| !kind.is_empty()).unwrap_or(APP);
+  let language = language
+    .map(str::trim)
+    .filter(|language| !language.is_empty())
+    .unwrap_or(DEFAULT_LANGUAGE);
 
-  if !personal_apps::app_name(name) {
-    return Err(Fault::BadRequest(format!("{name:?} is no app's name")));
+  match kind {
+    APP | MCP if personal_apps::app_name(name) => {}
+    SKILL if crate::skills::skill_name(name) => {}
+    APP | MCP | SKILL => return Err(Fault::BadRequest(format!("{name:?} is no {kind}'s name"))),
+    other => return Err(Fault::BadRequest(format!("{other} is no kind: app, skill or mcp"))),
+  }
+
+  if !LOCALES.iter().any(|(locale, _)| *locale == language) {
+    return Err(Fault::BadRequest(format!("{language} is no language: ko, en, ja or zh-CN")));
   }
 
   personal_apps::may_make(ground, &reader.account()).await?;
@@ -891,22 +1038,13 @@ pub async fn share(
   }
 
   let account = reader.account();
-  let runner = personal_apps::runner(ground, &account).await?;
-  let kept = personal_apps::ask(&runner, &json!({ "owner": account, "versions": {} })).await?;
+  let (version, files) = if kind == SKILL {
+    let (version, files) = crate::skills::own_source(&ground.roots.data, &account, name)?;
 
-  personal_apps::expect(&kept, "versions")?;
-
-  let version = kept.last["tools"][name]["current"]
-    .as_str()
-    .ok_or_else(|| Fault::NotFound(format!("the account {account} has no app {name} in place")))?
-    .to_owned();
-  let source = personal_apps::ask(
-    &runner,
-    &json!({ "owner": account, "source": { "tool": name, "version": version } }),
-  )
-  .await?;
-
-  personal_apps::expect(&source, "source")?;
+    (version, json!(files))
+  } else {
+    pc_source(ground, &account, name).await?
+  };
 
   let review_required = asked
     .flag(ground, maker.person, ORGANISATION.personal_apps.share_review.key.as_str(), false)
@@ -915,7 +1053,7 @@ pub async fn share(
   let file = folder.join(format!("{account}-{name}-{}.json", crate::now_ms()));
 
   std::fs::create_dir_all(&folder)
-    .and_then(|()| std::fs::write(&file, json!({ "files": source.last["files"] }).to_string()))
+    .and_then(|()| std::fs::write(&file, json!({ "files": files }).to_string()))
     .map_err(|why| Fault::App(AppFault::Refused(format!("the source could not be staged: {why}"))))?;
 
   let staged = Staged(file);
@@ -937,6 +1075,8 @@ pub async fn share(
     &targets_said,
     "--bundle",
     &bundle,
+    "--language",
+    language,
   ];
 
   if review_required {
@@ -945,12 +1085,13 @@ pub async fn share(
 
   let shared = kept_json(ground, &words).await?;
   let id = shared["id"].as_str().unwrap_or_default().to_owned();
+  let kind = shared["kind"].as_str().unwrap_or(APP).to_owned();
   let key = shared["key"].as_str().unwrap_or_default().to_owned();
 
   offer_to_company(ground, &key, maker.company).await?;
 
   drop(staged);
-  spawn_review(ground, maker.company, &id, &version);
+  spawn_review(ground, maker.company, &id, &version, &kind);
 
   let holders: Vec<String> = shared["installs"]
     .as_object()
@@ -959,6 +1100,28 @@ pub async fn share(
 
   spawn_keep(ground, holders);
   entry(ground, reader, &id).await
+}
+
+// The version of an app or an MCP server the person's PC points at, and the source it was placed from.
+async fn pc_source(ground: &Ground, account: &str, name: &str) -> Result<(String, Value), Fault> {
+  let runner = personal_apps::runner(ground, account).await?;
+  let kept = personal_apps::ask(&runner, &json!({ "owner": account, "versions": {} })).await?;
+
+  personal_apps::expect(&kept, "versions")?;
+
+  let version = kept.last["tools"][name]["current"]
+    .as_str()
+    .ok_or_else(|| Fault::NotFound(format!("the account {account} has no app {name} in place")))?
+    .to_owned();
+  let source = personal_apps::ask(
+    &runner,
+    &json!({ "owner": account, "source": { "tool": name, "version": version } }),
+  )
+  .await?;
+
+  personal_apps::expect(&source, "source")?;
+
+  Ok((version, source.last["files"].clone()))
 }
 
 // The app offered to its maker's company alone: the platform's rule naming the company, written as the platform's
@@ -984,9 +1147,9 @@ async fn offer_to_company(ground: &Ground, key: &str, company: i64) -> Result<()
 }
 
 // The review asked once a version is kept, in the background, its report written onto the version.
-fn spawn_review(ground: &Arc<Ground>, company: i64, id: &str, version: &str) {
+fn spawn_review(ground: &Arc<Ground>, company: i64, id: &str, version: &str, kind: &str) {
   let ground = ground.clone();
-  let (id, version) = (id.to_owned(), version.to_owned());
+  let (id, version, kind) = (id.to_owned(), version.to_owned(), kind.to_owned());
 
   tokio::spawn(async move {
     let company = company.to_string();
@@ -999,7 +1162,11 @@ fn spawn_review(ground: &Arc<Ground>, company: i64, id: &str, version: &str) {
             .and_then(|app| app.version(&version).map(|one| one.permissions.clone()))
             .unwrap_or_default();
 
-          match crate::translate::review_app(&ground, &review_input(&manifest_asks, &source["files"])).await
+          match crate::translate::review_app(
+            &ground,
+            &review_input(&kind, &manifest_asks, &source["files"]),
+          )
+          .await
           {
             Ok(report) => ("written", report),
             Err(why) => ("failed", why),
@@ -1043,12 +1210,21 @@ fn spawn_review(ground: &Arc<Ground>, company: i64, id: &str, version: &str) {
   });
 }
 
-/// What a shared app's review is handed: what its manifest asks for beyond its own folders, then each file of its
-/// source under a line naming its path.
-pub fn review_input(asks: &Asks, files: &Value) -> String {
+/// What a shared item's review is handed (docs/agent-roles.md, 「The app-reviewer role」): a first line naming its
+/// kind, what it asks for beyond its own folders, then each file of its source under a line naming its path — for a
+/// skill its `SKILL.md` and its reference files, for an MCP server its `mcp.toml` and its code.
+pub fn review_input(kind: &str, asks: &Asks, files: &Value) -> String {
   let named = |list: &[String]| if list.is_empty() { "none".to_owned() } else { list.join(", ") };
+  let (first, whose) = match kind {
+    SKILL => ("The item is a skill: instructions an agent's program reads.", "skill"),
+    MCP => ("The item is an MCP server: a server an agent's program reaches as tools.", "server"),
+    _ => (
+      "The item is an app: a personal tool built and run on each receiver's PC.",
+      "app's manifest",
+    ),
+  };
   let mut input = format!(
-    "The app's manifest asks for the network at: {}.\nIt asks to be handed the secrets: {}.\n",
+    "{first}\nThe {whose} asks for the network at: {}.\nIt asks to be handed the secrets: {}.\n",
     named(&asks.network),
     named(&asks.secrets)
   );
@@ -1061,7 +1237,7 @@ pub fn review_input(asks: &Asks, files: &Value) -> String {
 }
 
 // The account's copy of the app's version received on their PC, placed, put at home standing for the shared app,
-// pointed at and recorded; `how` is `self` or `unit`.
+// pointed at and recorded — a skill's written into their skills at home instead; `how` is `self` or `unit`.
 async fn install_version(
   ground: &Ground,
   account: &str,
@@ -1070,10 +1246,43 @@ async fn install_version(
   how: &str,
   company: i64,
 ) -> Result<(), Fault> {
+  let company = company.to_string();
+  let installed = [
+    "install",
+    "--company",
+    company.as_str(),
+    app.id.as_str(),
+    "--account",
+    account,
+    "--version",
+    version,
+    "--how",
+    how,
+  ];
+
+  if app.kind == SKILL {
+    let held = personal_apps::hold(account, &format!("skill:{}", app.name));
+    let _held = held.lock().await;
+    let source =
+      kept_json(ground, &["source", "--company", &company, &app.id, "--version", version]).await?;
+    let files: BTreeMap<String, String> = serde_json::from_value(source["files"].clone())
+      .map_err(|why| Fault::App(AppFault::Refused(format!("the source does not read: {why}"))))?;
+
+    crate::skills::receive(
+      &ground.roots.data,
+      account,
+      &app.name,
+      &files,
+      source["sourceHash"].as_str().unwrap_or_default(),
+      (&app.id, version),
+    )?;
+
+    return kept_json(ground, &installed).await.map(|_| ());
+  }
+
   let runner = personal_apps::runner(ground, account).await?;
   let held = personal_apps::hold(account, &app.name);
   let _held = held.lock().await;
-  let company = company.to_string();
   let source = kept_json(ground, &["source", "--company", &company, &app.id, "--version", version]).await?;
   let received = personal_apps::ask(
     &runner,
@@ -1085,29 +1294,23 @@ async fn install_version(
   .await?;
 
   personal_apps::expect(&received, "received")?;
-  personal_apps::put_received(ground, &runner, account, &app.name, Some(&app.key)).await?;
-  kept_json(
-    ground,
-    &[
-      "install",
-      "--company",
-      &company,
-      &app.id,
-      "--account",
-      account,
-      "--version",
-      version,
-      "--how",
-      how,
-    ],
-  )
-  .await?;
-  Ok(())
+
+  // An MCP server's place carries what its version asks for (docs/person-nodes.md, 「MCP servers」).
+  let asks = app.version(version).map(|one| one.permissions.clone()).unwrap_or_default();
+  let carried = (app.kind == MCP).then_some((asks.network.as_slice(), asks.secrets.as_slice()));
+
+  personal_apps::put_received(ground, &runner, account, &app.name, Some(&app.key), carried).await?;
+  kept_json(ground, &installed).await.map(|_| ())
 }
 
 // A copy taken off the account's PC and let go in the catalogue.
 async fn drop_copy(ground: &Ground, account: &str, app: &Kept, company: i64) -> Result<(), Fault> {
-  personal_apps::remove(ground, account, &app.name).await?;
+  if app.kind == SKILL {
+    crate::skills::drop_copy(ground, account, &app.name).await?;
+  } else {
+    personal_apps::remove(ground, account, &app.name).await?;
+  }
+
   kept_json(ground, &["uninstall", "--company", &company.to_string(), &app.id, "--account", account])
     .await?;
   Ok(())
@@ -1255,12 +1458,17 @@ pub async fn adopt(ground: &Ground, reader: &Reader, id: &str) -> Result<Catalog
   own_is_open(ground, &app, place.person).await?;
   personal_apps::may_make(ground, &account).await?;
 
-  let runner = personal_apps::runner(ground, &account).await?;
-  let adopted =
-    personal_apps::ask(&runner, &json!({ "owner": account, "adopt": { "tool": app.name } })).await?;
+  if app.kind == SKILL {
+    crate::skills::adopt(&ground.roots.data, &account, &app.name)?;
+  } else {
+    let runner = personal_apps::runner(ground, &account).await?;
+    let adopted =
+      personal_apps::ask(&runner, &json!({ "owner": account, "adopt": { "tool": app.name } })).await?;
 
-  personal_apps::expect(&adopted, "adopted")?;
-  personal_apps::put(ground, &account, &app.name).await?;
+    personal_apps::expect(&adopted, "adopted")?;
+    personal_apps::put(ground, &account, &app.name).await?;
+  }
+
   write_own(ground, &app, place.person, Value::Bool(false)).await?;
   kept_json(
     ground,
@@ -1490,6 +1698,113 @@ pub async fn promote(
   entry(ground, reader, id).await
 }
 
+// One locale's text written on the record, marked as a translation's where `machine` says so; the locale cleared where
+// no title is given.
+async fn write_text(
+  ground: &Ground,
+  company: i64,
+  id: &str,
+  locale: &str,
+  text: Option<(&str, &str)>,
+  machine: bool,
+) -> Result<(), Fault> {
+  let company = company.to_string();
+  let mut words = vec!["text", "--company", company.as_str(), id, "--locale", locale];
+
+  match text {
+    Some((title, description)) => {
+      words.extend(["--title", title, "--description", description]);
+
+      if machine {
+        words.push("--machine");
+      }
+    }
+    None => words.push("--clear"),
+  }
+
+  kept_json(ground, &words).await.map(|_| ())
+}
+
+fn locale_named(locale: &str) -> Result<&'static str, Fault> {
+  LOCALES
+    .iter()
+    .find(|(one, _)| *one == locale)
+    .map(|(_, language)| *language)
+    .ok_or_else(|| Fault::BadRequest(format!("{locale} is no locale: ko, en, ja or zh-CN")))
+}
+
+/// One locale's text set by the item's maker or owner, its machine mark taken away; the locale cleared where no title
+/// and no description are given.
+pub async fn text(
+  ground: &Ground,
+  reader: &Reader,
+  id: &str,
+  locale: &str,
+  title: Option<&str>,
+  description: Option<&str>,
+) -> Result<CatalogueApp, Fault> {
+  let (_, view) = seen_app(ground, reader, id).await?;
+
+  locale_named(locale)?;
+
+  if !view.may.text {
+    return Err(Fault::Forbidden(format!("the text of {id} is not the person's to set")));
+  }
+
+  let text = match (title, description) {
+    (None, None) => None,
+    (title, description) => Some((title.unwrap_or_default(), description.unwrap_or_default())),
+  };
+
+  write_text(ground, reader.company(), id, locale, text, false).await?;
+  entry(ground, reader, id).await
+}
+
+/// Each locale of the four the item holds no title in filled by `translate`, from the maker's title and description,
+/// and written with the machine mark (docs/person-nodes.md, 「Shared apps」); a locale whose translation fails is left
+/// out. `translate` is handed the language's name and the text, and answers the translation.
+pub async fn fill_languages<F, Done>(
+  ground: &Ground,
+  reader: &Reader,
+  id: &str,
+  translate: F,
+) -> Result<CatalogueApp, Fault>
+where
+  F: Fn(&'static str, String) -> Done,
+  Done: std::future::Future<Output = Result<String, String>>,
+{
+  let (app, view) = seen_app(ground, reader, id).await?;
+
+  if !view.may.translate {
+    return Err(Fault::Forbidden(format!("the languages of {id} are not the person's to fill")));
+  }
+
+  for (locale, language) in LOCALES {
+    if app.titles.contains_key(locale) || app.language.as_deref() == Some(locale) {
+      continue;
+    }
+
+    let title = translate(language, app.title.clone()).await;
+    let description = if app.description.trim().is_empty() {
+      Ok(String::new())
+    } else {
+      translate(language, app.description.clone()).await
+    };
+
+    match (title, description) {
+      (Ok(title), Ok(description)) => {
+        write_text(ground, reader.company(), id, locale, Some((title.trim(), description.trim())), true)
+          .await?;
+      }
+      (Err(why), _) | (_, Err(why)) => {
+        eprintln!("catalogue: {id} was not translated into {language}: {why}")
+      }
+    }
+  }
+
+  entry(ground, reader, id).await
+}
+
 /// The reader's looking at what was shared with them kept as now.
 pub async fn seen(ground: &Ground, reader: &Reader) -> Result<i64, Fault> {
   let read = kept_json(
@@ -1524,7 +1839,8 @@ fn spawn_keep(ground: &Arc<Ground>, accounts: Vec<String>) {
 
 /// The person's copies kept to what the chain and the catalogue say (docs/person-nodes.md, 「Keeping the copies」):
 /// a copy no longer offered taken away, one on an older version moved where the newest asks for nothing more, and one
-/// a unit turned on for them installed where they hold none. Nothing is done where their PC has no runner.
+/// a unit turned on for them installed where they hold none. Nothing of an app or an MCP server is done where their PC
+/// has no runner; their skills stand at home and are kept whatever their PC is.
 pub async fn keep(ground: &Ground, account: &str) -> Result<(), String> {
   let held = KEEPING
     .lock()
@@ -1540,10 +1856,7 @@ pub async fn keep(ground: &Ground, account: &str) -> Result<(), String> {
 async fn keep_now(ground: &Ground, account: &str) -> Result<(), String> {
   let said = |fault: Fault| Refused::from(fault).error;
   let person: i64 = account.parse().map_err(|_| format!("{account} is no person's account"))?;
-
-  if personal_apps::runner(ground, account).await.is_err() {
-    return Ok(());
-  }
+  let pc = personal_apps::runner(ground, account).await.is_ok();
 
   let place = place_of(ground, person).await.map_err(said)?;
   let (apps, _) = listed(ground, place.company, None).await.map_err(said)?;
@@ -1552,6 +1865,11 @@ async fn keep_now(ground: &Ground, account: &str) -> Result<(), String> {
 
   for app in &apps {
     let Some(latest) = app.latest() else { continue };
+
+    if app.kind != SKILL && !pc {
+      continue;
+    }
+
     let copy = app.installs.get(account);
     let offered = asked.flag(ground, person, &app.setting("offered"), true).await;
     let done = match copy {

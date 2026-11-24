@@ -139,7 +139,7 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
   let place = home.path().join("place");
   let file = apps::place_file(&place);
 
-  apps::write_for(&ground, &file, COMPANY_PERSON).await;
+  apps::write_for(&ground, &file, COMPANY_PERSON, &Default::default()).await;
   assert_eq!(
     apps::read(&file),
     Some(Withheld {
@@ -149,6 +149,7 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
         network: true,
         secrets: true,
       },
+      ..Withheld::default()
     })
   );
   assert_eq!(apps::refresh(&ground, &place).await, None, "nothing changed");
@@ -263,7 +264,8 @@ fn issuing_host(socket: &std::path::Path) -> Arc<Mutex<Vec<Value>>> {
 
 // "A person not offered an app does not see its tools": the record of a person's supervisor names the file its
 // withheld apps were written into before it was issued; the deployment's own supervisor and a supervisor of the
-// administrator's account name none.
+// administrator's account name the administrator's file, which withholds their unattached MCP servers alone and
+// keeps the network and secrets (docs/tools.md, 「The apps a person reaches」).
 #[tokio::test]
 async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none() {
   let scratch = Scratch::new().await;
@@ -277,6 +279,7 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
     ("WEB_TOKEN".to_owned(), "chain-token".to_owned()),
     ("BMO_MCP_HOST_SOCKET".to_owned(), socket.to_string_lossy().into_owned()),
     ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
+    (agency_server::personal_apps::POCKET_VARIABLE.to_owned(), empty_registry(home.path())),
   ]);
   let ground = seeded_with(db, home.path(), &more).await;
 
@@ -337,9 +340,24 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
     issue(agent).await;
 
     let record = issued.lock().unwrap().pop().expect("a record was issued");
+    let written = apps::read(&file).unwrap();
 
-    assert!(record.get("withheldAppsFile").is_none(), "{agent}: {record}");
+    assert_eq!(record["withheldAppsFile"], json!(file), "{agent}: {record}");
+    assert!(written.apps.is_empty(), "{agent}: no MCP server stands");
+    assert_eq!(written.account, "9");
+    assert!(written.personal.network && written.personal.secrets, "{agent}");
   }
+}
+
+// A tool host's registry holding no personal tool of anybody's.
+fn empty_registry(home: &std::path::Path) -> String {
+  use std::os::unix::fs::PermissionsExt;
+
+  let pocket = home.join("empty-pocket");
+
+  std::fs::write(&pocket, "#!/bin/sh\necho '[]'\n").unwrap();
+  std::fs::set_permissions(&pocket, std::fs::Permissions::from_mode(0o755)).unwrap();
+  pocket.to_string_lossy().into_owned()
 }
 
 // "A record names the account it acts for and the runner its personal tools run on" (docs/tools.md, 「The owner and
@@ -356,6 +374,7 @@ async fn a_record_names_the_account_it_acts_for_and_the_runner_its_personal_tool
   let more = BTreeMap::from([
     ("BMO_MCP_HOST_SOCKET".to_owned(), socket.to_string_lossy().into_owned()),
     ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
+    (agency_server::personal_apps::POCKET_VARIABLE.to_owned(), empty_registry(home.path())),
   ]);
   let ground = seeded_with(db, home.path(), &more).await;
 

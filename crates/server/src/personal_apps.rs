@@ -27,6 +27,10 @@ pub const POCKET_VARIABLE: &str = "BMO_POCKET_BIN";
 /// How long a listing waits for the PC's versions before it answers without them.
 const LISTING_WAIT: Duration = Duration::from_secs(15);
 
+/// The first run word of the manifest the runner makes for an MCP server: its own binary, bound there inside the
+/// confinement (docs/person-nodes.md, 「MCP servers」).
+pub const MCP_RUN: &str = "/.bmo/node-link";
+
 /// Where a put stages the description it hands the tool host, under the data root.
 const STAGING: &str = "agency/personal-apps";
 
@@ -42,6 +46,7 @@ pub enum Fault {
   Unchecked,
   NoOlder(String),
   NotFound(String),
+  SecretMissing(String),
 }
 
 impl From<Fault> for Refused {
@@ -85,6 +90,11 @@ impl From<Fault> for Refused {
       )
       .with_code("no-older-version"),
       Fault::NotFound(what) => Refused::new(StatusCode::NOT_FOUND, what),
+      Fault::SecretMissing(name) => Refused::new(
+        StatusCode::CONFLICT,
+        format!("the person's secret space holds no secret {name}, which the MCP server asks for"),
+      )
+      .with_code("secret-missing"),
     }
   }
 }
@@ -278,16 +288,155 @@ async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>, make: b
       .is_some_and(|named| !named.is_empty())
   };
 
-  for (permission, said, key) in [
-    ("network", "the network", settings.network.key.as_str()),
-    ("secrets", "secrets", settings.secrets.key.as_str()),
+  may_ask(ground, account, asks("network"), asks("secrets")).await
+}
+
+// Whether the chain lets a personal app of the person's ask for the network and for secrets, where it asks for them;
+// the administrator's account is held to neither.
+async fn may_ask(ground: &Ground, account: &str, network: bool, secrets: bool) -> Result<(), Fault> {
+  if !network && !secrets
+    || crate::account_isolation::owners_own(&ground.db, account)
+      .await
+      .map_err(|_| Fault::Unchecked)?
+  {
+    return Ok(());
+  }
+
+  let person = Subject::Person(account.parse().map_err(|_| Fault::Unchecked)?);
+  let service = crate::apps::service(ground);
+  let settings = &ORGANISATION.personal_apps;
+
+  for (asked, said, key) in [
+    (network, "the network", settings.network.key.as_str()),
+    (secrets, "secrets", settings.secrets.key.as_str()),
   ] {
-    if asks(permission) && !flag(key, false).await? {
+    if !asked {
+      continue;
+    }
+
+    let allowed = chain::resolve(&service, key, person)
+      .await
+      .map(|answer| chain::flag(answer.as_ref(), false))
+      .map_err(|_| Fault::Unchecked)?;
+
+    if !allowed {
       return Err(Fault::PermissionWithheld(said.to_owned()));
     }
   }
 
   Ok(())
+}
+
+// A secret's name: a plain file name of letters, digits, `.`, `_` and `-`, opening on no dot.
+fn secret_name(name: &str) -> bool {
+  !name.is_empty()
+    && !name.starts_with('.')
+    && name.chars().all(|one| one.is_ascii_alphanumeric() || matches!(one, '.' | '_' | '-'))
+}
+
+/// The secrets a place of an MCP server carries (docs/person-nodes.md, 「MCP servers」): each read from the
+/// account's secret space as the tool host's relay reads it, its bytes in base64 by its name; one the space holds no
+/// file of is refused, naming it and never what it holds.
+pub async fn read_secrets(
+  ground: &Ground,
+  account: &str,
+  names: &[String],
+) -> Result<BTreeMap<String, String>, Fault> {
+  use base64::Engine;
+
+  let space = crate::lines::token::secret_space_of(ground, account)
+    .await
+    .map_err(|refusal| Fault::Refused(refusal.detail))?;
+  let mut read = BTreeMap::new();
+
+  for name in names {
+    if !secret_name(name) {
+      return Err(Fault::Refused(format!("{name:?} is no secret's name")));
+    }
+
+    let bytes = std::fs::read(space.join(name)).map_err(|_| Fault::SecretMissing(name.clone()))?;
+
+    read.insert(name.clone(), base64::engine::general_purpose::STANDARD.encode(bytes));
+  }
+
+  Ok(read)
+}
+
+// What a place carries for an MCP server: the addresses, and the secrets read, once the chain allows them.
+async fn carried(
+  ground: &Ground,
+  account: &str,
+  network: &[String],
+  secrets: &[String],
+) -> Result<Value, Fault> {
+  may_ask(ground, account, !network.is_empty(), !secrets.is_empty()).await?;
+
+  Ok(json!({ "network": network, "secrets": read_secrets(ground, account, secrets).await? }))
+}
+
+fn strings(value: &Value) -> Vec<String> {
+  value
+    .as_array()
+    .into_iter()
+    .flatten()
+    .filter_map(Value::as_str)
+    .map(str::to_owned)
+    .collect()
+}
+
+// The app's folder placed on the PC: a place carrying what `asks` names where it names anything, asked once more
+// carrying what the runner wants where it answers `wants` (docs/person-nodes.md, 「MCP servers」).
+async fn place(
+  ground: &Ground,
+  runner: &Runner,
+  account: &str,
+  name: &str,
+  asks: Option<(&[String], &[String])>,
+) -> Result<Answered, Fault> {
+  let mut carrying = match asks {
+    Some((network, secrets)) if !network.is_empty() || !secrets.is_empty() => {
+      Some(carried(ground, account, network, secrets).await?)
+    }
+    _ => None,
+  };
+
+  for _ in 0..2 {
+    let mut asked = json!({ "tool": name });
+
+    if let Some(carrying) = &carrying {
+      asked["network"] = carrying["network"].clone();
+      asked["secrets"] = carrying["secrets"].clone();
+    }
+
+    let placed = ask(runner, &json!({ "owner": account, "place": asked })).await?;
+
+    if placed.last["t"] == "wants" && carrying.is_none() {
+      let (network, secrets) = (strings(&placed.last["network"]), strings(&placed.last["secrets"]));
+
+      carrying = Some(carried(ground, account, &network, &secrets).await?);
+      continue;
+    }
+
+    expect(&placed, "placed")?;
+    return Ok(placed);
+  }
+
+  Err(Fault::Refused(format!("the PC wants more than the place of {name} carries")))
+}
+
+/// Whether a manifest the runner answered is an MCP server's, the one it makes: its run words open on the runner's
+/// own binary's `mcp` (docs/person-nodes.md, 「MCP servers」).
+pub fn is_mcp(manifest: &str) -> bool {
+  manifest.parse::<toml::Table>().is_ok_and(|read| {
+    let run: Vec<&str> = read
+      .get("tool")
+      .and_then(|tool| tool.get("run"))
+      .and_then(toml::Value::as_array)
+      .map(|words| words.iter().filter_map(toml::Value::as_str).collect())
+      .unwrap_or_default();
+
+    run.first() == Some(&MCP_RUN) && run.get(1) == Some(&"mcp")
+  })
 }
 
 // `bmo-pocket` run on the data root with the words given: what it said, or its refusal.
@@ -313,8 +462,8 @@ pub async fn pocket(ground: &Ground, words: &[&str]) -> Result<String, Fault> {
   Err(Fault::Refused(why.trim().trim_start_matches("bmo-pocket: ").to_owned()))
 }
 
-// The account's personal tools as the tool host holds them.
-async fn listed(ground: &Ground, account: &str) -> Result<Vec<Value>, Fault> {
+/// The account's personal tools as the tool host holds them.
+pub async fn listed_tools(ground: &Ground, account: &str) -> Result<Vec<Value>, Fault> {
   let said = pocket(ground, &["list", "--owner", account, "--json"]).await?;
 
   serde_json::from_str(&said)
@@ -323,7 +472,7 @@ async fn listed(ground: &Ground, account: &str) -> Result<Vec<Value>, Fault> {
 
 // The entries of the account's app as the tool host holds it.
 async fn entries(ground: &Ground, account: &str, name: &str) -> Vec<Value> {
-  listed(ground, account)
+  listed_tools(ground, account)
     .await
     .unwrap_or_default()
     .into_iter()
@@ -401,42 +550,46 @@ pub async fn put(ground: &Ground, account: &str, name: &str) -> Result<Outcome, 
   let held = hold(account, name);
   let _held = held.lock().await;
 
-  put_held(ground, &runner, account, (name, None)).await
+  put_held(ground, &runner, account, (name, None), None).await
 }
 
 /// A received copy of a shared app put as a personal app standing for the shared app's key (docs/person-nodes.md,
 /// 「Shared apps」): its source already in its folder, built, put at home with the key and pointed at; held to the
 /// permissions the chain allows a personal app, not to whether the person may make one. The caller holds the app.
+/// `asks` names the network and the secrets the shared version asks for, which the place of an MCP server carries.
 pub async fn put_received(
   ground: &Ground,
   runner: &Runner,
   account: &str,
   name: &str,
   key: Option<&str>,
+  asks: Option<(&[String], &[String])>,
 ) -> Result<Outcome, Fault> {
   named(name)?;
-  put_held(ground, runner, account, (name, key)).await
+  put_held(ground, runner, account, (name, key), asks).await
 }
 
 // A put under the app's hold: the PC places the folder, the chain judges its manifest, the description is put at
-// home under the PC's version, naming the shared app where it is a copy of one, and the PC is pointed at it.
+// home under the PC's version, naming the shared app where it is a copy of one and the person's own key where it is
+// an MCP server of theirs, and the PC is pointed at it.
 async fn put_held(
   ground: &Ground,
   runner: &Runner,
   account: &str,
   (name, app): (&str, Option<&str>),
+  asks: Option<(&[String], &[String])>,
 ) -> Result<Outcome, Fault> {
   let runner = runner.clone();
-  let placed = ask(&runner, &json!({ "owner": account, "place": { "tool": name } })).await?;
-
-  expect(&placed, "placed")?;
-
+  let placed = place(ground, &runner, account, name, asks).await?;
   let version = placed.last["version"].as_str().unwrap_or_default().to_owned();
   let files = &placed.last["files"];
+  let manifest = files["tool.toml"].as_str();
 
-  may_put(ground, account, files["tool.toml"].as_str(), false).await?;
+  may_put(ground, account, manifest, false).await?;
 
-  let home = put_home(ground, account, (name, app), &version, files).await?;
+  let own =
+    (app.is_none() && manifest.is_some_and(is_mcp)).then(|| crate::attachments::own_key(account, name));
+  let home = put_home(ground, account, (name, app.or(own.as_deref())), &version, files).await?;
   let pointed =
     ask(&runner, &json!({ "owner": account, "point": { "tool": name, "version": version } })).await?;
 
@@ -491,7 +644,7 @@ pub async fn back(
 
   expect(&described, "described")?;
 
-  let app = listed(ground, account)
+  let app = listed_tools(ground, account)
     .await
     .unwrap_or_default()
     .into_iter()
@@ -521,6 +674,12 @@ pub async fn remove(ground: &Ground, account: &str, name: &str) -> Result<Outcom
   let home = pocket(ground, &["take", "--owner", account, name]).await;
   let mut said: Vec<String> = home.as_deref().map(|said| lines(said).collect()).unwrap_or_default();
 
+  if home.is_ok()
+    && let Err(why) = crate::attachments::forget_item(&ground.db, account, "mcp", name).await
+  {
+    eprintln!("the attachments of {account}'s {name} were not taken away: {}", why.detail);
+  }
+
   let pc = match runner(ground, account).await {
     Ok(runner) => ask(&runner, &json!({ "owner": account, "take": { "tool": name } })).await.map(|_| ()),
     Err(fault) => Err(fault),
@@ -548,7 +707,7 @@ pub async fn remove(ground: &Ground, account: &str, name: &str) -> Result<Outcom
 /// The account's apps as the tool host holds them, each with the versions its PC keeps older than the one in place,
 /// null where the PC was not reached; and whether it was.
 pub async fn list(ground: &Ground, account: &str) -> Result<Value, Fault> {
-  let tools = listed(ground, account).await?;
+  let tools = listed_tools(ground, account).await?;
   let kept = match runner(ground, account).await {
     Ok(runner) => {
       tokio::time::timeout(LISTING_WAIT, ask(&runner, &json!({ "owner": account, "versions": {} })))

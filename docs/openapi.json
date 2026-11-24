@@ -208,6 +208,12 @@
       "name": "personal-apps"
     },
     {
+      "name": "personal-skills"
+    },
+    {
+      "name": "attachments"
+    },
+    {
       "name": "catalogue"
     },
     {
@@ -8564,7 +8570,8 @@
           "app-refused",
           "personal-apps-withheld",
           "permission-withheld",
-          "access-unchecked"
+          "access-unchecked",
+          "secret-missing"
         ],
         "parameters": [
           {
@@ -8785,6 +8792,380 @@
             }
           }
         ]
+      }
+    },
+    "/personal-skills/{ownerAccount}": {
+      "get": {
+        "operationId": "listPersonalSkills",
+        "tags": [
+          "personal-skills"
+        ],
+        "summary": "The account's skills at home, its own and its installed copies.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSkillList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ]
+      }
+    },
+    "/personal-skills/{ownerAccount}/{name}": {
+      "get": {
+        "operationId": "getPersonalSkill",
+        "tags": [
+          "personal-skills"
+        ],
+        "summary": "One skill's files.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSkillFiles"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the skill's name"
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "putPersonalSkill",
+        "tags": [
+          "personal-skills"
+        ],
+        "summary": "Save one of the account's own skills whole.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSkill"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/NameTaken"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "name-taken",
+          "personal-apps-withheld",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the skill's name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalSkillSave"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removePersonalSkill",
+        "tags": [
+          "personal-skills"
+        ],
+        "summary": "Remove one of the account's own skills and every attachment of it.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalSkillRemoved"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/InstalledCopy"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "installed-copy"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the skill's name"
+            }
+          }
+        ]
+      }
+    },
+    "/attachments/{ownerAccount}": {
+      "get": {
+        "operationId": "listAttachments",
+        "tags": [
+          "attachments"
+        ],
+        "summary": "The account's holders, what each line takes and what is attached to each, and the skills and MCP servers that may be.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          }
+        ]
+      }
+    },
+    "/attachments/{ownerAccount}/{holderKind}/{holder}": {
+      "put": {
+        "operationId": "setAttachments",
+        "tags": [
+          "attachments"
+        ],
+        "summary": "Set one holder's attached skills and MCP servers whole.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentHolder"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/LineTakesNone"
+          },
+          "422": {
+            "$ref": "#/components/responses/AppRefused"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "line-takes-none",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "holderKind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "supervisor or agent"
+            }
+          },
+          {
+            "name": "holder",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the holder's name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentSet"
+              }
+            }
+          }
+        }
       }
     },
     "/catalogue/{ownerAccount}": {
@@ -9698,6 +10079,144 @@
             }
           }
         }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/text": {
+      "post": {
+        "operationId": "textCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Set one locale's text of the item, or clear it, for its maker or owner.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogueText"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/catalogue/{ownerAccount}/apps/{appId}/translate": {
+      "post": {
+        "operationId": "translateCatalogueApp",
+        "tags": [
+          "catalogue"
+        ],
+        "summary": "Fill each locale the item holds no text in by the translator role.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogueApp"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found",
+          "access-unchecked",
+          "app-refused"
+        ],
+        "parameters": [
+          {
+            "name": "ownerAccount",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the account"
+            }
+          },
+          {
+            "name": "appId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the app's id in its company's catalogue"
+            }
+          }
+        ]
       }
     },
     "/catalogue/{ownerAccount}/seen": {
@@ -19610,6 +20129,310 @@
         ],
         "description": "ScreenSession: a short-lived tool session a console reads and calls a person's personal screens under: the token\nthe tool host issued, and when it lapses, in epoch milliseconds."
       },
+      "PersonalSkillList": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalSkill"
+            }
+          }
+        },
+        "required": [
+          "skills"
+        ],
+        "description": "PersonalSkillList: an account's skills at home."
+      },
+      "PersonalSkill": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "summaries": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "version": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "app": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "attachedTo": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "title",
+          "summary",
+          "titles",
+          "summaries",
+          "language",
+          "version",
+          "origin",
+          "app",
+          "attachedTo"
+        ],
+        "description": "PersonalSkill: one of an account's skills at home: its front matter's text, its version, whether it is the\nperson's own or an installed copy, the catalogue id a copy is of, and the holders it is attached to."
+      },
+      "PersonalSkillFiles": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "origin": {
+            "type": "string"
+          },
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "origin",
+          "files"
+        ],
+        "description": "PersonalSkillFiles: one skill's files, by path, with its version and origin."
+      },
+      "PersonalSkillSave": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "files"
+        ],
+        "description": "PersonalSkillSave: an own skill's files, by path, `SKILL.md` among them, saved whole."
+      },
+      "PersonalSkillRemoved": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "description": "PersonalSkillRemoved: the skill removed."
+      },
+      "AttachmentList": {
+        "type": "object",
+        "properties": {
+          "holders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentHolder"
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachableItem"
+            }
+          },
+          "mcp": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachableItem"
+            }
+          }
+        },
+        "required": [
+          "holders",
+          "skills",
+          "mcp"
+        ],
+        "description": "AttachmentList: an account's holders and what is attached to each, and the skills and MCP servers that may be."
+      },
+      "AttachmentHolder": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "line": {
+            "type": "string"
+          },
+          "takes": {
+            "$ref": "#/components/schemas/AttachmentTakes"
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mcp": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "label",
+          "role",
+          "line",
+          "takes",
+          "skills",
+          "mcp"
+        ],
+        "description": "AttachmentHolder: one of an account's holders — a `supervisor` or a role's `agent` — its line, what that line\ntakes, and the skills and MCP servers attached to it, by name."
+      },
+      "AttachmentTakes": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "boolean"
+          },
+          "mcp": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "skills",
+          "mcp"
+        ],
+        "description": "AttachmentTakes: whether a holder's line takes attached skills, and attached MCP servers."
+      },
+      "AttachableItem": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "origin": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "titles",
+          "origin"
+        ],
+        "description": "AttachableItem: a skill or an MCP server of an account's that may be attached: its name, its title and titles\nwhere it has them, and whether it is the person's own or an installed copy."
+      },
+      "AttachmentSet": {
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "mcp": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          }
+        },
+        "required": [
+          "skills",
+          "mcp"
+        ],
+        "description": "AttachmentSet: one holder's attached skills and MCP servers, by name, set whole."
+      },
       "CatalogueList": {
         "type": "object",
         "properties": {
@@ -19658,6 +20481,10 @@
           "id": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "description": "`app`, `skill` or `mcp`."
+          },
           "key": {
             "type": "string"
           },
@@ -19665,10 +20492,54 @@
             "type": "string"
           },
           "title": {
-            "type": "string"
+            "type": "string",
+            "description": "The maker's language's title and description."
           },
           "description": {
             "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The maker's language, where the item names one.",
+            "default": null
+          },
+          "titles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The text by locale, each locale it is written in.",
+            "default": {}
+          },
+          "descriptions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "machine": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The locales whose text a translation wrote.",
+            "default": []
+          },
+          "server": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogueServer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How an MCP server is reached; none for any other kind.",
+            "default": null
           },
           "maker": {
             "type": "string"
@@ -19736,10 +20607,16 @@
         },
         "required": [
           "id",
+          "kind",
           "key",
           "name",
           "title",
           "description",
+          "language",
+          "titles",
+          "descriptions",
+          "machine",
+          "server",
           "maker",
           "owner",
           "targets",
@@ -19757,6 +20634,61 @@
           "may"
         ],
         "description": "CatalogueApp: a shared app as its reader sees it in their company's catalogue."
+      },
+      "CatalogueServer": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "type": "string"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "auth": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "header": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "secret": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "command": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "default": null
+          }
+        },
+        "required": [
+          "transport",
+          "url",
+          "auth",
+          "header",
+          "secret",
+          "command"
+        ],
+        "description": "CatalogueServer: how a shared MCP server is reached, read off its newest version's `mcp.toml`: `local`, its\n`command`; or `remote`, its `url`, its `auth` (`none`, `bearer` or `header`), the `header` it is sent in and the\nname of the `secret` each receiver holds, never its value."
       },
       "CatalogueVersion": {
         "type": "object",
@@ -19872,6 +20804,16 @@
           "promote": {
             "type": "boolean"
           },
+          "text": {
+            "type": "boolean",
+            "description": "Whether the reader sets a locale's text: the maker and the owner.",
+            "default": false
+          },
+          "translate": {
+            "type": "boolean",
+            "description": "Whether the reader asks for the other languages to be filled: the maker, the owner and a head of the maker's\nhome unit.",
+            "default": false
+          },
           "recall": {
             "type": "array",
             "items": {
@@ -19893,6 +20835,8 @@
           "withdraw",
           "approve",
           "promote",
+          "text",
+          "translate",
           "recall",
           "turnOn"
         ],
@@ -19952,11 +20896,29 @@
             "type": "array",
             "items": true,
             "default": []
+          },
+          "kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`app` where left out, for an app or an MCP server of the PC's 'my apps'; `skill` for an own skill at home.",
+            "default": null
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language its plain text is written in, one of `ko`, `en`, `ja` and `zh-CN`; `en` where left out.",
+            "default": null
           }
         },
         "required": [
           "name",
-          "targets"
+          "targets",
+          "kind",
+          "language"
         ],
         "description": "CatalogueShare: one of the reader's personal apps shared by its name, with whom: each target `{\"team\": true}`,\n`{\"heads\": true}`, `{\"company\": true}`, `{\"person\": <user>}`, `{\"group\": <id>}` or `{\"unit\": <id>}`; none shares\nwith the team and the heads."
       },
@@ -20018,6 +20980,34 @@
           "note"
         ],
         "description": "CataloguePromote: the request to make a shared app a platform app, with a note for the administrator."
+      },
+      "CatalogueText": {
+        "type": "object",
+        "properties": {
+          "locale": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "locale",
+          "title",
+          "description"
+        ],
+        "description": "CatalogueText: one locale's title and description set on a shared item, or the locale cleared where both are\nnull."
       },
       "CatalogueSeen": {
         "type": "object",
@@ -21153,8 +22143,28 @@
           }
         }
       },
+      "InstalledCopy": {
+        "description": "installed-copy",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "InstructionsWithheld": {
         "description": "instructions-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "LineTakesNone": {
+        "description": "line-takes-none",
         "content": {
           "application/json": {
             "schema": {
@@ -21555,6 +22565,16 @@
       },
       "ScreenSessionUnissued": {
         "description": "screen-session-unissued",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "SecretMissing": {
+        "description": "secret-missing",
         "content": {
           "application/json": {
             "schema": {

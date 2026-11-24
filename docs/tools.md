@@ -99,6 +99,15 @@ here.
   - A resident program's file stands in its place, `withheld-apps.json`, and so does a run's that names its place;
     a run that names none has a file of its own under the data root's `agency/withheld-apps/`, named by when its
     record lapses, and the files whose records have lapsed are taken away as another is written.
+- **An MCP server reaches the record's holder alone** (`docs/person-nodes.md`, 「Attaching skills and MCP
+  servers」): the file's `apps` also names the key of every MCP server of the record's account not attached to the
+  record's holder — the supervisor a supervisor's record is held by, the seat a role run is let in on — and of every
+  one where the record's line takes no attached MCP server or the record names no holder; a registry that cannot be
+  read names no MCP server, which the tool host then cannot serve either. The file keeps the holder,
+  `holder` (`{kind, name}`), and the line, `line`, so a turn resolves them again. A record of the administrator's
+  account, which the chain withholds nothing from, has a file written as well, `apps` those keys alone and
+  `personal` both true; where it cannot be written, or the tool host's registry cannot be read for it, the record
+  names none, as before any MCP server stood.
 - **When it resolves:**
   - as it issues a record, before the record is asked of the tool host;
   - as each turn of a resident program begins, before the turn's words go in: the place's file, where it stands, is
@@ -217,6 +226,18 @@ here.
   `…/back` or `DELETE /personal-apps/{account}/{name}` (`docs/api.md`, 「personal-apps」), waiting however long the
   build on the PC takes. Its answer says the version now in place, the entries the person's sessions reach from their
   next turn, `my/<entry>`, and what the tool host said; a refusal is a failed call saying why.
+
+## The skill put
+
+- **`tools/skill_put`** declares `bmo/skill_put` to a session holding `room.tools`: a supervisor saves a skill of
+  the person it serves, or removes one (`docs/person-nodes.md`, 「Skills at home」).
+- **The person is the record's,** `ownerAccount`, read afresh at every call, and a record naming none is refused; it
+  asks only past the owner's gate, as the app put does.
+- **Its arguments:** `name`, the skill's; `action`, `put` where left out, or `remove`; and for `put`, `files`, each
+  file of the skill by its path, `SKILL.md` among them, as text. The whole folder is what `files` names.
+- **It reaches agency's server** and asks `PUT /personal-skills/{account}/{name}` or `DELETE
+  /personal-skills/{account}/{name}` (`docs/api.md`, 「personal-skills」). Its answer says the version now saved and
+  that the skill reaches only the agents it is attached to; a refusal is a failed call saying why.
 
 ## The job tools on a node
 

@@ -378,6 +378,7 @@ pub async fn compose(
     .and_then(|supervisor| supervisor.road())
     .filter(|road| road.provider == turn.provider && road.model == turn.model)
     .and_then(|road| road.advisor_taken());
+  let plugin = crate::attachments::supervisor_plugin(ground, turn.agent).await?;
   let line = |model: &str, effort: &str, advisor: Option<&str>, settings: &std::path::Path| {
     standing_words(
       &Words {
@@ -387,6 +388,7 @@ pub async fn compose(
         advisor,
         system: &system,
         mcp: &mcp,
+        plugin: plugin.as_deref(),
         hands: Hands::AllBut {
           denied: &denied,
           kept: kept.as_deref(),

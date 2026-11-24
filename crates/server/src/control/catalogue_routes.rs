@@ -6,7 +6,7 @@ use axum::http::{Method, StatusCode};
 use axum::response::Response;
 use bmo_agency_client::{
   CatalogueApprove, CataloguePromote, CataloguePromotions, CatalogueRecall, CatalogueSeen, CatalogueShare,
-  CatalogueUnitSwitch,
+  CatalogueText, CatalogueUnitSwitch,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -113,7 +113,14 @@ impl Route for ShareCatalogueApp {
     let (account, company, ground) = asked_of(&call)?;
     let asked: CatalogueShare = body_of(&mut call).await?;
     let reader = catalogue::reader(&ground, &account, company).await?;
-    let shared = catalogue::share(&ground, &reader, asked.name.trim(), &asked.targets).await?;
+    let shared = catalogue::share(
+      &ground,
+      &reader,
+      asked.name.trim(),
+      &asked.targets,
+      (asked.kind.as_deref(), asked.language.as_deref()),
+    )
+    .await?;
 
     Ok(answer(StatusCode::OK, json(&shared)))
   }
@@ -240,6 +247,44 @@ app_route!(
 
     promote
   } => catalogue::promote(&ground, &reader, &id, asked.note.trim()).await?
+);
+
+app_route!(
+  TextCatalogueApp,
+  Method::POST,
+  "/catalogue/{ownerAccount}/apps/{appId}/text",
+  "`POST /catalogue/{ownerAccount}/apps/{appId}/text`: one locale's text set or cleared by the maker or the owner.",
+  |call, ground, reader, id, asked| {
+    let text: CatalogueText = body_of(&mut call).await?;
+
+    text
+  } => catalogue::text(
+    &ground,
+    &reader,
+    &id,
+    asked.locale.trim(),
+    asked.title.as_deref(),
+    asked.description.as_deref(),
+  )
+  .await?
+);
+
+app_route!(
+  TranslateCatalogueApp,
+  Method::POST,
+  "/catalogue/{ownerAccount}/apps/{appId}/translate",
+  "`POST /catalogue/{ownerAccount}/apps/{appId}/translate`: every locale holding no text filled by the translator role.",
+  |call, ground, reader, id, asked| {} => catalogue::fill_languages(&ground, &reader, &id, |language, text| {
+    let ground = ground.clone();
+
+    async move {
+      crate::translate::translate(&ground, "document", language, (None, &[]), &text)
+        .await
+        .map(|done| done.text)
+        .map_err(|refused| format!("{refused:?}"))
+    }
+  })
+  .await?
 );
 
 /// `POST /catalogue/{ownerAccount}/seen`: the account's looking at what was shared with it kept.

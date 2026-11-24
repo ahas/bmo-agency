@@ -238,11 +238,11 @@ sessions reach it as `my/<entry>` from their next turn.
   「The worker ask」). The administrator's apps stand in the data root's own `my-apps/` here. The procedure the run
   follows is `make-app` among the chat's procedures.
 - **The runner keeps an app's versions** as well as running them: beside a call, the passage's first line may ask it
-  one of five things, `{"owner": <account>, "<what>": {…}}`, each answered by one line:
+  one of six things, `{"owner": <account>, "<what>": {…}}`, each answered by one line:
 
 | What is asked | Its fields | Answered with | What the runner does |
 |---|---|---|---|
-| `place` | `tool` | `{"t": "placed", "version", "files"}` | builds the app's folder into a new version, pointed at by nothing yet, and answers its description |
+| `place` | `tool`; for an MCP server's folder `network` and `secrets` (「MCP servers」) | `{"t": "placed", "version", "files"}`, or `{"t": "wants", "network", "secrets"}` | builds the app's folder into a new version, pointed at by nothing yet, and answers its description; for an MCP server whose listing needs addresses or secrets the ask does not carry, places nothing and answers what it needs |
 | `describe` | `tool`, `version` | `{"t": "described", "version", "files"}` | answers the description of a version standing |
 | `point` | `tool`, `version` | `{"t": "pointed", "version", "kept"}` | moves the tool's pointer onto the version and keeps the newest versions older than it |
 | `versions` | none | `{"t": "versions", "tools"}` | answers each tool's version pointed at, `current`, and those kept, `kept`, newest first |
@@ -268,7 +268,8 @@ sessions reach it as `my/<entry>` from their next turn.
   - **a put** asks the runner to place the app, puts the description it answers at home under the same version with
     `bmo-pocket put --owner` (the tool host's `docs/registry.md`, 「Put a personal tool」), then asks the runner to
     point at it. A refusal at home leaves the PC's pointer as it stood; the version placed and never pointed at is
-    taken away by the next point;
+    taken away by the next point. A place answered `wants` is asked again carrying what it names, judged and read as
+    「MCP servers」 says; an MCP server of the person's own is put at home under its own key (「MCP servers」);
   - **going back** asks the runner which versions it keeps, the newest older than the current where none is named,
     its description, puts that at home under its version, and points the runner at it;
   - **a removal** takes the tool out of the account's registry at home first, so no session reaches it from its
@@ -322,9 +323,25 @@ bmo-ui the console runs, which the console attaches for that person alone (the t
 
 ## Shared apps
 
-A person shares a personal app they made with people of their own company: its source is copied into the company's
-catalogue at home (the tool host's `docs/catalogue.md`), and each receiver's PC builds and runs a copy of its own,
-whose data stays on that PC. Nothing of it reaches another company.
+A person shares an item they made with people of their own company: its source is copied into the company's
+catalogue at home (the tool host's `docs/catalogue.md`), and each receiver holds a copy of their own. Nothing of it
+reaches another company.
+
+- **An item is one of three kinds,** which the catalogue reads off its source as it is shared (the tool host's
+  `docs/catalogue.md`, 「Kinds」), and every rule of this section holds for each unless it says otherwise:
+  - **an app**, a personal app (「Personal apps」): each receiver's PC builds and runs a copy of its own, whose data
+    stays on that PC;
+  - **a skill** (「Skills at home」): instructions an agent's program reads, kept at home, so no PC is involved in
+    sharing, installing, moving, dropping or adopting one;
+  - **an MCP server** (「MCP servers」): a personal app of its own shape, shared, received, placed and put as an
+    app is.
+- **An item's text is in the maker's language, and in others where somebody wrote them** (the tool host's
+  `docs/catalogue.md`, 「Text in several languages」): a share names the maker's language as the share request
+  names it, else `en`, and nothing translates at share and nothing fills an item shared before. The maker, the
+  owner or a head of the maker's home unit asks for the other languages to be filled: each of `ko`, `en`, `ja` and
+  `zh-CN` holding no title is translated from the maker's title and description by the translator role
+  (`docs/launch-lines.md`, 「Translate runner」), as a document's part is, and written with `catalogue text
+  --machine`. The maker or the owner sets one locale's text, which takes its machine mark away, or clears it.
 
 - **The runner keeps each version's source, and receives a shared one,** beside its other keepings:
 
@@ -360,14 +377,19 @@ whose data stays on that PC. Nothing of it reaches another company.
   `heads`; a person of their home unit needs `team`; any other person or unit of the company, a group by its
   widest member, and `company` need `company`. A person, a unit or a group of another company is refused, whatever
   the ceiling. The version shared is the one the person's PC points at, its source read from the runner and put in
-  the catalogue with `bmo-pocket catalogue share`, which records its hash and declares the app on the chain, neither
-  offered nor on; agency then offers it to the maker's company alone, the platform's rule naming the company written
+  the catalogue with `bmo-pocket catalogue share`, naming the maker's language, which records its hash and kind and
+  declares the app on the chain, neither offered nor on; a skill's version is its own at home, read from there
+  (「Skills at home」); agency then offers it to the maker's company alone, the platform's rule naming the company written
   as the platform's administrator, the platform link's one writer, so nobody of another company is offered it. The
   review is asked once it is kept.
 - **The review report** is written by an agent of the `app-reviewer` role (`docs/agent-roles.md`), a run apart of
-  one turn on the role's road, the way a translation goes out (`docs/launch-lines.md`, 「Translate runner」): it is
-  handed the manifest, the permissions it asks for and every file of the source, and answers what the app does and
-  whether anything in it reaches for more than its manifest declares. The report is written onto the version with
+  one turn on the role's road, the way a translation goes out (`docs/launch-lines.md`, 「Translate runner」): its
+  input's first line names the item's kind, then the permissions the version asks for, then every file of the source
+  under a line naming its path — for a skill its `SKILL.md` and its reference files, for an MCP server its
+  `mcp.toml` and its code. It answers what the item does and what it reaches for: for an app, anything beyond its
+  manifest; for a skill, any hidden or dangerous instruction, any ask to send data anywhere and any prompt
+  injection; for an MCP server, the address, the auth and what its secret grants, or the command, its code and
+  anything beyond its permissions. The report is written onto the version with
   `catalogue review`, or the review written failed with why. It decides nothing by itself.
 - **Who sees an app:** its maker and its owner, the heads of the maker's home unit, whoever one of its targets takes
   in, and whoever holds a copy. Everyone else of the company, and everyone of another company, never meets it.
@@ -380,10 +402,14 @@ whose data stays on that PC. Nothing of it reaches another company.
   --app <key>` so the copy stands for the shared app, and pointed at; then the receiver's own link of the app's `on`
   is turned on in their name and the copy recorded as theirs. A refusal anywhere leaves the PC's pointer where it
   stood.
-- **A receiver's copy is theirs to drop or adopt:** dropping it removes it as a personal app is removed and turns
-  their link of `on` off, so a head's turning on does not bring it back; adopting it adopts
-  the folder on the runner, puts it again as the person's own personal app naming no shared app, turns their link
-  off and lets the catalogue's record of the copy go, so no update reaches it again. Neither is open where a lock
+  A skill's copy is written into the receiver's skills at home instead, checked against the same hash, with no PC
+  (「Skills at home」); an MCP server's place carries what its version asks for (「MCP servers」).
+- **A receiver's copy is theirs to drop or adopt:** dropping it removes it as a personal app is removed — a skill's
+  folder at home, and every attachment of it (「Attaching skills and MCP servers」) — and turns their link of `on`
+  off, so a head's turning on does not bring it back; adopting it adopts
+  the folder on the runner, puts it again as the person's own personal app naming no shared app — an MCP server
+  under its own key — turns their link off and lets the catalogue's record of the copy go, so no update reaches it
+  again; a skill's copy is adopted by taking its mark away at home. Neither is open where a lock
   above keeps the app on for them.
 - **A head turns an app on for a unit they head:** the unit's link of `on` turned on, locked where the head asks,
   and its `offered` left to follow above. Each member under the unit whose PC is reached then has a copy installed
@@ -409,9 +435,126 @@ whose data stays on that PC. Nothing of it reaches another company.
     not, and is left for the receiver to confirm otherwise, the console asking them again for what grew;
   - an app turned on for them by a unit's link, offered, not withdrawn and approved where it must be, is installed
     where they hold no copy and may install received apps.
-- **A PC that cannot be reached is kept next time,** and nothing at home waits on it.
+- **A PC that cannot be reached is kept next time,** and nothing at home waits on it. A person's skills are kept
+  whether or not their PC is heard, since they stand at home.
 - **What a reader is told:** the apps shared with them since they last looked, and the copies waiting for their
   confirmation, which the console lists as notices; and for a head, the versions waiting for their approval.
+
+## Skills at home
+
+A skill is instructions an agent's program reads: `SKILL.md`, opening on its front matter, and the reference files
+beside it. A person's skills stand at home, never on their PC, and reach only the agents they are attached to
+(「Attaching skills and MCP servers」).
+
+- **They stand under the data root,** `agency/skills/<account>/<name>/`: the skill's `SKILL.md` and its reference
+  files, text alone, all of them together at most the catalogue's bundle size, eight mebibytes. A folder holding
+  `.received.json`, `{"app": <catalogue id>, "version"}`, is an installed copy of a shared skill; one without it is
+  the person's own. `.version` holds the version the folder stands on: each save of an own skill names a new one by
+  the moment and a random suffix, as the runner names an app's, and a copy takes the shared version's name.
+- **A skill reads where its `SKILL.md` opens on YAML front matter** (read by a maintained YAML library, the block
+  found by the markdown reader) holding `name`, the folder's name — a lower-case letter, then lower-case letters,
+  digits and `-`, at most 64 — and `description`, a non-empty string, what the agent's program reads to know when to
+  use it. It may hold `title` and `summary`, each a string or a table of locales out of `ko`, `en`, `ja` and `zh-CN`,
+  the text a screen shows it by, and `language`, the language a plain string is written in; any other key is the
+  program's and is kept as written.
+- **Who may make one** is the delegation chain's `personal-apps.make`, as for an app (「Personal apps」); the
+  administrator's account is held to none of it. A skill asks for nothing: no network and no secret.
+- **Saving a skill writes the whole folder at once:** the files staged beside it and moved into place, refused where
+  `SKILL.md` does not read, its name is not the folder's, a path climbs out or names `.version` or `.received.json`,
+  a file is not text or the whole is larger than the bundle size, or a folder of the name is an installed copy.
+  The person's BMO writes one with `bmo/skill_put` (`docs/tools.md`, 「The skill put」), and the console through
+  `docs/api.md`, 「personal-skills」.
+- **Removing an own skill** takes its folder and every attachment of it away; an installed copy is dropped through
+  the catalogue.
+- **Shared, installed, moved, dropped and adopted at home:** a share reads the own skill's folder and its `.version`;
+  an install or an update writes the catalogue's source, checked against its hash as the runner checks an app's, into
+  the folder with its mark, refusing a folder of the name that is the person's own; a drop removes the folder and its
+  attachments; an adoption takes the mark away. None of it waits on the PC.
+
+## MCP servers
+
+An MCP server is a personal app of its own shape: the source in its folder of 'my apps' holds `mcp.toml` (the tool
+host's `docs/catalogue.md`, 「Kinds」) in place of a manifest, and the runner makes the manifest itself as it places
+it, so everything after the place — the put at home, the pointer, a call's relay, sharing and keeping copies — is an
+app's. The person's BMO has it written by a worker run as it has an app written (the `make-app` procedure) and puts
+it with `bmo/app_put`.
+
+- **`mcp.toml`'s `[server]`** names it, `name`, the folder's; `title` and `description`, each a string or a table of
+  locales; `language`; and `transport`:
+  - `local`: `command`, a list of words run in the placed folder inside the confinement, and `build`, a shell line
+    run as an app's build is, where its source is built;
+  - `remote`: `url`, an `https` or `http` address; `auth`, `none`, `bearer` or `header`; `header`, the header's name
+    for `header`; and `secret`, for `bearer` and `header`, the name of a secret in each receiver's own secret space,
+    never a value.
+
+  A `[permissions]` table beside it names the network and the secrets as an app's does. What a version asks for is
+  that table's, and for a remote server its address's host, with its port where it names one, among the network and
+  its `secret` among the secrets.
+- **A place of a folder holding `mcp.toml`:**
+  - it is built where `build` is named, confined as an app's build, and copied as an app is, its source kept;
+  - its tools are listed by running the runner's own binary confined as a call runs, at `/.bmo/node-link`, as
+    `node-link mcp --list`, with the version's folder at `/tool`, the network through a proxy of the listing's own
+    reaching the addresses the place ask carries, `network`, and the secrets it carries, `secrets`, each a name and
+    its bytes in base64 as a call carries them, in `/secrets`;
+  - where the version asks for an address or a secret the ask does not carry, nothing is placed: the runner answers
+    `{"t": "wants", "network", "secrets"}`, every address and every secret's name the version asks for, and agency asks
+    again carrying them. Before it does, it judges them as a put's permissions are judged (「Personal apps」) and
+    reads each secret from the account's secret space as the tool host's relay does (「The network and secrets of a
+    call」), refusing one the space holds no file of, naming it and never its value. A received copy's place carries
+    the version's permissions from the first ask;
+  - the listing writes the version's manifest, `tool.toml`: `[tool]` with `name`, `protocol = 1` and `run =
+    ["/.bmo/node-link", "mcp"]`; one `[[entry]]` a listed tool, in the namespace `my`, named as the tool host makes a
+    listed tool's name into an entry's (the tool host's `docs/api.md`, 「How a listed tool reads as an entry」), the
+    first of two taking one name keeping it, with `capabilities = ["my.own"]`, its title and its description as that
+    rule reads them, and `input = "schemas/<entry>.json"`, the tool's input schema written there; and
+    `[permissions]`, what the version asks for. Beside it, `mcp-tools.json`, each entry's name to the server's own
+    name of the tool. A listing that fails, or lists nothing, refuses the place, and the version staged is taken away;
+  - the description answered is that manifest and its schemas, so the put at home is an app's.
+- **A call runs the runner's own binary:** a run whose first word is `/.bmo/node-link` has the runner's binary bound
+  there, read alone, as the proxy's forwarder is. `node-link mcp` reads `/tool/mcp.toml` and `/tool/mcp-tools.json`
+  and the call on its standard input (the tool call protocol, kind `call`), and speaks MCP as a client: a local
+  server's `command` started in `/tool` on its standard input and output; a remote server reached over streamable
+  HTTP at its `url` through the call's proxy (`HTTPS_PROXY`), with `Authorization: Bearer <secret>` or `<header>:
+  <secret>`, the secret read from `/secrets/<secret>`. It initialises, calls the server's tool the entry names with
+  the call's arguments, prints the tool's result as one JSON object — `content`, `structuredContent` where the
+  server answers one, and `isError` — and ends, ending a local server with it. An error the server answers is a
+  result with `isError` true and its message as text. The confinement, the proxy and the masking of secrets are a
+  personal tool call's.
+- **Its home copy names a key:** a received copy its shared app's, as every copy's; the person's own server
+  `own-<account>-<name>`, the name's `_` written `-` and, where that is longer than an app key holds (fifty), the
+  name written as the first twelve hex digits of its SHA-256. Agency tells an MCP server's put by the run words of
+  the manifest the runner answered. So the tool host withholds each from a record as the record's withheld-apps file
+  names it (「Attaching skills and MCP servers」).
+- **Which personal tools of an account are MCP servers** is read from the tool host's listing of the account's
+  personal tools: one whose key is an own key, and one whose shared key is the key of a catalogue record of the kind
+  `mcp`, its company read off the key.
+
+## Attaching skills and MCP servers
+
+A person's skill, and a person's MCP server, reach the agents it is attached to and no other: never every run.
+
+- **The holders an item is attached to are the account's agents:** its supervisors, and its role agents (`docs/role-agents.md`). For the administrator's account, the supervisors of no account and the role agents of no account are
+  its holders too.
+- **Kept in agency's store,** `agent_attachments` (`docs/store.md`): one row an attachment — the account, the holder's
+  kind, `supervisor` or `agent`, its name, the item's kind, `skill` or `mcp`, and the item's name. Changed through
+  `docs/api.md`, 「attachments」, which sets one holder's two lists whole. A list naming a kind the holder's line takes
+  none of is refused: a line takes attached items of a kind where its carries name the source `attached` for it
+  (`docs/launch-lines.md`, 「What a line carries」).
+- **A role run's attached skills:** the worker line's plugin holds its role's skills as it does without them, and
+  beside them each skill attached to its seat, the agent it is let in on (`docs/role-agents.md`, 「What a run reads
+  off its agent」), copied from the account's skills under its own name into the seat's own plugin; a name the
+  role's skills hold already is left out and said in the log.
+- **A supervisor's attached skills:** a plugin of its own under the agents root, `supervisor-skills/<supervisor>/plugin`, holding a minimal `.claude-plugin/plugin.json` and its attached skills, passed to its program with
+  `--plugin-dir` where it holds any. A change to its attachments changes its command, so its resident program starts
+  again on its session at its next turn.
+- **A line whose carries' `skills` lacks `attached` never carries one,** and a launch asked to place attached skills
+  on such a line is refused.
+- **An MCP server reaches a record's holder alone:** every record's withheld-apps file (`docs/tools.md`, 「The apps a
+  person reaches」) names, beside the apps the chain withholds, the key of every MCP server of the record's account
+  not attached to the record's holder — a supervisor's record, that supervisor; a role run's, its seat — and of every
+  one where the record's line's carries' `mcp` lack `attached` or the record names no holder. A record of the
+  administrator's account has a file written as well, naming those keys alone with `personal` both true, so its
+  sessions keep every other app and the network and secrets of their personal tools.
 
 ## Who reaches a node
 

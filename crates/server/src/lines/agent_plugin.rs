@@ -2,7 +2,9 @@
 //! reads off its agent」): a folder of the list's own under the agents root, holding the manifest of the role's
 //! plugin and the skills named alone, each copied from the first of the release's plugins that carries it.
 //! It is written whole whenever what it should hold differs from what it holds, so a release that moved a
-//! skill's text and a list that changed both reach the next run.
+//! skill's text and a list that changed both reach the next run. The skills of a person's attached to the run's
+//! holder join it (docs/person-nodes.md, 「Attaching skills and MCP servers」), and a supervisor holding any is handed
+//! a plugin of its own holding them alone.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -78,11 +80,31 @@ fn copy_skill(from: &Path, to: &Path) -> Result<(), Refusal> {
   Ok(())
 }
 
-/// Whose list of skills a plugin is placed for: an agent's own, or its role's.
+/// Whose list of skills a plugin is placed for: an agent's own, its role's, or a supervisor's attached skills.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Whose<'a> {
   Agent(&'a str),
   Role(&'a str),
+  Supervisor(&'a str),
+}
+
+/// The manifest a supervisor's own plugin carries, which no plugin of the release gives it.
+const SUPERVISOR_MANIFEST: &str =
+  r#"{"name":"attached-skills","description":"The skills attached to this supervisor."}"#;
+
+/// The names of the skills a plugin folder holds.
+pub fn held_in(plugin: &Path) -> Vec<String> {
+  let Ok(read) = std::fs::read_dir(plugin.join("skills")) else {
+    return vec![];
+  };
+  let mut names: Vec<String> = read
+    .filter_map(Result::ok)
+    .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+    .map(|entry| entry.file_name().to_string_lossy().into_owned())
+    .collect();
+
+  names.sort();
+  names
 }
 
 impl Whose<'_> {
@@ -91,6 +113,7 @@ impl Whose<'_> {
     match self {
       Self::Agent(agent) => trees.agents.join("role-agents").join(agent),
       Self::Role(role) => trees.agents.join("role-skills").join(role),
+      Self::Supervisor(supervisor) => trees.agents.join("supervisor-skills").join(supervisor),
     }
   }
 
@@ -98,18 +121,30 @@ impl Whose<'_> {
     match self {
       Self::Agent(agent) => format!("the agent {agent}"),
       Self::Role(role) => format!("the role {role}"),
+      Self::Supervisor(supervisor) => format!("the supervisor {supervisor}"),
     }
   }
 }
 
 /// The plugin folder of a list of skills, holding `skills` alone under the manifest of `base`, the role's
 /// plugin: each skill from `base` where it carries it, else from the first other plugin of the release that
-/// does. A skill no plugin of the release carries is left out, and said. The folder stands under the agents
-/// root at the same path run after run, so the command a run goes out on names it the same way every time.
-pub fn placed(trees: &Trees, base: &Path, whose: Whose<'_>, skills: &[String]) -> Result<PathBuf, Refusal> {
+/// does. A skill no plugin of the release carries is left out, and said. Each of `attached`, a skill's name and
+/// its folder at home, joins them under its name, one whose name the list holds already left out and said. The
+/// folder stands under the agents root at the same path run after run, so the command a run goes out on names it
+/// the same way every time.
+pub fn placed(
+  trees: &Trees,
+  base: &Path,
+  whose: Whose<'_>,
+  skills: &[String],
+  attached: &[(String, PathBuf)],
+) -> Result<PathBuf, Refusal> {
   let home = whose.home(trees);
   let target = home.join("plugin");
-  let manifest = base.join(".claude-plugin").join("plugin.json");
+  let manifest = match whose {
+    Whose::Supervisor(_) => SUPERVISOR_MANIFEST.as_bytes().to_vec(),
+    _ => std::fs::read(base.join(".claude-plugin").join("plugin.json")).unwrap_or_default(),
+  };
   let mut sources: Vec<(String, PathBuf)> = vec![];
 
   for skill in skills {
@@ -131,10 +166,21 @@ pub fn placed(trees: &Trees, base: &Path, whose: Whose<'_>, skills: &[String]) -
     }
   }
 
+  for (skill, folder) in attached {
+    if sources.iter().any(|(held, _)| held == skill) {
+      eprintln!(
+        "agency: {} holds the skill {skill} already, so the one attached is left out",
+        whose.said()
+      );
+    } else {
+      sources.push((skill.clone(), folder.clone()));
+    }
+  }
+
   // What the folder should hold, as one digest: the manifest and every file of every skill it names.
   let mut digest = Sha256::new();
 
-  digest.update(std::fs::read(&manifest).unwrap_or_default());
+  digest.update(&manifest);
 
   for (skill, folder) in &sources {
     digest.update(skill.as_bytes());
@@ -159,11 +205,11 @@ pub fn placed(trees: &Trees, base: &Path, whose: Whose<'_>, skills: &[String]) -
   std::fs::create_dir_all(fresh.join("skills"))
     .map_err(|why| fault(format!("{}: {why}", fresh.display())))?;
 
-  if manifest.is_file() {
+  if !manifest.is_empty() {
     let folder = fresh.join(".claude-plugin");
 
     std::fs::create_dir_all(&folder).map_err(|why| fault(format!("{}: {why}", folder.display())))?;
-    std::fs::copy(&manifest, folder.join("plugin.json"))
+    std::fs::write(folder.join("plugin.json"), &manifest)
       .map_err(|why| fault(format!("{}: {why}", folder.display())))?;
   }
 

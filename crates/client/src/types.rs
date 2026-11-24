@@ -4085,8 +4085,34 @@ pub struct CatalogueMay {
   pub withdraw: bool,
   pub approve: bool,
   pub promote: bool,
+  /// Whether the reader sets a locale's text: the maker and the owner.
+  #[serde(default)]
+  pub text: bool,
+  /// Whether the reader asks for the other languages to be filled: the maker, the owner and a head of the maker's
+  /// home unit.
+  #[serde(default)]
+  pub translate: bool,
   pub recall: Vec<String>,
   pub turn_on: Vec<String>,
+}
+
+/// CatalogueServer: how a shared MCP server is reached, read off its newest version's `mcp.toml`: `local`, its
+/// `command`; or `remote`, its `url`, its `auth` (`none`, `bearer` or `header`), the `header` it is sent in and the
+/// name of the `secret` each receiver holds, never its value.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueServer {
+  pub transport: String,
+  #[serde(default)]
+  pub url: Option<String>,
+  #[serde(default)]
+  pub auth: Option<String>,
+  #[serde(default)]
+  pub header: Option<String>,
+  #[serde(default)]
+  pub secret: Option<String>,
+  #[serde(default)]
+  pub command: Option<Vec<String>>,
 }
 
 /// CatalogueApp: a shared app as its reader sees it in their company's catalogue.
@@ -4094,10 +4120,27 @@ pub struct CatalogueMay {
 #[serde(rename_all = "camelCase")]
 pub struct CatalogueApp {
   pub id: String,
+  /// `app`, `skill` or `mcp`.
+  pub kind: String,
   pub key: String,
   pub name: String,
+  /// The maker's language's title and description.
   pub title: String,
   pub description: String,
+  /// The maker's language, where the item names one.
+  #[serde(default)]
+  pub language: Option<String>,
+  /// The text by locale, each locale it is written in.
+  #[serde(default)]
+  pub titles: BTreeMap<String, String>,
+  #[serde(default)]
+  pub descriptions: BTreeMap<String, String>,
+  /// The locales whose text a translation wrote.
+  #[serde(default)]
+  pub machine: Vec<String>,
+  /// How an MCP server is reached; none for any other kind.
+  #[serde(default)]
+  pub server: Option<CatalogueServer>,
   pub maker: String,
   pub owner: String,
   pub targets: Vec<Value>,
@@ -4159,6 +4202,137 @@ pub struct CatalogueShare {
   pub name: String,
   #[serde(default)]
   pub targets: Vec<Value>,
+  /// `app` where left out, for an app or an MCP server of the PC's 'my apps'; `skill` for an own skill at home.
+  #[serde(default)]
+  pub kind: Option<String>,
+  /// The language its plain text is written in, one of `ko`, `en`, `ja` and `zh-CN`; `en` where left out.
+  #[serde(default)]
+  pub language: Option<String>,
+}
+
+/// CatalogueText: one locale's title and description set on a shared item, or the locale cleared where both are
+/// null.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueText {
+  pub locale: String,
+  #[serde(default)]
+  pub title: Option<String>,
+  #[serde(default)]
+  pub description: Option<String>,
+}
+
+/// PersonalSkill: one of an account's skills at home: its front matter's text, its version, whether it is the
+/// person's own or an installed copy, the catalogue id a copy is of, and the holders it is attached to.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSkill {
+  pub name: String,
+  pub description: String,
+  #[serde(default)]
+  pub title: Option<String>,
+  #[serde(default)]
+  pub summary: Option<String>,
+  #[serde(default)]
+  pub titles: BTreeMap<String, String>,
+  #[serde(default)]
+  pub summaries: BTreeMap<String, String>,
+  #[serde(default)]
+  pub language: Option<String>,
+  pub version: String,
+  pub origin: String,
+  #[serde(default)]
+  pub app: Option<String>,
+  #[serde(default)]
+  pub attached_to: Vec<String>,
+}
+
+/// PersonalSkillList: an account's skills at home.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSkillList {
+  pub skills: Vec<PersonalSkill>,
+}
+
+/// PersonalSkillFiles: one skill's files, by path, with its version and origin.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSkillFiles {
+  pub name: String,
+  pub version: String,
+  pub origin: String,
+  pub files: BTreeMap<String, String>,
+}
+
+/// PersonalSkillSave: an own skill's files, by path, `SKILL.md` among them, saved whole.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSkillSave {
+  pub files: BTreeMap<String, String>,
+}
+
+/// PersonalSkillRemoved: the skill removed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalSkillRemoved {
+  pub name: String,
+}
+
+/// AttachmentTakes: whether a holder's line takes attached skills, and attached MCP servers.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentTakes {
+  pub skills: bool,
+  pub mcp: bool,
+}
+
+/// AttachmentHolder: one of an account's holders — a `supervisor` or a role's `agent` — its line, what that line
+/// takes, and the skills and MCP servers attached to it, by name.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentHolder {
+  pub kind: String,
+  pub name: String,
+  #[serde(default)]
+  pub label: Option<String>,
+  #[serde(default)]
+  pub role: Option<String>,
+  pub line: String,
+  pub takes: AttachmentTakes,
+  pub skills: Vec<String>,
+  pub mcp: Vec<String>,
+}
+
+/// AttachableItem: a skill or an MCP server of an account's that may be attached: its name, its title and titles
+/// where it has them, and whether it is the person's own or an installed copy.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachableItem {
+  pub name: String,
+  #[serde(default)]
+  pub title: Option<String>,
+  #[serde(default)]
+  pub titles: BTreeMap<String, String>,
+  pub origin: String,
+}
+
+/// AttachmentList: an account's holders and what is attached to each, and the skills and MCP servers that may be.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentList {
+  pub holders: Vec<AttachmentHolder>,
+  pub skills: Vec<AttachableItem>,
+  pub mcp: Vec<AttachableItem>,
+}
+
+/// AttachmentSet: one holder's attached skills and MCP servers, by name, set whole.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachmentSet {
+  #[serde(default)]
+  pub skills: Vec<String>,
+  #[serde(default)]
+  pub mcp: Vec<String>,
 }
 
 /// CatalogueUnitSwitch: a shared app turned on or off for a unit, locked for those under it where `lock` says so.

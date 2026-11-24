@@ -29,6 +29,7 @@ fn chat(dir: &Path, model: &'static str, advisor: Option<&'static str>) -> Vec<S
     advisor,
     system: &system,
     mcp: dir,
+    plugin: None,
     hands: Hands::AllBut {
       denied: "WebSearch",
       kept: None,

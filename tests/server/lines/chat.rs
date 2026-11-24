@@ -29,6 +29,7 @@ fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
     advisor: None,
     system,
     mcp: dir,
+    plugin: None,
     hands: Hands::AllBut {
       denied: "WebSearch,mcp__job__job_item_create",
       kept: None,

@@ -1667,7 +1667,8 @@ where the shell stands in an agent's program, else the owner.
   `app-refused` with its words; a person whose chain does not let them put an app is 403 `personal-apps-withheld`,
   and one whose app asks for a permission their chain leaves off is 403 `permission-withheld`, naming it; an
   account service that cannot be asked is 503 `access-unchecked`; going back with no older version kept is 409
-  `no-older-version`; an app the account holds none of is 404 `not-found`; a name outside an app's alphabet is 400.
+  `no-older-version`; an app the account holds none of is 404 `not-found`; a name outside an app's alphabet is 400;
+  an MCP server asking for a secret the account's secret space holds no file of is 409 `secret-missing`, naming it.
 
 ### catalogue
 
@@ -1675,7 +1676,7 @@ where the shell stands in an agent's program, else the owner.
 |---|---|---|
 | GET | `/catalogue/{ownerAccount}` | The apps of the account's company's catalogue the account sees, what each lets it do, its notices and its share ceiling; `company` names the company for the administrator. |
 | GET | `/catalogue/{ownerAccount}/apps/{appId}/source` | The newest version's source, checked against its hash, for a reader who sees the app; `version` names another. |
-| POST | `/catalogue/{ownerAccount}/apps` | Share one of the account's personal apps: `name` and `targets`. |
+| POST | `/catalogue/{ownerAccount}/apps` | Share one of the account's items: `name`, `targets`, `kind` and `language`. |
 | POST | `/catalogue/{ownerAccount}/apps/{appId}/install` | Install the app's newest version for the account. |
 | POST | `/catalogue/{ownerAccount}/apps/{appId}/update` | Move the account's copy onto the newest version, confirming what it asks for. |
 | DELETE | `/catalogue/{ownerAccount}/apps/{appId}/install` | Drop the account's copy. |
@@ -1685,6 +1686,8 @@ where the shell stands in an agent's program, else the owner.
 | POST | `/catalogue/{ownerAccount}/apps/{appId}/withdraw` | Withdraw the app, for its owner or maker. |
 | POST | `/catalogue/{ownerAccount}/apps/{appId}/approve` | Approve a version, `version`, for a head of the maker's home unit. |
 | POST | `/catalogue/{ownerAccount}/apps/{appId}/promote` | Ask for the app to be made a platform app, with a `note`. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/text` | Set one locale's text, `locale`, `title` and `description`, or clear it with both null, for the maker or the owner. |
+| POST | `/catalogue/{ownerAccount}/apps/{appId}/translate` | Fill each locale holding no text by the translator role, for the maker, the owner or a head of the maker's home unit. |
 | POST | `/catalogue/{ownerAccount}/seen` | Keep that the account has looked at what was shared with it. |
 | GET | `/catalogue-promotions` | Every company's requests to make an app a platform app, for the administrator. |
 
@@ -1697,27 +1700,81 @@ where the shell stands in an agent's program, else the owner.
   adopting a copy there as any member does, and in any other company it holds no copy, 403 `forbidden`;
   `GET /catalogue-promotions` answers the administrator's account and the deployment's own callers
   alone, 403 otherwise.
-- **The listing** answers `company`; `ceiling`, the targets the account may share with; `apps`, each `id`, `key`,
-  `name`, `title`, `description`, `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,
+- **The listing** answers `company`; `ceiling`, the targets the account may share with; `apps`, each `id`, `kind`
+  (`app`, `skill` or `mcp`), `key`, `name`, `title` and `description` (the maker's language's), `language` (the
+  maker's, or null), `titles` and `descriptions` (by locale, each locale written), `machine` (the locales a
+  translation wrote), `server` (for an MCP server, how it is reached, read off its newest version's `mcp.toml`:
+  `transport`, `local` or `remote`, and `url`, `auth`, `header`, `secret` for a remote one or `command` for a local
+  one, each null where it names none; null for any other kind), `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,
   `sharedAt`, `sourceHash`, `permissions` and `review`), `permissions` and `review` of the newest, `approval`
   (`required`, `approved`), `installs` (how many), `withdrawn`, `promotion`, `installed` (the account's copy,
   `version` and `how`, or null), `updateWaiting` (a newer version stands), `permissionsGrown` (it asks for more than
   the copy's), and `may`, what the account may do with it — `install`, `update`, `uninstall`, `clone`, `withdraw`,
-  `approve`, `promote`, `recall` and `turnOn`, the last two the units it heads on the account's path, or `platform`
+  `approve`, `promote`, `text` (set a locale's text), `translate` (fill the other languages), `recall` and `turnOn`, the last two the units it heads on the account's path, or `platform`
   for the administrator; `notices`, each `kind` (`shared`, `update` or `approval`), `app` and `at`; and `seenAt`.
-- **A share** answers the app's entry as the listing answers it; each target is `{"team": true}`, `{"heads":
+- **A share** names the item by `name`, and `kind`: `app` where left out, and for an app or an MCP server the
+  folder of 'my apps' its PC places, the kind read off its source; `skill` for one of the account's own skills at
+  home. `language`, one of `ko`, `en`, `ja` and `zh-CN`, names the language its plain text is written in, `en` where
+  left out. Nothing is translated at share. It answers the app's entry as the listing answers it; each target is `{"team": true}`, `{"heads":
   true}`, `{"company": true}`, `{"person": <user>}`, `{"group": <id>}` or `{"unit": <id>}`, and none given shares
   with `team` and `heads`.
 - **The source** answers `version`, `sourceHash` and `files`, by path.
 - **Every change** answers the app's entry as it then stands; a removal of a copy answers it too.
+- **The text** sets `locale`'s `title` and `description` with no machine mark, or clears the locale where both are
+  null. **The translation** translates the maker's title and description into each of `ko`, `en`, `ja` and `zh-CN`
+  whose title the item does not hold, on the translator role's road as a document's part is (「translations」), and
+  writes each with the machine mark; it answers once every locale is written, and a locale whose translation failed
+  is left out and the rest written.
 - **Refusals:** a target the ceiling leaves out is 403 `scope-withheld`, and one of another company 403
   `other-company`; a person who may not make personal apps is 403 `personal-apps-withheld`, and one who may not
   install received apps 403 `install-withheld`; an app the account does not see is 404 `not-found`; installing a
   withdrawn app is 409 `withdrawn`, one waiting for a head's approval 409 `awaiting-approval`, one not offered to
   the account 403 `not-offered`, and over an app of the account's own of the same name 409 `name-taken`; dropping or
   adopting a copy a lock above keeps on, or turning an app on where a lock above holds it, is 409 `locked`; a unit
-  the account does not head is 403 `forbidden`; and the personal apps' own refusals (「personal-apps」) stand as
-  they are.
+  the account does not head is 403 `forbidden`; text or a translation asked by anyone the route does not name is 403
+  `forbidden`, and a locale outside the four is 400; installing a skill over one of the account's own of the same
+  name is 409 `name-taken`; and the personal apps' own refusals (「personal-apps」) stand as they are.
+
+### personal-skills
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/personal-skills/{ownerAccount}` | The account's skills at home, its own and its installed copies. |
+| GET | `/personal-skills/{ownerAccount}/{name}` | One skill's files. |
+| PUT | `/personal-skills/{ownerAccount}/{name}` | Save one of the account's own skills whole: `files`, each file by its path as text. |
+| DELETE | `/personal-skills/{ownerAccount}/{name}` | Remove one of the account's own skills and every attachment of it. |
+
+- **What each does is `docs/person-nodes.md`, 「Skills at home」;** who acts is as for 「personal-apps」.
+- **The listing** answers `skills`, each `name`; `description`; `title` and `summary`, its front matter's text in its
+  own language, else null; `titles` and `summaries`, by locale; `language`, or null; `version`; `origin`, `own` or
+  `installed`; `app`, the catalogue id an installed copy is of, else null; and `attachedTo`, the names of the holders
+  it is attached to.
+- **One skill** answers `name`, `version`, `origin` and `files`, by path. **A save** answers the skill as the listing
+  answers it; **a removal** answers `{name}`.
+- **Refusals:** a name outside a skill's alphabet, a `SKILL.md` that does not read, holds no `description` or names
+  another name, a path that climbs out or names a mark, a file that is not text and a whole larger than the bundle
+  size are 400; saving over an installed copy is 409 `name-taken`, and removing one is 409 `installed-copy`, since a
+  copy is dropped through the catalogue; a person whose chain does not let them make personal apps is 403
+  `personal-apps-withheld`; a skill the account holds none of is 404 `not-found`.
+
+### attachments
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/attachments/{ownerAccount}` | The account's holders, what each line takes and what is attached to each, and the skills and MCP servers that may be. |
+| PUT | `/attachments/{ownerAccount}/{holderKind}/{holder}` | Set one holder's attached skills and MCP servers whole: `skills` and `mcp`, each a list of names. |
+
+- **What it keeps is `docs/person-nodes.md`, 「Attaching skills and MCP servers」;** who acts is as for
+  「personal-apps」.
+- **The listing** answers `holders`, each `kind` (`supervisor` or `agent`), `name`, `label`, `role` (an agent's role,
+  null for a supervisor), `line`, `takes` (`{skills, mcp}`, whether its line takes attached items of each kind),
+  `skills` and `mcp`, the names attached to it; supervisors first, the oldest first, then agents by name. `skills`
+  and `mcp` list what may be attached, each `name`, `title` (or null), `titles` by locale and `origin`, `own` or
+  `installed`.
+- **A change** answers the holder as the listing answers it.
+- **Refusals:** a non-empty list of a kind the holder's line takes none of is 409 `line-takes-none`, naming the kind;
+  a holder or an item the account does not hold is 404 `not-found`; a holder of another account is 403 `forbidden`;
+  a holder kind other than `supervisor` and `agent` is 400.
 
 ### assignments and jobs
 

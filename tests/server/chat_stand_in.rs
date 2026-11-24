@@ -80,6 +80,7 @@ fn chat_run(home: &std::path::Path) -> ChatRun {
     tools_denied: Some(agency_server::lines::chat::denied()),
     tools_kept: None,
     mcp_config: home.join("chat.mcp.json"),
+    plugin_dir: None,
     mcp_tools: None,
     prompt: "what is new".into(),
     persona_unused: None,

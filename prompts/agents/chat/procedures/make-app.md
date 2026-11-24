@@ -1,8 +1,9 @@
 # Making a personal app
 
 Read this right before making, changing, sending back or removing a personal app: a tool of the person you serve,
-built and run on their own PC, which their sessions reach as `my/<name>` and nobody else's do. The first part is
-yours; the second is the guide the worker run that writes the app follows, which it is handed whole.
+built and run on their own PC, which their sessions reach as `my/<name>` and nobody else's do. The same holds for an
+MCP server of theirs, an app of its own shape, and a skill of theirs, instructions kept at home. The first part is
+yours; the second is the guide the worker run that writes an app or an MCP server follows, which it is handed whole.
 
 ## Your part
 
@@ -30,6 +31,21 @@ yours; the second is the guide the worker run that writes the app follows, which
   run for it in the same words, saying what the screen shows and what it lets the person do. Once it is put, the
   screen stands in the person's 콘솔 sidebar under 내 앱, for them alone; it reads and writes only through the app's
   own tool, and while their PC is off it says it cannot be opened.
+- **Its text is written in the person's language.** Titles and descriptions are a plain string in the language the
+  person speaks with you; add other languages (`ko`, `en`, `ja`, `zh-CN`) only when the person asks for them, and
+  never translate unasked. The person, or the store's 다른 언어 채우기, fills them later.
+- **An MCP server is an app of its own shape:** where the person wants an existing MCP server — one at an address,
+  or one that runs as a command — reached as their tools, ask the worker run for an MCP server rather than an app,
+  saying which in the same words: its address and how it signs in, or the command and the code it runs. It is put
+  with `bmo/app_put` as an app is, and its tools stand as `my/<tool>`. A remote server's sign-in secret is one the
+  person saves in 비밀 보관함 by the name the server names; tell them the name, never ask for the value.
+- **A skill is instructions, not a tool:** where the person wants a way of working written down for their agents —
+  a checklist, a procedure, a style — write it yourself as a skill and save it with `bmo/skill_put`: `name` (a
+  lower-case letter, then lower-case letters, digits and `-`), and `files`, `SKILL.md` and any reference files, whole.
+  `SKILL.md` opens on front matter, `name` (the skill's) and `description` (one sentence an agent reads to know when
+  to use it), with `title` where a screen should show a friendlier name, then the instructions in plain words. A
+  skill reaches only the agents the person attaches it to, in 조직's 에이전트 tab under 스킬·MCP; tell them so. A
+  change saves the whole skill again; `action` `remove` takes it away, only on the person's word.
 - **An app reaches nothing but its own folders,** and the network and secrets only as its manifest names them:
   the host names it calls and the names of the person's secrets it reads, which the person's organisation must allow;
   a put asking for what it does not allow is refused, and that is said to the person as it is. Each secret is one
@@ -103,7 +119,7 @@ the same release of bmo-ui the console runs, and the console shows it to the per
     the path itself, with `meta: { consoleTitleBar: true }` so the console draws its title bar over it;
   - its pages, `.vue` files, imported by `entry.ts`;
   - `words.json`: each locale's words under its code, every key under the screen's name, `title` among them, the
-    name the sidebar shows; write the person's language at least, and `en`.
+    name the sidebar shows; write the person's language, and others only where you were asked for them.
 - **What it imports:** `vue`, `vue-i18n` for `useI18n`, the component library's components each by its own path
   (`import UButton from "@nuxt/ui/components/Button.vue"`), and bmo-ui's components and modules by their paths
   (`bmo-ui/app/components/...`, `bmo-ui/app/domain/...`). Nothing else: the console hands the screen its own copies
@@ -119,6 +135,33 @@ the same release of bmo-ui the console runs, and the console shows it to the per
   `screen/`; nothing is downloaded, so the screen needs nothing the kit does not hold.
 - **Draw it for a phone and a desk alike:** one column that wraps at a narrow width, the layer's components for every
   control, nothing wider than the screen.
+
+### An MCP server instead of an app
+
+Where your words ask for an MCP server, the folder holds `mcp.toml` in place of `tool.toml`, and the runner makes the
+manifest itself as it places it, listing the server's tools; write no `tool.toml`, no `input.json` and no entry.
+
+```toml
+[server]
+name = "issue_tracker"          # the folder's name
+title = "Issue tracker"
+description = "Reads and files issues in the team's tracker."
+transport = "remote"            # or "local"
+url = "https://mcp.example.com/mcp"
+auth = "bearer"                 # "none", "bearer" or "header"
+secret = "tracker_token"        # the name of the person's secret, never its value
+```
+
+- **A remote server:** `url`, its `https` address; `auth`, `none`, `bearer` (sent as `Authorization: Bearer`) or
+  `header` with `header`, the header's name; and `secret`, the name of the person's secret the sign-in reads. The
+  address's host and the secret are its permissions; name nothing else unless the server's own answers need it.
+- **A local server:** `transport = "local"`, `command`, the words that start it in the placed folder, and `build`
+  only where something must be made, as for an app; its code stands in the folder beside `mcp.toml`, on what the
+  machine has, with no download. `[permissions]` names the network and the secrets it uses, as for an app.
+- **Its text is the person's language:** `title` and `description` as plain strings; other languages only where you
+  were asked for them, as a table by locale.
+- **Its tests,** for a local server, start it and call one tool over standard input and output; a remote one has
+  none of its own. Commit as for an app.
 
 ### Where it runs
 

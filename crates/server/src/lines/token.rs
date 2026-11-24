@@ -340,20 +340,57 @@ async fn base_off(ground: &Ground, person: Option<&str>, variables: &mut BTreeMa
 }
 
 // The record named the file its person's withheld apps stand in, written first, where it acts for a person's
-// account (docs/tools.md, 「The apps a person reaches」).
+// account; and for the administrator's account, the file of the MCP servers its holder is not attached to, where it
+// was written (docs/tools.md, 「The apps a person reaches」).
 async fn withhold(
   ground: &Ground,
   request: &mut SessionRequest,
   person: Option<String>,
+  issued: &crate::apps::Issued,
   file: impl FnOnce() -> PathBuf,
 ) {
-  let Some(person) = person else {
+  if let Some(person) = person {
+    let file = file();
+
+    crate::apps::write_for(ground, &file, &person, issued).await;
+    request.withheld_apps_file = Some(file);
+    return;
+  }
+
+  let Some(account) = request.owner_account.clone() else {
     return;
   };
+
+  if !crate::account_isolation::owners_own(&ground.db, &account).await.unwrap_or(false) {
+    return;
+  }
+
   let file = file();
 
-  crate::apps::write_for(ground, &file, &person).await;
-  request.withheld_apps_file = Some(file);
+  if crate::apps::write_for_administrator(ground, &file, &account, issued).await {
+    request.withheld_apps_file = Some(file);
+  }
+}
+
+// Whom a record is issued for: the holder its run is let in on or stands for, and its line.
+async fn issued_for(
+  ground: &Ground,
+  line: &str,
+  agent: &str,
+  role: Option<&str>,
+  folder: &str,
+) -> crate::apps::Issued {
+  let holder = crate::attachments::holder_of_run(ground, agent, role, Some(folder))
+    .await
+    .unwrap_or_else(|why| {
+      eprintln!("agency: the holder of {agent}'s record was not read: {}", why.detail);
+      None
+    });
+
+  crate::apps::Issued {
+    holder,
+    line: Some(line.to_owned()),
+  }
 }
 
 // The record named the account its caller acts for, the runner that account's personal tools run on and the folder
@@ -466,7 +503,7 @@ pub async fn issue_screen_session(
     ttl_ms: Some(SCREEN_SESSION_MS),
   };
 
-  withhold(ground, &mut request, Some(account.to_owned()), || {
+  withhold(ground, &mut request, Some(account.to_owned()), &Default::default(), || {
     crate::apps::run_file(&ground.roots.data, lapses, now)
   })
   .await;
@@ -539,9 +576,10 @@ pub async fn issue(
   base_off(ground, person.as_deref(), &mut variables).await;
 
   let mut request = record(agent, reach, grants, variables, labels, None);
+  let issued = issued_for(ground, line, agent, role.as_deref(), &folder).await;
 
   owned(ground, &mut request, caller).await?;
-  withhold(ground, &mut request, person, || crate::apps::place_file(place)).await;
+  withhold(ground, &mut request, person, &issued, || crate::apps::place_file(place)).await;
   issue_record(ground, &request).await.map(Some)
 }
 
@@ -719,9 +757,11 @@ pub async fn issue_for_run(
   let place = given("BMO_AGENT_PLACE");
   let mut request = record(&agent, reach, grants, variables, labels, Some(deadline.saturating_sub(now)));
 
+  let issued = issued_for(ground, line, &agent, role.as_deref(), cwd).await;
+
   owned(ground, &mut request, caller).await?;
 
-  withhold(ground, &mut request, person, || match place {
+  withhold(ground, &mut request, person, &issued, || match place {
     Some(place) => crate::apps::place_file(Path::new(&place)),
     None => crate::apps::run_file(&ground.roots.data, deadline, now),
   })
