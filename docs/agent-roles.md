@@ -34,8 +34,8 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   - **its skills,** the names of the skills its runs carry on the worker line, or none set, which leaves its
     runs the whole plugin the release places for the role (`docs/role-agents.md`, 「What a run reads off its
     agent」);
-  - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line or
-    the translate line (`docs/launch-lines.md`);
+  - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line, the
+    plain line or the translate line (`docs/launch-lines.md`);
 - **A role holds no road, no cap, no sessions setting and no compaction threshold.** Whether a run keeps its
   session and the share at which that session is folded are each its agent's (`docs/role-agents.md`, 「What an
   agent row holds」).
@@ -119,7 +119,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
   | `transliterator` | Transliterator | search | none | 4 | none | none | policy | keep |
   | `upkeep` | Upkeep | worker | none | 1 | none | none | policy | fresh |
   | `actor` | Actor | worker | none | 1 | `actor.md` | none | policy | fresh |
-  | `note-assistant` | Note assistant | search | none | 2 | none | none | policy | fresh |
+  | `note-assistant` | Note assistant | plain | none | 2 | none | none | policy | fresh |
   | `app-reviewer` | App reviewer | translate | none | 2 | `app-reviewer.md` | none | policy | fresh |
 
   A prompt and a provider prompt named by file are files under `prompts/roles/`. A `policy` description is
@@ -284,9 +284,11 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **The note unit's Agent** (the note's `docs/design.md`, 「Agent」): one passage of a note, or the whole note,
   worked for the person asking — rewritten, translated, summarized, continued or answered over — and handed back
   in the note's own line grammar for the person to place.
-- **Its line is the search line, and it carries no prompt:** the note unit starts each session naming the
-  instructions it opens on, `systemPrompt`, and `toolsAllowed` empty, so a run reads the passage it is handed and
-  nothing else (`docs/api.md`, 「sessions」). It holds no bundle.
+- **Its line is the plain line, and it carries no prompt:** the note unit starts each session naming the
+  instructions it opens on, `systemPrompt`, and those instructions are the whole of the run's system prompt — no
+  harness opening, no persona and nothing of the platform's (`docs/launch-lines.md`, 「Plain runner」). Its runs
+  are shown no tool and no MCP server and read no CLAUDE.md, memory, setting or skill, so a run reads the passage
+  it is handed and nothing else (`docs/api.md`, 「sessions」). It holds no bundle.
 - **Its runs stand under the person's account.** The note unit asks its slot under the person's own supervisor,
   their BMO, so a run is let in on an agent of that account alone (`docs/role-slots.md`, 「Accounts」), and the
   platform administrator's under no supervisor, on the deployment's own agents; an account that holds no agent
@@ -295,8 +297,12 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **Its road is the one the deployment's default answerer stands on as the owner set it:** the policy seeds two
   agents of no account on Claude Code's Opus 5.5 at medium effort with thinking on, changed afterwards like any
   agent's road. They name their road and do not follow their asker, so an ask under no supervisor is let in.
-- **Its agents are seeded `fresh`:** every ask hands the whole passage and the rounds before it, so no run
-  resumes another's session.
+- **Its agents are seeded `fresh`, and agency resumes none of their sessions by itself:** one agent carries the
+  asks of every note and every talk of its account, so a session kept for the agent would carry one note's talk
+  into another's. The caller names the session a run continues instead (`docs/api.md`, 「sessions」, `continues`):
+  the note unit names, for a talk's next round, the session that talk's last round answered on, and hands the
+  round's whole words beside it for where that session can no longer be resumed (the note's `docs/design.md`,
+  「The talk panel」). An ask over a passage opens a session of its own.
 
 ## The app-reviewer role
 

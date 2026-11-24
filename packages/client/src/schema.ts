@@ -221,7 +221,7 @@ export interface paths {
         /** Every session, by agent or scope. */
         get: operations["listSessions"];
         put?: never;
-        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers. */
+        /** Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse, plain) is such a session naming the line and handing its instructions in whole as systemPrompt; on search and browse it calls the upstreams it needs through their own MCP servers, and on plain it is told those instructions alone and reaches nothing. A start may name continues, the harnessSession an earlier turn answered on, and continuesElse, the words a turn goes out with where that session cannot be resumed. */
         post: operations["createSessions"];
         delete?: never;
         options?: never;
@@ -2715,8 +2715,15 @@ export interface components {
             roomId?: number | null;
             /** @description The runner line a thrown-away session goes out on with the instructions its caller hands in whole. */
             line?: string | null;
-            /** @description The line's instructions, handed in whole after the platform's harness opening; needs `line`. */
+            /**
+             * @description The line's instructions, handed in whole: after the platform's harness opening on the search and browse
+             *     lines, and as the whole system prompt on the plain line; needs `line`.
+             */
             systemPrompt?: string | null;
+            /** @description The program's own session the session's turns continue, the `harnessSession` an earlier turn answered on. */
+            continues?: string | null;
+            /** @description The words a turn goes out with where the session `continues` names cannot be resumed; needs `continues`. */
+            continuesElse?: string | null;
             /** @description What the session's record carries under each key of its labels, for the placed tools that read them. */
             labels?: {
                 [key: string]: unknown;
@@ -2829,6 +2836,12 @@ export interface components {
              * @default []
              */
             answers: components["schemas"]["SpannedAnswer"][];
+            /**
+             * @description The program's own session the turn answered on, where its road reads one; a later start names it as
+             *     `continues`.
+             * @default null
+             */
+            harnessSession: string | null;
             text: unknown[];
             /**
              * @description What the running turn waits for before its program is put to work; none while nothing holds it back

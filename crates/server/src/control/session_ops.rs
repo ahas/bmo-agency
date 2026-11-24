@@ -446,9 +446,11 @@ const CONVERSATION_PROVIDER: &str = "claude-code";
 const OWN_LABELS: [&str; 6] = ["line", "checkout", "archive", "role", "place", "reads"];
 
 // What a thrown-away session's start names of a runner line whose instructions its caller hands in whole:
-// the line, the instructions, the labels its record carries and the capabilities that record keeps.
-// Instructions with no line, a line that is no runner's, labels that are no object or name a key agency
-// writes itself, and capabilities that are no list of names are refused.
+// the line, the instructions, the labels its record carries and the capabilities that record keeps; and the
+// program's own session its turns continue, with the words a turn goes out with where that one cannot be
+// resumed. Instructions with no line, a line that is no runner's, labels that are no object or name a key
+// agency writes itself, capabilities that are no list of names, a session or words that are no text, and words
+// with no session to stand in for are refused.
 fn runner_asked(body: &Value) -> Result<Apart, Refused> {
   let line = match body.get("line") {
     None | Some(Value::Null) => None,
@@ -493,6 +495,19 @@ fn runner_asked(body: &Value) -> Result<Apart, Refused> {
     Some(_) => return Err(bad("toolsAllowed is a list of capability names")),
   };
 
+  // The session the caller names for its turns to continue (docs/sessions.md, 「A role's session」).
+  let named = |field: &str| match body.get(field) {
+    None | Some(Value::Null) => Ok(None),
+    Some(Value::String(text)) if !text.trim().is_empty() => Ok(Some(text.clone())),
+    Some(_) => Err(bad(format!("{field} is a text that is not empty"))),
+  };
+  let continues = named("continues")?;
+  let continues_else = named("continuesElse")?;
+
+  if continues_else.is_some() && continues.is_none() {
+    return Err(bad("continuesElse stands in for the session continues names, and the start names none"));
+  }
+
   // The demands of the caller's own a registration whose engine the arbiter stands runs on: one granted to
   // stand on, or the run's demand each turn's own is asked within (docs/own-llm.md, 「An engine the arbiter
   // stands」).
@@ -514,6 +529,8 @@ fn runner_asked(body: &Value) -> Result<Apart, Refused> {
     within: demand("within")?,
     card_rank: card_rank(body)?,
     card_pool: card_pool(body)?,
+    resume: continues,
+    resume_else: continues_else,
     ..Apart::default()
   })
 }

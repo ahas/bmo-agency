@@ -117,6 +117,37 @@ async fn two_sends_under_one_key_begin_one_turn_and_a_refusal_keeps_nothing() {
   );
 }
 
+#[test]
+fn an_end_names_the_program_session_its_turn_answered_on() {
+  let end = TurnEnd {
+    reply: Some(Box::new(agent_session::Reply {
+      mode: "claude-code".into(),
+      model: None,
+      effort: None,
+      text: "Done.".into(),
+      session_id: Some("the-program-session".into()),
+      account: None,
+      context_ratio: None,
+      context_tokens: None,
+      session_usage: None,
+      spend: Vec::new(),
+      live_tasks: Vec::new(),
+      workflows: Vec::new(),
+      upstream: None,
+      request_usages: None,
+    })),
+    ..answered_end(7, "Done.")
+  };
+  let kept = KeptEnd::of("note-assistant@run:3", "ask-1", &end);
+
+  assert_eq!(kept.harness_session.as_deref(), Some("the-program-session"));
+  assert_eq!(
+    kept.answer("the prompt", json!({}))["harnessSession"],
+    "the-program-session",
+    "a later start names it to continue the session"
+  );
+}
+
 #[tokio::test]
 async fn a_keyed_end_is_kept_answered_to_a_repeat_and_dropped_past_its_span() {
   let scratch = Scratch::new().await;
@@ -145,6 +176,7 @@ async fn a_keyed_end_is_kept_answered_to_a_repeat_and_dropped_past_its_span() {
   assert_eq!(answer["answer"], "Done.");
   assert_eq!(answer["text"], json!(["Done."]));
   assert_eq!(answer["context"], json!({ "round": "r" }), "the repeat's own context is echoed");
+  assert_eq!(answer["harnessSession"], json!(null), "an end that read no program session names none");
 
   // An end past the policy's span reads as none, and the reconciliation's pass drops it.
   let old = KeptEnd {

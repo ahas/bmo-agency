@@ -106,6 +106,7 @@ mod m20270114_000001_follows_asker;
 mod m20270115_000001_organisation_supply;
 mod m20270116_000001_session_reset_clean;
 mod m20270120_000001_supervisor_sleep;
+mod m20270121_000001_note_assistant_plain;
 
 use sea_orm_migration::prelude::*;
 
@@ -307,6 +308,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270115_000001_organisation_supply::Migration),
       Box::new(m20270116_000001_session_reset_clean::Migration),
       Box::new(m20270120_000001_supervisor_sleep::Migration),
+      Box::new(m20270121_000001_note_assistant_plain::Migration),
     ]
   }
 

@@ -68,7 +68,7 @@ fn every_order_names_a_provider_once_and_every_role_names_its_line() {
 
     assert_eq!(providers.len(), role.order.len(), "{} names a provider twice", role.name);
     assert!(
-      ["worker", "search", "browse", "translate"].contains(&role.line.as_str()),
+      ["worker", "search", "browse", "plain", "translate"].contains(&role.line.as_str()),
       "{}",
       role.name
     );
@@ -186,12 +186,16 @@ fn the_note_assistant_reaches_nothing_and_starts_on_the_default_answerers_road()
   let assistant = ROLES.role("note-assistant").unwrap();
 
   assert_eq!(
-    assistant.line, "search",
-    "the line whose sessions run on the instructions their caller hands in"
+    assistant.line, "plain",
+    "the line whose system prompt is the instructions its caller hands in, and nothing else"
   );
   assert_eq!(assistant.prompt, None, "the note unit hands every session its instructions");
   assert!(assistant.bundles.is_empty(), "the note assistant reaches nothing itself");
-  assert_eq!(assistant.sessions, Sessions::Fresh, "every ask hands it the whole passage");
+  assert_eq!(
+    assistant.sessions,
+    Sessions::Fresh,
+    "agency keeps no session for an agent carrying every note's asks; its caller names the one a talk continues"
+  );
   assert_eq!(
     assistant
       .order

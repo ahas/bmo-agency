@@ -1,10 +1,11 @@
 //! The runner lines a thrown-away session goes out on with the instructions its caller hands in whole
-//! (docs/launch-lines.md, 「Search runner」, 「Browse runner」; docs/api.md, 「sessions」): the platform's
-//! harness opening and then those instructions in place of the CLI's own prompt, written where the line
-//! hands them over; the line's standing MCP configuration, written where nothing has written it; the tools
-//! it allows; the model, effort and tier the turn's mapping names and the line's agent's own thinking; and
-//! the directory it is deployed to. Each runner answers for what is its own: the tools it is allowed and
-//! its configuration.
+//! (docs/launch-lines.md, 「Search runner」, 「Browse runner」, 「Plain runner」; docs/api.md, 「sessions」):
+//! those instructions in place of the CLI's own prompt, behind the platform's harness opening where the line
+//! opens on it, written where the line hands them over; the line's standing MCP configuration, written where
+//! nothing has written it; the tools it allows; the model, effort and tier the turn's mapping names and the
+//! line's agent's own thinking; and the directory it is deployed to. Each runner answers for what is its own:
+//! the tools it is allowed, its configuration, whether its prompt opens on the harness opening and whether its
+//! program keeps its own commands and skills.
 
 use std::path::PathBuf;
 
@@ -26,7 +27,7 @@ pub const PROVIDER: &str = "claude-code";
 const WEB_TOOLS: &str = "mcp__bmo,mcp__web,mcp__eye,mcp__research";
 
 /// One runner line: the line, the work key and the agent it is all at once.
-pub trait Runner {
+pub trait Runner: Sync {
   fn name(&self) -> &'static str;
 
   /// What it is allowed of the servers it is handed.
@@ -34,6 +35,16 @@ pub trait Runner {
 
   /// Its standing MCP configuration, written where nothing has written it.
   fn mcp_config(&self, ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal>;
+
+  /// Whether its system prompt opens on the platform's harness opening before the instructions handed in.
+  fn opens_on_harness(&self) -> bool {
+    true
+  }
+
+  /// Whether its program keeps its own slash commands and the skills they carry.
+  fn host_commands(&self) -> bool {
+    true
+  }
 }
 
 /// The search runner: the web, and nothing else.
@@ -41,6 +52,9 @@ pub struct Search;
 
 /// The browse runner: the browser's tools and the web.
 pub struct Browse;
+
+/// The plain runner: the instructions handed in as the whole of what its run is told, and nothing to reach.
+pub struct Plain;
 
 /// A runner line's run as composed, less its prompt, which is put into its program (docs/agents.md, 「Runs
 /// apart」).
@@ -52,6 +66,7 @@ pub struct RunnerRun {
   pub system_prompt: PathBuf,
   pub mcp_config: PathBuf,
   pub tools_allowed: &'static str,
+  pub host_commands: bool,
   pub thinking: bool,
   pub cwd: PathBuf,
   /// The model the program may consult, its seat's road's where that names one (docs/provider-order.md, 「The
@@ -167,6 +182,29 @@ impl Runner for Browse {
   }
 }
 
+impl Runner for Plain {
+  fn name(&self) -> &'static str {
+    "plain"
+  }
+
+  fn tools_allowed(&self) -> &'static str {
+    ""
+  }
+
+  // A configuration naming no server, so the strict flag beside it leaves the program none.
+  fn mcp_config(&self, _ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
+    handed_config(trees.agents.join("plain.mcp.json"), || Ok(Ordered::map::<&str>([])))
+  }
+
+  fn opens_on_harness(&self) -> bool {
+    false
+  }
+
+  fn host_commands(&self) -> bool {
+    false
+  }
+}
+
 /// A private display a browse run's Chrome is shown on: its name, its authority file and the runtime
 /// directory a program on it is handed.
 pub struct Shown<'a> {
@@ -249,7 +287,7 @@ fn named_namespaces(line: &str) -> Vec<&'static str> {
 
 /// The runner lines a thrown-away session may name to go out on with instructions its caller hands in whole
 /// (docs/api.md, 「sessions」).
-pub const LINES: [&str; 2] = ["search", "browse"];
+pub const LINES: [&str; 3] = ["search", "browse", "plain"];
 
 /// Whether a name is a runner line's.
 pub fn is_runner_line(name: &str) -> bool {
@@ -257,9 +295,10 @@ pub fn is_runner_line(name: &str) -> bool {
 }
 
 /// A runner line's run with the instructions a thrown-away session's caller handed in whole (docs/api.md,
-/// 「sessions」): the platform's harness opening and then those instructions as one system prompt, written
-/// under a name its text gives so two runs handed the same instructions read one prefix; the line's standing
-/// MCP configuration, the tools it allows and its agent's own thinking; on the model, effort and tier given.
+/// 「sessions」): those instructions as one system prompt, behind the platform's harness opening where the line
+/// opens on it, written under a name its text gives so two runs handed the same instructions read one prefix;
+/// the line's standing MCP configuration, the tools it allows, whether its program keeps its own commands and
+/// its agent's own thinking; on the model, effort and tier given.
 pub async fn given_run(
   ground: &Ground,
   trees: &Trees,
@@ -270,14 +309,21 @@ pub async fn given_run(
   use sha2::Digest as _;
 
   let (model, effort, tier) = mapped;
-  let (name, tools_allowed, mcp_config) = match line {
-    "browse" => (Browse.name(), Browse.tools_allowed(), Browse.mcp_config(ground, trees)?),
-    "search" => (Search.name(), Search.tools_allowed(), Search.mcp_config(ground, trees)?),
+  let runner: &dyn Runner = match line {
+    "browse" => &Browse,
+    "search" => &Search,
+    "plain" => &Plain,
     other => {
       return Err(fault(format!("{other} is no runner line; a session names one of {}", LINES.join(", "))));
     }
   };
-  let text = super::harnessed(trees, instructions)?;
+  let name = runner.name();
+  let mcp_config = runner.mcp_config(ground, trees)?;
+  let text = if runner.opens_on_harness() {
+    super::harnessed(trees, instructions)?
+  } else {
+    instructions.to_owned()
+  };
   let digest = sha2::Sha256::digest(text.as_bytes());
   let advisor = match crate::role_agents::seated_at(&ground.db, None, None).await? {
     Some(seat) => crate::role_agents::advisor_of(&ground.db, &seat).await?,
@@ -292,7 +338,8 @@ pub async fn given_run(
     tier: tier.to_owned(),
     system_prompt: system_prompt_file(trees, &format!("{name}-given-{named}"), &text)?,
     mcp_config,
-    tools_allowed,
+    tools_allowed: runner.tools_allowed(),
+    host_commands: runner.host_commands(),
     thinking: reasoning_of(ground, name).await?.thinking.unwrap_or(true),
     cwd: trees.agents.join(name),
     advisor,
@@ -311,7 +358,7 @@ impl RunnerRun {
         mcp_config: Some(&self.mcp_config),
         tools_shown: "",
         tools_allowed: self.tools_allowed,
-        host_commands: true,
+        host_commands: self.host_commands,
         advisor: self.advisor.as_deref(),
       },
       session,

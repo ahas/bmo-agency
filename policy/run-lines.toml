@@ -140,6 +140,13 @@ tools_denied = [
   "AskUserQuestion",
 ]
 
+# A run of the plain line goes out with the instructions its caller hands in as the whole of its system prompt
+# (docs/launch-lines.md, 「Plain runner」): no harness opening, no tool, no MCP server and no namespace, so its
+# record holds nothing of the tool host's.
+[plain]
+needs = []
+keeps_session = false
+
 # A run of the search or browse line goes out with the instructions its caller hands in, its record narrowed
 # to the capabilities that caller lets it keep (docs/api.md, 「sessions」). The research namespace shows a run
 # the research unit's rulebook reader where its record holds web.rulebooks. The eye namespace and the

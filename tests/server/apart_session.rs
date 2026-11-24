@@ -417,6 +417,93 @@ async fn a_session_handing_its_instructions_goes_out_on_its_line_with_them_and_t
   assert_eq!(env["BMO_RECORD_TOOLS"], r#"["room.tools"]"#);
 }
 
+#[tokio::test]
+async fn a_plain_session_is_told_its_caller_s_instructions_alone_and_reaches_nothing() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let socket = home.path().join("mcp-host.sock");
+  let machine = hosted(home.path(), &socket);
+  let ground = ground(&scratch, &machine, None);
+  let trees = Trees::of(&ground);
+  let instructions = "You are the note assistant.\n\nAnswer in one fenced block.";
+  let apart = Apart {
+    line: Some("plain".into()),
+    system_prompt: Some(instructions.into()),
+    labels: None,
+    tools_allowed: Some(Vec::new()),
+    ..handed("claude-code", "claude-opus-5-5")
+  };
+  let (run, command) = runner_command(&ground, &apart, &work(&[]), None, "a-session").await.unwrap();
+  let args = &command.args;
+
+  assert_eq!(run.line, "plain");
+  assert_eq!(
+    std::fs::read_to_string(&run.system_prompt).unwrap().trim_end(),
+    instructions,
+    "the system prompt is the caller's instructions exactly: no harness opening, no role prompt, no persona"
+  );
+  assert_eq!(after(args, "--system-prompt-file"), Some(run.system_prompt.to_string_lossy().as_ref()));
+  assert!(
+    !args
+      .iter()
+      .any(|arg| arg == "--append-system-prompt" || arg == "--append-system-prompt-file"),
+    "{args:?}: nothing is laid beside it"
+  );
+  assert_eq!(
+    after(args, "--setting-sources"),
+    Some(""),
+    "no CLAUDE.md, memory, setting or hook is read"
+  );
+  assert!(args.iter().any(|arg| arg == "--strict-mcp-config"), "{args:?}");
+
+  let config: serde_json::Value =
+    serde_json::from_str(&std::fs::read_to_string(after(args, "--mcp-config").unwrap()).unwrap()).unwrap();
+
+  assert_eq!(config, json!({ "mcpServers": {} }), "no MCP server of any kind");
+  assert_eq!(after(args, "--tools"), Some(""), "no built-in tool is shown");
+  assert_eq!(after(args, "--allowedTools"), Some(""), "and none is allowed");
+  assert!(
+    args.iter().any(|arg| arg == "--disable-slash-commands"),
+    "no skill and no command: {args:?}"
+  );
+  assert!(
+    !args
+      .iter()
+      .any(|arg| arg == "--settings" || arg == "--plugin-dir" || arg == "--add-dir"),
+    "{args:?}: no settings file, plugin or further folder"
+  );
+  assert_eq!(command.cwd, trees.agents.join("plain").to_string_lossy(), "the line's own folder");
+}
+
+#[test]
+fn a_start_names_the_program_session_its_turns_continue_and_the_words_that_stand_in_for_it() {
+  let read = scope_asked(&json!({
+    "agentName": "note-assistant", "scope": "role", "line": "plain", "systemPrompt": "THE INSTRUCTIONS",
+    "continues": "the-program-session", "continuesElse": "the whole words",
+  }))
+  .unwrap();
+  let Scope::Apart(apart) = read else { panic!("a role's session") };
+
+  assert_eq!(apart.resume.as_deref(), Some("the-program-session"));
+  assert_eq!(apart.resume_else.as_deref(), Some("the whole words"));
+
+  for (body, why) in [
+    (json!({ "continues": "" }), "an empty session"),
+    (json!({ "continues": 7 }), "a session that is no text"),
+    (json!({ "continuesElse": "words" }), "words standing in for no session"),
+    (json!({ "continues": "s", "continuesElse": [] }), "words that are no text"),
+  ] {
+    let mut asked =
+      json!({ "agentName": "note-assistant", "scope": "role", "line": "plain", "systemPrompt": "x" });
+
+    for (field, value) in body.as_object().unwrap() {
+      asked[field] = value.clone();
+    }
+
+    assert!(scope_asked(&asked).is_err(), "{why} is refused");
+  }
+}
+
 // A tool host that keeps the record each token is issued for, answering it as issued.
 fn issuing_host(socket: &std::path::Path) -> Arc<std::sync::Mutex<Vec<serde_json::Value>>> {
   let issued = Arc::new(std::sync::Mutex::new(Vec::new()));

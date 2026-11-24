@@ -476,6 +476,13 @@ statements below about either are kept for a rollback to the road a deployment l
 - **A resumed run is handed nothing beyond its own words.** What it reads of the earlier runs is what its
   session already holds; in a co-work, the stage results its prompt opens.
 - **A `fresh` role keeps no record:** each of its runs opens a session no later run resumes.
+- **A role's session may continue a session its caller names,** the start's `continues` (`docs/api.md`,
+  「sessions」): the program's own session an earlier turn answered on, which the caller read off that turn's
+  end and holds itself. Its turns resume it while its record stands under the login the turn goes out on,
+  whatever the agent's `sessions` setting and the cache's age, and otherwise open a new session on the words
+  the start's `continuesElse` gives, which carry what the named session held. Agency keeps no record of such a
+  session: the caller's naming is the whole of its continuity, so one agent may carry many such sessions, each
+  continued by whoever named it.
 - **No pane stands between runs.** A run is spawned when its work comes and closed when it ends; the session
   it leaves is the program's record on disk, which the next run of the same key resumes by its id.
 - **Nothing keeps a role's session warm.** No ping goes into a role's session between runs

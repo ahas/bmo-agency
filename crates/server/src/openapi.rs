@@ -329,7 +329,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/sessions",
     id: "createSessions",
     tag: "sessions",
-    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse) is such a session naming the line and handing its instructions in whole as systemPrompt; it calls the upstreams it needs through their own MCP servers.",
+    summary: "Start a session for an agent at a scope, readable at once before its first turn; a throwaway one is scope apart with its own options. A run on a runner line (search, browse, plain) is such a session naming the line and handing its instructions in whole as systemPrompt; on search and browse it calls the upstreams it needs through their own MCP servers, and on plain it is told those instructions alone and reaches nothing. A start may name continues, the harnessSession an earlier turn answered on, and continuesElse, the words a turn goes out with where that session cannot be resumed.",
     params: &[],
     body: Some("SessionStart"),
     answers: &[(201, Some("Session"), false)],

@@ -133,3 +133,16 @@ fn each_server_the_chat_line_holds_has_its_hosted_stand_in_on_a_node() {
       .all(|held| held.hosted.is_some())
   );
 }
+
+// The plain line hands its run the instructions its caller gives and nothing of the tool host's
+// (docs/launch-lines.md, 「Plain runner」).
+#[test]
+fn the_plain_line_reaches_nothing_of_the_tool_host() {
+  let plain = RUN_LINES.line("plain").expect("the plain line is declared");
+
+  assert!(!plain.keeps_session);
+  assert!(plain.needs.is_empty());
+  assert!(RUN_LINES.capabilities("plain").is_empty());
+  assert!(RUN_LINES.namespaces("plain").is_empty());
+  assert!(RUN_LINES.shown("plain").is_empty());
+}

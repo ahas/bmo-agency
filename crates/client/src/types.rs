@@ -351,6 +351,10 @@ pub struct Turn {
   /// empty while the turn runs and where its road reads no such turns.
   #[serde(default)]
   pub answers: Vec<SpannedAnswer>,
+  /// The program's own session the turn answered on, where its road reads one; a later start names it as
+  /// `continues`.
+  #[serde(default)]
+  pub harness_session: Option<String>,
   pub text: Vec<Value>,
   /// What the running turn waits for before its program is put to work; none while nothing holds it back
   /// and once it has ended.
@@ -2482,9 +2486,16 @@ pub struct SessionStart {
   /// The runner line a thrown-away session goes out on with the instructions its caller hands in whole.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub line: Option<String>,
-  /// The line's instructions, handed in whole after the platform's harness opening; needs `line`.
+  /// The line's instructions, handed in whole: after the platform's harness opening on the search and browse
+  /// lines, and as the whole system prompt on the plain line; needs `line`.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub system_prompt: Option<String>,
+  /// The program's own session the session's turns continue, the `harnessSession` an earlier turn answered on.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub continues: Option<String>,
+  /// The words a turn goes out with where the session `continues` names cannot be resumed; needs `continues`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub continues_else: Option<String>,
   /// What the session's record carries under each key of its labels, for the placed tools that read them.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub labels: Option<serde_json::Map<String, Value>>,

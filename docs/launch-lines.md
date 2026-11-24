@@ -6,8 +6,8 @@
   permission mode and the tools it is denied or allowed, what of this machine's configuration it reads,
   how its system prompt is delivered, and its environment.
 - **Where the lines are:** agency's server's `lines` module — the chat line every supervisor stands on,
-  a pieces-shaped supervisor's turn, and the lines a role names: the worker line, the search, browse and translate
-  lines. The interactive program a supervisor keeps standing in its pane, and the one each run of a role
+  a pieces-shaped supervisor's turn, and the lines a role names: the worker line, the search, browse, plain and
+  translate lines. The interactive program a supervisor keeps standing in its pane, and the one each run of a role
   stands in a pane of its own, are built from those same lines by the Claude Code surface in
   `packages/agent/claude-code.ts` (`docs/agent-control.md`, 「The interactive surface a provider
   declares」).
@@ -463,6 +463,21 @@
   in, as one file replacing the CLI's own; the task and the time the run has are the prompt. chrome-devtools
   is started without its performance and memory tools — tracing a page's load and taking a heap snapshot —
   since a run that reads what a page says has no use for them. Claude Code alone carries the line.
+- **Plain runner**: the line a session goes out on where the instructions its caller hands in are the whole of
+  what its run is told — the note unit's note assistant (`docs/agent-roles.md`, 「The note-assistant role」).
+  It is carried by agency and composed, as the search line is, by whoever starts a session on it
+  (`docs/api.md`, 「sessions」). On Claude Code: the model and effort the session's slot names, don't-ask mode,
+  no built-in tool shown and none allowed, an empty MCP configuration under the strict flag so no server of
+  any kind stands, no settings sources so no CLAUDE.md, memory, user or project setting and hook is read,
+  slash commands and skills switched off, no Chrome, run in the line's own deployed directory. No tool host
+  namespace is named for it, so its session record holds none.
+  - **Its system prompt is the instructions handed in and nothing else:** no harness opening, no role prompt,
+    no provider prompt and no persona, as one file replacing the CLI's own, written under a name its text
+    gives, so two sessions handed the same instructions read one prefix.
+  - **What the program adds of itself stays,** since no word of its command drops it: its one-line identity
+    ahead of that file, the environment block it puts beside the first prompt (the folder, the platform, the
+    model and the date), the login's mail address on a subscription login, and the typed line a run apart's
+    words are pasted behind (`policy/resident-turn.toml`, `apart_lead`).
 - **The web**: no agent of the system's is shown the CLI's WebSearch or WebFetch. Those hand back a
   model's rendering of a page, and a page can steer that model. The web reaches every agent
   through the tool host's `web` namespace (`mcp-host.md`):
@@ -536,6 +551,7 @@
   | worker | every role naming the line — a job, a worker ask, a co-work stage or branch, upkeep | bypass-permissions | every built-in tool but the line's denied list | everything shown and every server of its configuration | `worker.mcp.json`, the tool host's `web` and `worker`, strict |
   | search | a voyager's turn | don't-ask | none | `bmo`, `web`, `eye` and `research` by their prefixes | `search.mcp.json`, those four namespaces, strict |
   | browse | a seeker's turn | don't-ask | none | `bmo`, `chrome-devtools`, `web`, `eye` and `research` by their prefixes | the browse configuration, strict |
+  | plain | a note assistant's turn | don't-ask | none | none | an empty configuration, strict |
   | translate, gate | a translation, a gate's judgement | don't-ask | none | none | none |
 
 - **Every line's MCP configuration is strict.** A run carries the servers its line's configuration names and

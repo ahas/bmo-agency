@@ -218,13 +218,15 @@ order = [{ provider = "deepseek", model = "deepseek-flash", effort = "low" }]
 
 # The note assistant: the note unit's Agent, which works one passage or one whole note for the person asking,
 # on the instructions the note unit hands each session (docs/agent-roles.md, 「The note-assistant role」). It
-# reaches nothing: no bundle, and every session it is asked for allows no tool. Its road is the deployment's
-# default answerer's as the owner set it, Claude Code's Opus 5.5 at medium effort with thinking on.
+# goes out on the plain line, whose system prompt is those instructions alone, and reaches nothing: no bundle,
+# no tool and no MCP server. Its agents keep no session of agency's choosing, since one agent carries every
+# note's asks of its account; the note unit names the session a talk's next round continues. Its road is the
+# deployment's default answerer's as the owner set it, Claude Code's Opus 5.5 at medium effort with thinking on.
 [[roles]]
 name = "note-assistant"
 label = "Note assistant"
 description = "Works one passage or one whole note for the person asking — rewrites, translates, summarizes or answers over it — from the note unit's instructions, using no tool."
-line = "search"
+line = "plain"
 max_concurrent = 2
 bundles = []
 sessions = "fresh"

@@ -627,9 +627,10 @@ jobs」), and a co-work branch's prompt is composed by its parent.
 
 A role's session may be handed its instructions whole, for a consumer that composes its own — the research unit,
 which asks for the slots and the sessions its searches, browses, rounds and branches go out in, is one: the
-start names `systemPrompt`, the instructions — the platform's harness opening and then that text, as one system
-prompt, with the role's line's standing MCP configuration and the tools it allows (`docs/launch-lines.md`,
-「Search runner」 and 「Browse runner」). A turn into such a session goes out on the role's line whole, never in a
+start names `systemPrompt`, the instructions, and `line`, the runner line it goes out on — `search` or `browse`,
+whose system prompt is the platform's harness opening and then that text, with the line's standing MCP
+configuration and the tools it allows, or `plain`, whose system prompt is that text alone, with no tool and no MCP
+server (`docs/launch-lines.md`, 「Search runner」, 「Browse runner」 and 「Plain runner」). A turn into such a session goes out on the role's line whole, never in a
 standing branch checkout. Its prompt is the caller's, whole, and its answer is the run's reply text. Its turns
 carry no clock: each lasts until it ends or is stopped. A start that hands no instructions opens on the role's
 prompt. Beside them its road is checked, and the start may name the rest below:
@@ -654,6 +655,13 @@ prompt. Beside them its road is checked, and the start may name the rest below:
   run goes out on.
 - **`toolsAllowed`:** the capabilities the record keeps, of those the line and the session's role give it; a
   record keeps them all where the start names none, and the list never widens them.
+- **`continues` and `continuesElse`:** the program's own session the session's turns continue, the
+  `harnessSession` an earlier turn's end named (below), and the words a turn goes out with instead where that
+  session cannot be resumed; each a text that is not empty, refused 400 otherwise, and `continuesElse` refused
+  400 without `continues`. The named session is resumed while its record stands under the login the turn goes
+  out on, whatever the agent's `sessions` setting and its cache's age; where it does not stand, the turn opens
+  a new session on the `continuesElse` words, or on its own prompt where the start named none
+  (`docs/sessions.md`, 「A role's session」).
 
 **A role's session's turn goes out on the session's road.** Its provider, model and effort are the session's,
 its folder the session's `cwd`, and its instructions and bundles its role's; a turn's body adds only what is
@@ -736,7 +744,8 @@ the turn while it goes and with its end once it has ended, and `turn.ended` carr
   standing under the key, the one this server sent or the one it picked up at its start, and is answered
   with that turn's end as the first send would have been, its `prompt` and `context` the repeat's own.
 - **A repeat after the turn has ended** is answered at once with its end, as kept: its `id`, `state`,
-  `delivery`, `outcome`, `ending`, `reason`, `answer` and `answers`, `text` holding the answer. An end is kept for
+  `delivery`, `outcome`, `ending`, `reason`, `answer`, `answers` and `harnessSession`, `text` holding the
+  answer. An end is kept for
   `kept_seconds` in `policy/turn-keys.toml`; a repeat after that, or one naming a key no turn of the
   session stood under, is a send of a new turn.
 - **A send refused before its turn began** — the session in a turn, unknown, or the turn's body refused —
@@ -748,7 +757,8 @@ the turn while it goes and with its end once it has ended, and `turn.ended` carr
   the same key once the server stands.
 
 A turn is named from its start: `turn.created` carries its `turnId`, and the send answers with that same
-id once the turn ends. The progress read answers the turn named, on every scope that carries turns, with
+id once the turn ends. The send's answer carries `harnessSession` beside it: the program's own session the turn
+answered on, where its road reads one, and null otherwise; a repeat of a keyed send answers it as kept. The progress read answers the turn named, on every scope that carries turns, with
 its `id`, `sessionId`, `prompt`, `context`, `state` (`running` or `ended`), `delivery`, `outcome`,
 `answer`, `text`, the last holding every text block the turn has written so far, and `waiting`. The
 progress read answers the turn named while it runs, and the session's last turn once it has ended; the

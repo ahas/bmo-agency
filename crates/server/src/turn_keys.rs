@@ -39,6 +39,9 @@ pub struct KeptEnd {
   /// Each turn's answer the round spanned, which `answer` was built from.
   #[serde(default)]
   pub answers: Vec<TurnAnswer>,
+  /// The program's own session the turn answered on, which a later start names to continue it.
+  #[serde(default)]
+  pub harness_session: Option<String>,
   pub at: i64,
 }
 
@@ -55,6 +58,7 @@ impl KeptEnd {
       reason: end.reason.clone(),
       answer: end.answer.clone(),
       answers: end.answers.clone(),
+      harness_session: end.reply.as_ref().and_then(|reply| reply.session_id.clone()),
       at: now_ms(),
     }
   }
@@ -73,6 +77,7 @@ impl KeptEnd {
       "reason": self.reason,
       "answer": self.answer,
       "answers": self.answers,
+      "harnessSession": self.harness_session,
       "text": self.answer.as_ref().map(|answer| json!([answer])).unwrap_or_else(|| json!([])),
       "waiting": Value::Null,
     })
