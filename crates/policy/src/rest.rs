@@ -9,7 +9,7 @@ pub struct Rest {
   pub fallback_seconds: i64,
   /// What the owner is told as the rest that silenced the last open login begins.
   pub resting: String,
-  /// How often a rest past its end is looked for and lifted, in seconds.
+  /// How often the deployment is looked at for a silence no written rest told, in seconds.
   pub lift_check_seconds: u64,
 }
 

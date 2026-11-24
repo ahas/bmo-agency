@@ -1329,6 +1329,24 @@ change and null on the list. A report's usage rests its login only where a windo
 `PATCH /fallback`'s `add-account` and `update-account` actions, and with `bmo-agency agent --account-add`
 and `--account-set`.
 
+The deployment rests while the service's own outage rest stands, or while every enabled Claude account the
+platform's own work runs on (`docs/cache-fallback.md`, 「The account judgement」, the logins a run of no person
+walks) is closed for its limit — a rest written under it, a limit's or a refusal's, or a window of its own
+read full — until the soonest of them reopens. A person's or an organisation's own login neither holds the
+rest nor lifts it. `GET /rest` answers `resting`, `until` in epoch seconds and `kind`, `outage` where the
+service's own rest stands and `limit` otherwise, both null where it does not rest. `PATCH /rest` with `until`
+in epoch seconds, `kind` (`limit` or `outage`) and `account` writes a rest as a run's failure would, and
+answers `silenced`, whether it was the rest that silenced the deployment. `PATCH /rest` with `clearPassed`
+clears every rest whose moment has passed and answers `kind`, the kind of the silence that has just ended,
+once: the silence told as it began where one was, else one the passed rests held; null while the deployment
+still rests or where no silence ended.
+
+The silence is published once as it begins, as `rest.changed` (「Events」) with `account`, the login whose
+limit closed it or null, `kind`, `until` and `notice`, the rest policy's words: by whatever writes the limit's
+rest or the outage that closes the last open login, and otherwise on the rest policy's clock
+(`lift_check_seconds`), where the outage or a window read full closed it with nothing written. A silence held
+by refusals alone is never published as a limit; the login notice tells it.
+
 Usage groups the jobs whose turns started in the span by the key `groupBy` names, `model` where it names
 none: the model the job's turn went out on (`model`), the checkout it ran in (`agent`), the repository that
 checkout belongs to (`repository`), the job's holder (`user`), its room (`room`), or, over the runs of the

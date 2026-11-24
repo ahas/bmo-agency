@@ -1,9 +1,10 @@
 //! The deployment's rest as agency's store holds it (docs/api.md, 「Accounts」, the rest): it rests while the
-//! service's own outage rest stands, or while every enabled Claude account has reached its own ceiling,
-//! until the first of them comes back. Agency reads it and writes it; the rest that closes the last login
-//! is published once, and whether a supervisor whose road is on another provider answers a room meanwhile —
-//! read off its road (`GET /supervisors/{supervisorName}/road`) — and what anyone is told of it, are its
-//! consumers'. Beside the logins' rests stand the models' (docs/cache-fallback.md, 「The account
+//! service's own outage rest stands, or while every enabled Claude account the platform's own work runs on
+//! has reached its own ceiling, until the first of them comes back. Agency reads it and writes it; the
+//! silence is published once as it begins, whatever closed the last login, and its end is answered once to
+//! whoever clears the passed rests. Whether a supervisor whose road is on another provider answers a room
+//! meanwhile — read off its road (`GET /supervisors/{supervisorName}/road`) — and what anyone is told of it,
+//! are its consumers'. Beside the logins' rests stand the models' (docs/cache-fallback.md, 「The account
 //! judgement」): one model resting on one login, which closes that login to that model's runs alone and
 //! never counts toward the deployment's rest.
 
@@ -13,12 +14,13 @@ use cache_siren::{FULL, Slot};
 use policy::rest::REST;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
-use store::{all, one};
+use store::one;
 
 use crate::Refusal;
-use crate::control::claude_accounts::{Judging, SEED_ACCOUNT};
+use crate::control::claude_accounts::{self, Carrying, Judging, SEED_ACCOUNT, full_window_until};
 use crate::door::record::SessionUsage;
 use crate::events::Event;
+use crate::places::Ground;
 use crate::queue::settings;
 
 // A rest that names no account: the service's outage, or a limit rest of this machine's own login.
@@ -27,6 +29,8 @@ const REST_UNTIL: &str = "rest_until";
 const REST_KIND: &str = "rest_kind";
 // One model's rest on one login, by the login and the model.
 const MODEL_REST: &str = "model_rest:";
+// The kind of the silence told as it began, kept until its end is read.
+const TOLD: &str = "rest_told";
 
 async fn setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, Refusal> {
   let row = one(db, r#"SELECT "value" FROM "settings" WHERE "key" = $1"#, vec![key.into()]).await?;
@@ -87,17 +91,9 @@ pub async fn rest_until(judging: Judging<'_>, now: i64) -> Result<Option<i64>, R
     return Ok(Some(until));
   }
 
-  let accounts = all(
-    db,
-    r#"SELECT "id" FROM "claude_accounts" WHERE "enabled" <> 0 ORDER BY "place", "rowid""#,
-    vec![],
-  )
-  .await?;
   let mut soonest: Option<i64> = None;
 
-  for account in &accounts {
-    let id: String = account.try_get("", "id")?;
-
+  for id in platform_accounts(db).await? {
     match account_rest_until(judging, &id).await?.filter(|until| *until > now) {
       Some(until) => soonest = Some(soonest.map_or(until, |held| held.min(until))),
       None => return Ok(None),
@@ -105,6 +101,16 @@ pub async fn rest_until(judging: Judging<'_>, now: i64) -> Result<Option<i64>, R
   }
 
   Ok(soonest)
+}
+
+// The enabled accounts the platform's own work runs on, whose rests alone make the deployment's: a person's or
+// an organisation's own login neither holds the rest nor lifts it.
+async fn platform_accounts(db: &DatabaseConnection) -> Result<Vec<String>, Refusal> {
+  let carried = claude_accounts::carried_for_user(db, Carrying::Platform)
+    .await
+    .map_err(|refused| Refusal::new(refused.status, "accounts-unread", refused.error))?;
+
+  Ok(carried.into_iter().map(|account| account.id).collect())
 }
 
 /// Why the deployment rests: the service's outage where its own rest stands, a usage limit otherwise.
@@ -122,17 +128,13 @@ async fn account_rest_until(judging: Judging<'_>, account: &str) -> Result<Optio
 
 /// Why the deployment rested, where its rest has just passed: every rest whose moment is behind `now` cleared,
 /// every model's rest that closes nothing any longer among them, and the kind of the silence that ended —
-/// the service's outage or a limit — where the deployment was silent and rests no longer; none otherwise.
+/// the service's outage or a limit — where the deployment was silent and rests no longer, answered once: the
+/// silence told as it began where one was, else the one the passed rests held; none otherwise.
 pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option<RestKind>, Refusal> {
   let db = judging.db;
   let unnamed = moment(db, REST_UNTIL).await?;
   let outage_held = setting(db, REST_KIND).await?.as_deref() == Some("outage") && unnamed.is_some();
-  let accounts = all(
-    db,
-    r#"SELECT "id" FROM "claude_accounts" WHERE "enabled" <> 0 ORDER BY "place", "rowid""#,
-    vec![],
-  )
-  .await?;
+  let told = setting(db, TOLD).await?;
   let mut held = vec![];
   let mut passed = vec![];
 
@@ -141,8 +143,7 @@ pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option
     passed.push(REST_KIND.to_owned());
   }
 
-  for account in &accounts {
-    let id: String = account.try_get("", "id")?;
+  for id in platform_accounts(db).await? {
     let own_key = format!("{REST_UNTIL}:{id}");
 
     held.push(account_rest_until(judging, &id).await?);
@@ -170,11 +171,87 @@ pub async fn clear_passed_rests(judging: Judging<'_>, now: i64) -> Result<Option
     }
   }
 
-  if passed.is_empty() || !was_silent || resting(judging, now).await? {
+  if resting(judging, now).await? {
+    return Ok(None);
+  }
+
+  if let Some(told) = told {
+    settings::forget(db, TOLD).await?;
+
+    return Ok(Some(if told == RestKind::Outage.word() { RestKind::Outage } else { RestKind::Limit }));
+  }
+
+  if passed.is_empty() || !was_silent {
     return Ok(None);
   }
 
   Ok(Some(if outage_held { RestKind::Outage } else { RestKind::Limit }))
+}
+
+/// The silence told as it begins: published once as `rest.changed`, and kept as told so neither the watch
+/// tells it again nor its end goes unanswered. `account` is the login whose limit closed it, where one did.
+pub async fn tell_silence(
+  ground: &Ground,
+  kind: RestKind,
+  account: Option<&str>,
+  until: i64,
+) -> Result<(), Refusal> {
+  settings::set(&ground.db, TOLD, kind.word()).await?;
+  ground.events.publish(DeploymentResting {
+    account: account.filter(|_| kind.of_a_login()).map(str::to_owned),
+    ..DeploymentResting::of(kind, "", until)
+  });
+
+  Ok(())
+}
+
+/// The silence nobody wrote a rest for, told on the rest policy's clock: where the deployment rests, no
+/// silence has been told, and the service's outage or a window of the platform's own read full closed it.
+/// A reading closes a login with nothing written, so no writer saw that silence begin. A silence the
+/// written rests alone hold is told by whatever wrote them, and one held by refusals alone is never told as
+/// a limit.
+pub async fn watch_silence(ground: &Ground, now: i64) -> Result<(), Refusal> {
+  let judging = Judging::of(ground);
+  let db = &ground.db;
+  let Some(until) = rest_until(judging, now).await? else {
+    return Ok(());
+  };
+
+  if setting(db, TOLD).await?.is_some() {
+    return Ok(());
+  }
+
+  let kind = if outage_rest(db, now).await?.is_some() {
+    RestKind::Outage
+  } else {
+    let mut windowed = false;
+
+    for id in platform_accounts(db).await? {
+      windowed |= full_window_until(judging.windows, &id, now).await.is_some();
+    }
+
+    if !windowed {
+      return Ok(());
+    }
+
+    RestKind::Limit
+  };
+
+  println!("the deployment rests until {until} by its windows or its outage: nothing answers now");
+
+  tell_silence(ground, kind, None, until).await
+}
+
+/// The silence watched for as long as the process stands, on the rest policy's clock.
+pub async fn keep_watching(ground: std::sync::Arc<Ground>) {
+  let period = std::time::Duration::from_secs(REST.lift_check_seconds);
+
+  crate::clock::every("rest watch", period, period, move || {
+    let ground = ground.clone();
+
+    async move { watch_silence(&ground, crate::now_ms() / 1000).await.map_err(|why| why.detail) }
+  })
+  .await;
 }
 
 /// What a rest is: one login's limit, one login's refusal of a run, or the service's own outage.

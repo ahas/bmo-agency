@@ -309,6 +309,7 @@ fn clocks(ground: &Arc<Ground>) {
   tokio::spawn(agency_server::order_run::clocks::keep_card_demands(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_leftovers(ground.clone()));
   tokio::spawn(agency_server::order_run::clocks::keep_usage_windows(ground.clone()));
+  tokio::spawn(agency_server::rest::keep_watching(ground.clone()));
 
   let watched = ground.clone();
 

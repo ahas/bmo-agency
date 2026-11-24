@@ -28,7 +28,7 @@ use crate::queue::routes::{
 };
 use crate::queue::stops::{StoppedRun, clear_job_stop, job_stop_reason, mark_job_stopped};
 use crate::queue::workers::Worker;
-use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, write_rest};
+use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, tell_silence, write_rest};
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -343,6 +343,11 @@ impl Route for RestWrite {
     };
     let account = body.get("account").and_then(Value::as_str).unwrap_or_default();
     let silenced = write_rest(Judging::of(call.ground()), until, kind, account, now_ms() / 1000).await?;
+
+    if silenced {
+      tell_silence(call.ground(), kind, Some(account).filter(|named| !named.is_empty()), until as i64)
+        .await?;
+    }
 
     Ok(answer(
       StatusCode::OK,

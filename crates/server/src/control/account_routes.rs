@@ -22,7 +22,7 @@ use super::fallback::{account_balance, account_headlines};
 use super::{Call, Refused, Route, answer};
 use crate::door::record::SessionUsage;
 use crate::now_ms;
-use crate::rest::{DeploymentResting, RestKind, rest_until_after, write_rest};
+use crate::rest::{RestKind, rest_until_after, tell_silence, write_rest};
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -63,7 +63,7 @@ impl Route for UsageRest {
       let ground = call.ground();
 
       if write_rest(Judging::of(ground), until, RestKind::Limit, &account, now).await? {
-        ground.events.publish(DeploymentResting::of(RestKind::Limit, &account, until as i64));
+        tell_silence(ground, RestKind::Limit, Some(&account), until as i64).await?;
       }
       rest = Some(until as i64);
     }

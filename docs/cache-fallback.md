@@ -618,9 +618,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   was tried. A failure of the work itself moves nothing, and neither does the service being down, since no
   other account would answer that either. A login passed over for its limit or its refusal is put to rest
   as it is passed, under that login, so nothing that reads the failure afterwards writes a rest under
-  another. Where a limit's rest closes the last open login, agency publishes it once as
-  `deployment-resting` (`docs/api.md`, 「Events」), and the consumer holding the owner's chat says it; a
-  refusal's rest is told as the login notice tells it (below), never as a limit.
+  another. Where a limit, a window read full or the outage closes the last open login of the platform's own
+  work, agency publishes the silence once as `rest.changed` (`docs/api.md`, 「accounts, rest and usage」), and
+  the consumer holding the owner's chat says it; a refusal's rest is told as the login notice tells it
+  (below), never as a limit.
 - **What rests for a limit is what the answer and the windows say reached it,** read in this order:
   - **One model's own limit.** An answer that names the run's own model as the limit reached — Claude
     Code's "You've reached your Fable limit" on a run of a Fable model and its kin, the name being a word

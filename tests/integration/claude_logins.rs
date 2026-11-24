@@ -28,7 +28,7 @@ use agency_server::job_run::claude::walk::{Attempt, PassedOver, Walking, on_acco
 use agency_server::keepalive::logins::{node_token_refused, retire_closed};
 use agency_server::now_ms;
 use agency_server::places::{Ground, locks};
-use agency_server::rest::DeploymentResting;
+use agency_server::rest::{self, DeploymentResting, RestKind, clear_passed_rests, watch_silence};
 use agency_server::run_log::{RunLog, Target};
 use cache_siren::{Keeping, Slot, Window};
 use common::Scratch;
@@ -391,7 +391,7 @@ async fn a_login_ceiling_the_windows_confirm_rests_the_login_and_no_other_limit_
   assert_eq!(bench.walk_on(FABLE).await, ["default"]);
 }
 
-// The walk's rest that closes the last open login is published once as `deployment-resting`, and a run
+// The walk's rest that closes the last open login is published once as `rest.changed`, and a run
 // after it, every login closed, publishes nothing again.
 #[tokio::test]
 async fn the_rest_that_closes_the_last_login_is_published_once() {
@@ -413,6 +413,79 @@ async fn the_rest_that_closes_the_last_login_is_published_once() {
     Err(Failure::Limit { account: None, .. })
   ));
   assert_eq!(resting.ready(), None);
+}
+
+// Every login closed by a window read full, with no rest written, is a silence no writer saw begin: the watch
+// tells it once, and its end is answered once to whoever clears the passed rests, never while it stands.
+#[tokio::test]
+async fn a_silence_the_windows_hold_is_told_once_by_the_watch_and_its_end_once() {
+  let bench = Bench::new().await;
+  let mut resting = bench.ground.events.subscribe::<DeploymentResting>();
+  let at = now();
+
+  bench.read("main", 1.0, at + HOUR, at).await;
+  bench.read("default", 1.0, at + 2 * HOUR, at).await;
+  watch_silence(&bench.ground, at).await.unwrap();
+
+  let told = resting.ready().expect("the silence was told");
+
+  assert_eq!((told.kind, told.account, told.until), ("limit", None, at + HOUR));
+
+  watch_silence(&bench.ground, at).await.unwrap();
+
+  assert_eq!(resting.ready(), None);
+  assert_eq!(clear_passed_rests(bench.judging(), at).await.unwrap(), None);
+  assert_eq!(clear_passed_rests(bench.judging(), at + 3 * HOUR).await.unwrap(), Some(RestKind::Limit));
+  assert_eq!(clear_passed_rests(bench.judging(), at + 3 * HOUR).await.unwrap(), None);
+}
+
+// A silence the written rests alone hold is told by whatever wrote them, never by the watch, so one only
+// refusals hold is not told as a limit.
+#[tokio::test]
+async fn the_watch_tells_no_silence_the_written_rests_alone_hold() {
+  let bench = Bench::new().await;
+  let mut resting = bench.ground.events.subscribe::<DeploymentResting>();
+  let at = now();
+
+  for account in ["main", "default"] {
+    rest::write_rest(bench.judging(), (at + HOUR) as f64, RestKind::Refused, account, at)
+      .await
+      .unwrap();
+  }
+
+  assert!(rest::resting(bench.judging(), at).await.unwrap());
+
+  watch_silence(&bench.ground, at).await.unwrap();
+
+  assert_eq!(resting.ready(), None);
+}
+
+// An organisation's own login is no login of the platform's own work: spent or open, it neither holds the
+// deployment's rest nor lifts it.
+#[tokio::test]
+async fn an_organisations_login_neither_holds_the_rest_nor_lifts_it() {
+  let bench = Bench::new().await;
+  let at = now();
+  let home = bench.homes.path().join("unit");
+
+  crate::support::grounds::signed_in(&home);
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path", "added_at", "unit_id")
+         VALUES ('unit', 'unit', 3, 1, 'directory', $1, 1, 7)"#,
+      vec![home.to_string_lossy().into_owned().into()],
+    )
+    .await;
+  bench.read("main", 1.0, at + HOUR, at).await;
+  bench.read("default", 1.0, at + HOUR, at).await;
+
+  assert_eq!(rest::rest_until(bench.judging(), at).await.unwrap(), Some(at + HOUR));
+
+  bench.read("main", 0.5, at + HOUR, at + 1).await;
+  bench.read("unit", 1.0, at + HOUR, at).await;
+
+  assert_eq!(rest::rest_until(bench.judging(), at + 1).await.unwrap(), None);
 }
 
 // The loop in a pane starts the program its place holds again on the login written into it, so a program

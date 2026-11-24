@@ -29,7 +29,7 @@ use crate::control::claude_accounts::{
 use crate::keepalive::logins;
 use crate::now_ms;
 use crate::places::Ground;
-use crate::rest::{self, DeploymentResting, RestKind};
+use crate::rest::{self, RestKind};
 use policy::providers::claude_code::CLAUDE_CODE;
 
 /// What the walk stands on: the ground, whose bus a login gone and the rest that silenced the deployment
@@ -410,7 +410,7 @@ async fn pass_over(
 
 /// A login's own rest — a full window's, or a refusal's — written under that login by the one writer of rests
 /// (`crate::rest`), which leaves it as it stands where that login already rests. Where a full window's is
-/// the rest that closed the last open login, it is published once as `deployment-resting`, and the consumer
+/// the rest that closed the last open login, it is published once as `rest.changed`, and the consumer
 /// holding the owner's chat says it; a refusal's is told as the login notice tells it. The answer is whether
 /// that silence is still to be told, which once published it never is.
 pub async fn write_rest(
@@ -424,7 +424,9 @@ pub async fn write_rest(
     .map_err(|why| Failure::error(why.detail))?;
 
   if silenced && kind == RestKind::Limit {
-    ground.events.publish(DeploymentResting::of(kind, account, until));
+    rest::tell_silence(ground, kind, Some(account), until)
+      .await
+      .map_err(|why| Failure::error(why.detail))?;
   }
 
   Ok(false)

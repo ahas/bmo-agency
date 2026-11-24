@@ -7,5 +7,6 @@ fallback_seconds = 3600
 # What the owner is told as the rest begins, where it is the rest that silenced the last open login.
 resting = "I have thought too hard today... I am going to rest for a while, until the limit lifts."
 
-# How often a rest past its end is looked for and lifted, in seconds.
+# How often the deployment is looked at for a silence no written rest told, in seconds (docs/api.md,
+# 「accounts, rest and usage」).
 lift_check_seconds = 30
