@@ -1408,6 +1408,8 @@ pub const OPERATIONS: &[Operation] = &[
       "node-not-attached",
       "node-not-ready",
       "login-elsewhere",
+      "no-cli",
+      "pane-unread",
     ],
   },
   Operation {
@@ -4690,11 +4692,11 @@ fn status_of(code: &str) -> u16 {
     | "worker-on-node" | "agent-busy" | "node-not-attached" | "no-runner" | "no-older-version"
     | "withdrawn" | "awaiting-approval" | "locked" | "too-many-agents" | "road-not-supplied"
     | "supplied-agent" | "secret-missing" | "installed-copy" | "line-takes-none" | "node-not-ready"
-    | "login-elsewhere" | "no-pc" | "no-port" => 409,
+    | "login-elsewhere" | "no-pc" | "no-port" | "no-cli" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" | "checkout-not-made" | "members-unwritten" => 500,
-    "upstream-failed" | "runner-unreached" => 502,
+    "upstream-failed" | "runner-unreached" | "pane-unread" => 502,
     "not-ready" | "no-login-open" | "no-word-road" | "stopping" | "members-unread" => 503,
     _ => 422,
   }

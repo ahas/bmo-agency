@@ -76,7 +76,7 @@ unit_named = "An organisation is named by its unit's number, or null to give the
 platform_only = "Ordering or choosing the platform's accounts is the owner's alone."
 
 # A Claude account signed in from the console (docs/cache-fallback.md, 「Signing an account in from the console」):
-# what is refused, with `{name}`, `{path}`, `{login}` and `{said}` filled in.
+# what is refused, with `{name}`, `{path}`, `{login}`, `{node}` and `{said}` filled in.
 [logins]
 which = "Name the account to sign in again, or a name for a new one, not both."
 not_directory = "{name} keeps no login of its own: only a directory account is signed in from here."
@@ -91,6 +91,8 @@ no_node = "There is no node to sign you in on yet."
 node_not_attached = "{node} is not attached now: sign in once its link is heard again."
 node_unready = "{node} has no ready workplace to sign in on yet."
 login_elsewhere = "{name} was signed in on {node}, not on the PC you sign in on now: sign a new login in instead."
+no_cli = "Claude Code is not installed on {node} yet: it is being installed now, so sign in again in a few minutes."
+unread = "The sign-in's pane on {node} could not be read: {said}"
 
 # A person's own keys for the gateway's roads (docs/supply.md, 「What a person brings」): a call naming no
 # person, a {road} no member serves, a key {id} not the caller's, a change naming nothing it takes, and the

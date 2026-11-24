@@ -130,6 +130,7 @@ fn place(node_token: bool) -> SetupPlace<'static> {
     herdr: None,
     rust: None,
     bun: None,
+    claude: None,
     session: "bmo".into(),
     far_end: None,
   }
@@ -248,6 +249,7 @@ async fn a_node_whose_login_fails_names_that_alone() {
       herdr_socket: None,
       copied: false,
       confinement: None,
+      claude: None,
     }
   );
 }
@@ -567,6 +569,74 @@ async fn a_runtime_of_another_version_is_installed_into_the_workplace_leaving_th
   assert!(installed.contains("BUN_INSTALL=/home/tester/.local/share/bmo-node/bun"));
   assert!(installed.contains("HOME=/home/tester/.local/share/bmo-node/bun/home"));
   assert!(installed.contains("bun-v1.4.2"));
+}
+
+// "the workplace's own Claude Code is laid at this machine's release under a name of its own, never into the
+// account's tools, and a node whose copy already reports that release is left as it is"
+#[tokio::test]
+async fn the_workplace_s_own_claude_code_is_laid_at_this_machine_s_release_never_into_the_account_s_tools()
+{
+  const OWN: &str = "/home/tester/.local/share/bmo-node/bin/bmo-claude";
+  let place = SetupPlace {
+    claude: Some("2.1.9".into()),
+    checkouts: vec![],
+    ..place(true)
+  };
+  let older = StandIn::new(&[HOME, (r"bmo-claude --version", 0, "2.1.8 (Claude Code)\n", "")]);
+  let outcome = set_up_workplace(&older, &place, &hands(true)).await;
+  let laid: Vec<String> = older
+    .ran()
+    .into_iter()
+    .filter(|command| command.contains("BMO_CLAUDE_RELEASE"))
+    .collect();
+
+  assert_eq!(laid.len(), 1, "{:?}", older.ran());
+  assert!(laid[0].contains("BMO_CLAUDE_RELEASE=2.1.9"));
+  assert!(laid[0].contains(&format!("BMO_CLAUDE_TO={OWN}")));
+  assert!(laid[0].contains("BMO_CLAUDE_DOWNLOADS=https://downloads.claude.ai/claude-code-releases"));
+  assert!(older.ran().iter().all(|command| !command.contains("claude.ai/install.sh")
+    && !command.contains("command -v claude")
+    && !command.contains(".local/bin/claude")));
+  // What the copy reports after the laying is what the outcome names: the stand-in still answers the earlier one.
+  assert_eq!(outcome.claude.as_deref(), Some("2.1.8"));
+
+  let same = StandIn::new(&[HOME, (r"bmo-claude --version", 0, "2.1.9 (Claude Code)\n", "")]);
+  let outcome = set_up_workplace(&same, &place, &hands(true)).await;
+
+  assert!(same.ran().iter().all(|command| !command.contains("BMO_CLAUDE_RELEASE")));
+  assert_eq!(outcome.claude.as_deref(), Some("2.1.9"));
+  assert!(outcome.missing.iter().all(|line| !line.starts_with("claude:")), "{:?}", outcome.missing);
+}
+
+// "a workplace with no Claude Code of its own is missing it, and a check lays none"
+#[tokio::test]
+async fn a_workplace_with_no_claude_code_of_its_own_is_missing_it_and_a_check_lays_none() {
+  let place = SetupPlace {
+    claude: Some("2.1.9".into()),
+    checkouts: vec![],
+    ..place(true)
+  };
+  let shell = StandIn::new(&[HOME, (r"bmo-claude", 1, "", "")]);
+  let outcome = set_up_workplace(&shell, &place, &hands(false)).await;
+
+  assert_eq!(outcome.claude, None);
+  assert!(outcome.missing.contains(
+    &"claude: the workplace holds no Claude Code of its own at /home/tester/.local/share/bmo-node/bin/bmo-claude; run the setup".to_owned()
+  ), "{:?}", outcome.missing);
+  assert!(shell.ran().iter().all(|command| !command.contains("BMO_CLAUDE_RELEASE")));
+
+  // A setup whose laying fails with none standing says why.
+  let failing =
+    StandIn::new(&[HOME, (r"bmo-claude", 1, "", "error: manifest could not be fetched: 503\n")]);
+  let outcome = set_up_workplace(&failing, &place, &hands(true)).await;
+
+  assert!(
+    outcome.missing.iter().any(
+      |line| line.starts_with("claude: Claude Code 2.1.9 could not be laid at ") && line.contains("503")
+    ),
+    "{:?}",
+    outcome.missing
+  );
 }
 
 // "a port the far end could not listen on is said by what it is for while the link is connected, and nothing is

@@ -51,6 +51,8 @@ pub struct LoginsWords {
   pub node_not_attached: String,
   pub node_unready: String,
   pub login_elsewhere: String,
+  pub no_cli: String,
+  pub unread: String,
 }
 
 /// A person's own keys for the gateway's roads.

@@ -5,7 +5,9 @@
 
 use futures_util::future::BoxFuture;
 
-use crate::watches::links::{node_path, path_head};
+use policy::providers::claude_code::CLAUDE_CODE;
+
+use crate::watches::links::{node_path, own_claude, path_head};
 
 /// A word as a POSIX shell reads it back as itself.
 pub fn shell_word(word: &str) -> String {
@@ -89,6 +91,9 @@ pub struct SetupPlace<'a> {
   /// This machine's bun version, which the node's must be: bun reads the repository's own configuration
   /// and lockfile, which another bun may not.
   pub bun: Option<String>,
+  /// The Claude Code release this machine runs, which the workplace's own copy is laid at; none where this
+  /// machine runs none, and the copy standing is left as it is.
+  pub claude: Option<String>,
   /// The herdr session the node's agents stand in, apart from any session a person keeps there.
   pub session: String,
   /// Where the link's far end stands on the node as a service of the account's own, listening at the node's
@@ -131,6 +136,9 @@ pub struct SetupOutcome {
   /// one that makes no namespace there (docs/person-nodes.md, 「Personal tools on a PC」). None where they can, and on
   /// every other node.
   pub confinement: Option<String>,
+  /// The release the workplace's own Claude Code reports, where it stands and runs (docs/work-nodes.md, 「The
+  /// workplace on a node」); none where it does not.
+  pub claude: Option<String>,
 }
 
 /// The crates a node builds its own binaries from, each by its folder in the repository, which it keeps in
@@ -182,20 +190,6 @@ fn installer(url: &str, args: &str) -> String {
   )
 }
 
-// Claude Code's own installer, waited on until it exits, and its binary put where the installer puts it
-// where its own install step did not finish with the binary it fetched already whole beside it.
-fn claude_installer() -> String {
-  let place = [
-    r#"f=$(ls -t "$HOME"/.claude/downloads/claude-*-linux-* 2>/dev/null | head -1)"#,
-    r#"if [ -n "$f" ]; then v=$(basename "$f" | sed "s/^claude-\([0-9.]*\)-.*/\1/"); mkdir -p "$HOME/.local/share/claude/versions" "$HOME/.local/bin" && cp "$f" "$HOME/.local/share/claude/versions/$v" && ln -sfn "$HOME/.local/share/claude/versions/$v" "$HOME/.local/bin/claude"; fi"#,
-  ]
-  .join("; ");
-
-  format!(
-    r#"curl -fsSL https://claude.ai/install.sh -o /tmp/bmo-install-claude.sh && bash /tmp/bmo-install-claude.sh </dev/null; rm -f /tmp/bmo-install-claude.sh; test -x "$HOME/.local/bin/claude" || {{ {place}; }}"#
-  )
-}
-
 // One tool a workplace needs: how it is installed into the account where it is missing — none where it
 // is the machine's to have — and how its version is read where it must be this machine's.
 struct Tool {
@@ -241,12 +235,56 @@ fn tools(bun: Option<&str>, root: &str) -> Vec<Tool> {
       install: Some(installer("https://sh.rustup.rs", "-y --profile minimal")),
       version: None,
     },
-    Tool {
-      name: "claude",
-      install: Some(claude_installer()),
-      version: None,
-    },
   ]
+}
+
+/// The program that lays the workplace's own Claude Code on the node, run by the workplace's runtime: the release
+/// named, fetched from the release downloads for the node's processor and C library, checked against the checksum
+/// its manifest names, and renamed over the path, so a program running the one before keeps it. The manifest is read
+/// by the runtime's JSON reader.
+const LAY_CLAUDE: &str = r#"
+const fs = require("node:fs");
+const { BMO_CLAUDE_DOWNLOADS: base, BMO_CLAUDE_RELEASE: release, BMO_CLAUDE_TO: to } = process.env;
+const arch = { x64: "x64", arm64: "arm64" }[process.arch];
+if (!arch) throw new Error(`Claude Code has no build for the processor ${process.arch}`);
+const musl = ["/lib/libc.musl-x86_64.so.1", "/lib/libc.musl-aarch64.so.1"].some((one) => fs.existsSync(one));
+const platform = `linux-${arch}${musl ? "-musl" : ""}`;
+const asked = await fetch(`${base}/${release}/manifest.json`);
+if (!asked.ok) throw new Error(`the manifest of Claude Code ${release} could not be fetched: ${asked.status}`);
+const checksum = (await asked.json()).platforms?.[platform]?.checksum;
+if (!checksum) throw new Error(`Claude Code ${release} names no build for ${platform}`);
+const got = await fetch(`${base}/${release}/${platform}/claude`);
+if (!got.ok) throw new Error(`Claude Code ${release} for ${platform} could not be fetched: ${got.status}`);
+const bytes = new Uint8Array(await got.arrayBuffer());
+if (new Bun.CryptoHasher("sha256").update(bytes).digest("hex") !== checksum) throw new Error(`Claude Code ${release} for ${platform} does not match its checksum`);
+fs.mkdirSync(require("node:path").dirname(to), { recursive: true });
+fs.writeFileSync(`${to}.new`, bytes, { mode: 0o755 });
+fs.renameSync(`${to}.new`, to);
+"#;
+
+/// The command that lays the workplace's own Claude Code at `to`, at `release` (docs/work-nodes.md, 「The workplace
+/// on a node」).
+pub fn lay_claude(to: &str, release: &str) -> String {
+  format!(
+    "BMO_CLAUDE_DOWNLOADS={} BMO_CLAUDE_RELEASE={} BMO_CLAUDE_TO={} bun -e {}",
+    shell_word(&CLAUDE_CODE.workplace_copy.downloads),
+    shell_word(release),
+    shell_word(to),
+    shell_word(LAY_CLAUDE.trim())
+  )
+}
+
+/// The release a Claude Code reports: the first word of its version line, `2.1.0` of `2.1.0 (Claude Code)`.
+pub fn claude_release_of(said: &str) -> Option<String> {
+  said.split_whitespace().next().map(str::to_owned)
+}
+
+// The release the workplace's own Claude Code at `path` reports, or none where it does not stand or does not run.
+async fn claude_release(shell: &dyn SetupShell, root: &str, path: &str) -> Option<String> {
+  let path = shell_word(path);
+  let ran = shell.run(&with_path(root, &format!("test -x {path} && {path} --version"))).await;
+
+  (ran.code == 0).then(|| claude_release_of(&ran.stdout).unwrap_or_default())
 }
 
 /// The herdr session's socket as the node's herdr lists it, or none where it lists none.
@@ -364,6 +402,7 @@ pub async fn set_up_workplace(
       herdr_socket: None,
       copied: false,
       confinement: None,
+      claude: None,
     };
   }
 
@@ -607,6 +646,39 @@ pub async fn set_up_workplace(
     }
   }
 
+  // The workplace's own Claude Code, laid with every copy at this machine's release under a name no `claude` of the
+  // account's takes, and read standing either way.
+  let own_claude = own_claude(&root);
+  let mut claude = claude_release(shell, &root, &own_claude).await;
+
+  if hands.copy_code()
+    && let Some(release) = &place.claude
+    && claude.as_ref() != Some(release)
+  {
+    hands.say(&format!("{node}: laying Claude Code {release} at {own_claude}"));
+
+    let laid = shell.run(&with_path(&root, &lay_claude(&own_claude, release))).await;
+
+    claude = claude_release(shell, &root, &own_claude).await;
+
+    // A release that could not be laid where an earlier one still runs is said, and the earlier one serves on.
+    match (laid.code, &claude) {
+      (0, Some(_)) => {}
+      (_, Some(standing)) => hands.say(&format!(
+        "{node}: Claude Code {release} could not be laid, and {standing} serves on: {}",
+        last_lines(&laid.said(), 3)
+      )),
+      (_, None) => missing.push(format!(
+        "claude: Claude Code {release} could not be laid at {own_claude}: {}",
+        last_lines(&laid.said(), 3)
+      )),
+    }
+  } else if claude.is_none() {
+    missing.push(format!(
+      "claude: the workplace holds no Claude Code of its own at {own_claude}; run the setup"
+    ));
+  }
+
   // herdr, and the session the agents stand in: this machine's herdr given to a node with none, and
   // herdr's own machine setup saving the node here, so herdr's sidebar shows it.
   if hands.copy_code()
@@ -829,6 +901,7 @@ pub async fn set_up_workplace(
     herdr_socket,
     copied,
     confinement,
+    claude,
   }
 }
 

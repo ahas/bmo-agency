@@ -176,6 +176,18 @@ finish_seconds = 90
 keep_minutes = 20
 took = ["Login successful", "Logged in as", "Successfully logged in"]
 refused = ["Login failed", "Invalid code", "OAuth error", "Authentication failed"]
+# What a sign-in's pane on a node says where the workplace's own Claude Code does not stand at its path, the line
+# the start reads as the CLI missing there.
+missing = "bmo: the workplace holds no Claude Code of its own"
+
+[workplace_copy]
+# The workplace's own Claude Code on a node (docs/work-nodes.md, 「The workplace on a node」): the path under the
+# workplace's root it stands at, a name no `claude` of the account's takes; the release downloads it is fetched
+# from, each release under its version with a manifest naming every build's checksum; and the variables every
+# program of the workplace runs it with, its updater off, so it never moves by itself.
+path = "bin/bmo-claude"
+downloads = "https://downloads.claude.ai/claude-code-releases"
+env = [["DISABLE_AUTOUPDATER", "1"]]
 
 [advisor]
 # The advisor a road of Claude Code may name (docs/provider-order.md, 「The advisor」), which its program is

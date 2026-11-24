@@ -3649,6 +3649,9 @@
           },
           "409": {
             "$ref": "#/components/responses/NameTaken"
+          },
+          "502": {
+            "$ref": "#/components/responses/PaneUnread"
           }
         },
         "x-codes": [
@@ -3661,7 +3664,9 @@
           "no-link",
           "node-not-attached",
           "node-not-ready",
-          "login-elsewhere"
+          "login-elsewhere",
+          "no-cli",
+          "pane-unread"
         ],
         "requestBody": {
           "required": true,
@@ -22842,6 +22847,16 @@
           }
         }
       },
+      "NoCli": {
+        "description": "no-cli",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoJob": {
         "description": "no-job",
         "content": {
@@ -23114,6 +23129,16 @@
       },
       "OwnRepository": {
         "description": "own-repository",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "PaneUnread": {
+        "description": "pane-unread",
         "content": {
           "application/json": {
             "schema": {

@@ -6,11 +6,12 @@
 //! login named past every account's names, and a name another account holds refused under its field; the owner's
 //! new login named the same way, past a directory that already holds files.
 
+use std::os::unix::process::CommandExt;
 use std::path::Path;
 
 use agency_server::control::claude_logins::{
   NodeOutcome, last_words, name_refusal, new_home, new_login_name, next_login_name, node_launch,
-  node_outcome, said_since, sign_in_address,
+  node_outcome, said_since, says_missing, sign_in_address,
 };
 use policy::control_words::CONTROL_WORDS;
 
@@ -51,14 +52,22 @@ fn a_new_account_s_directory_is_named_by_its_name_under_the_env_directory() {
 
 #[test]
 fn a_person_s_sign_in_pane_runs_the_cli_s_own_words_under_the_node_s_workplace() {
-  let launch =
-    node_launch("/home/someone/bmo", "/home/someone", "/home/someone/bmo/data/env/theirs", "C.UTF-8");
+  let launch = node_launch(
+    "/home/someone/bmo",
+    "/home/someone",
+    "/home/someone/bmo/data/env/theirs",
+    "C.UTF-8",
+    false,
+  );
   let policy = &policy::providers::claude_code::CLAUDE_CODE.console_login.command;
 
-  // The CLI's words are the shell's arguments after its script, never spliced into it.
+  // The CLI's words are the shell's arguments after its script, never spliced into it, the workplace's own Claude
+  // Code in place of the word `claude`, its updater off.
   assert_eq!(&launch.command[..2], ["/bin/sh", "-c"]);
-  assert_eq!(&launch.command[4..], policy.as_slice());
+  assert_eq!(launch.command[4], "/home/someone/bmo/bin/bmo-claude");
+  assert_eq!(&launch.command[5..], &policy[1..]);
   assert!(launch.command[2].contains(r#""$@""#));
+  assert_eq!(launch.env["DISABLE_AUTOUPDATER"], "1");
   assert!(
     launch.command[2].contains("unset CLAUDE_CODE_OAUTH_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN")
   );
@@ -67,6 +76,92 @@ fn a_person_s_sign_in_pane_runs_the_cli_s_own_words_under_the_node_s_workplace()
   assert_eq!(launch.env["HOME"], "/home/someone");
   assert!(launch.env["PATH"].starts_with("/home/someone/bmo/bun/bin:"));
   assert_eq!(launch.cwd, "/home/someone");
+}
+
+// "a sign-in pane on a workplace with no Claude Code of its own says so and starts nothing"
+#[test]
+fn a_sign_in_pane_on_a_workplace_with_no_claude_code_of_its_own_says_so_and_starts_nothing() {
+  let node = tempfile::tempdir().unwrap();
+  let root = node.path().join("bmo");
+  let config = root.join("data/env/theirs");
+  let launch = node_launch(
+    &root.to_string_lossy(),
+    &node.path().to_string_lossy(),
+    &config.to_string_lossy(),
+    "C.UTF-8",
+    true,
+  );
+  let line = run_pane(&launch, node.path(), "-HUP");
+
+  assert!(says_missing(&line), "{line:?}");
+  assert!(!says_missing("Paste code here if prompted > "));
+}
+
+// The shell of a launch, run as herdr runs a pane's, its first line read within a bound; then `close` sent to its
+// whole group as herdr's closing the pane sends it, and the group taken down.
+fn run_pane(launch: &agency_server::control::claude_logins::NodeLaunch, cwd: &Path, close: &str) -> String {
+  let mut shell = std::process::Command::new(&launch.command[0])
+    .args(&launch.command[1..])
+    .env_clear()
+    .envs(&launch.env)
+    .current_dir(cwd)
+    .process_group(0)
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::null())
+    .spawn()
+    .unwrap();
+  let mut out = std::io::BufReader::new(shell.stdout.take().unwrap());
+  let (said, heard) = std::sync::mpsc::channel();
+
+  std::thread::spawn(move || {
+    let mut line = String::new();
+    let _ = std::io::BufRead::read_line(&mut out, &mut line);
+    let _ = said.send(line);
+  });
+
+  let line = heard.recv_timeout(std::time::Duration::from_secs(10)).unwrap_or_default();
+  let group = format!("-{}", shell.id());
+  let _ = std::process::Command::new("kill").args([close, "--", &group]).status();
+  let ended = (0..100).any(|_| {
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    matches!(shell.try_wait(), Ok(Some(_)))
+  });
+  let _ = std::process::Command::new("kill").args(["-KILL", "--", &group]).status();
+  let _ = shell.wait();
+
+  assert!(ended, "the pane's shell ends as its pane closes");
+  line
+}
+
+// "a new login's pane closed with no login written leaves no directory on the node, and one written stays"
+#[test]
+fn a_new_login_s_pane_closed_with_no_login_written_leaves_no_directory_and_one_written_stays() {
+  let node = tempfile::tempdir().unwrap();
+  let root = node.path().join("bmo");
+  let config = root.join("data/env/fresh");
+  let launch = |fresh| {
+    node_launch(
+      &root.to_string_lossy(),
+      &node.path().to_string_lossy(),
+      &config.to_string_lossy(),
+      "C.UTF-8",
+      fresh,
+    )
+  };
+
+  run_pane(&launch(true), node.path(), "-HUP");
+  assert!(!config.exists(), "a new login given up leaves nothing");
+
+  // A login the CLI wrote stays as the pane closes.
+  std::fs::create_dir_all(&config).unwrap();
+  std::fs::write(config.join(".credentials.json"), "{}").unwrap();
+  run_pane(&launch(true), node.path(), "-HUP");
+  assert!(config.join(".credentials.json").is_file());
+
+  // An account signed in again keeps its directory whatever the sign-in came to.
+  std::fs::remove_file(config.join(".credentials.json")).unwrap();
+  run_pane(&launch(false), node.path(), "-HUP");
+  assert!(config.is_dir());
 }
 
 #[test]

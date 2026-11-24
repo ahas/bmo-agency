@@ -41,6 +41,7 @@ fn a_program_reads_as_the_nodes_with_its_files_gathered_and_no_token_of_this_mac
     keep: &keep,
     path: Some("/n/.bun/bin:/usr/bin"),
     add: &add,
+    programs: &[],
   };
   let mut named = Vec::new();
 
@@ -77,4 +78,36 @@ fn a_path_between_single_quotes_reads_as_the_nodes_and_is_gathered() {
 
   assert_eq!(settings["apiKeyHelper"], "cat '/n/w/data/env/llm-gateway.key'");
   assert_eq!(named, ["/h/a/.local/share/bmo/data/env/llm-gateway.key"]);
+}
+
+#[test]
+fn a_command_whose_program_the_node_keeps_its_own_of_runs_that_one_and_no_other_word_moves() {
+  let mut program: Value = serde_json::json!({
+    "command": { "args": ["claude", "--name", "claude"], "cwd": "/n/repo" },
+    "restart": { "args": ["claude", "--resume", "s"], "cwd": "/n/repo" },
+    "other": { "args": ["codex", "claude"] }
+  });
+  let programs = vec![("claude".to_owned(), "/n/w/bin/bmo-claude".to_owned())];
+  let env = NodeEnv {
+    programs: &programs,
+    ..NodeEnv::default()
+  };
+
+  rewrite_json(&mut program, &roots(), &env, &[], &mut Vec::new());
+
+  assert_eq!(
+    program["command"]["args"],
+    serde_json::json!(["/n/w/bin/bmo-claude", "--name", "claude"])
+  );
+  assert_eq!(program["restart"]["args"][0], "/n/w/bin/bmo-claude");
+  assert_eq!(program["other"]["args"], serde_json::json!(["codex", "claude"]));
+}
+
+#[test]
+fn a_node_that_keeps_no_program_of_its_own_runs_the_word_as_it_is() {
+  let mut program: Value = serde_json::json!({ "command": { "args": ["claude", "-p"] } });
+
+  rewrite_json(&mut program, &roots(), &NodeEnv::default(), &[], &mut Vec::new());
+
+  assert_eq!(program["command"]["args"][0], "claude");
 }

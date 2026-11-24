@@ -16,6 +16,7 @@ pub struct ClaudeCode {
   pub login: Login,
   pub node_login: NodeLogin,
   pub console_login: ConsoleLogin,
+  pub workplace_copy: WorkplaceCopy,
   pub usage: Usage,
   pub advisor: Advisor,
 }
@@ -62,6 +63,20 @@ pub struct ConsoleLogin {
   pub took: Vec<String>,
   /// The words the CLI says once it refused the code, any one of which ends such a sign-in refused.
   pub refused: Vec<String>,
+  /// The line a sign-in's pane on a node says where the workplace's own Claude Code does not stand.
+  pub missing: String,
+}
+
+/// The workplace's own Claude Code on a node (docs/work-nodes.md, 「The workplace on a node」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkplaceCopy {
+  /// Where it stands under the workplace's root.
+  pub path: String,
+  /// The release downloads it is fetched from.
+  pub downloads: String,
+  /// The variables every program of the workplace runs it with.
+  pub env: Vec<(String, String)>,
 }
 
 /// Each account's token for the work nodes: where this machine keeps it, the verb that makes one, and

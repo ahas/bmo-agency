@@ -12,7 +12,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
@@ -93,6 +93,16 @@ pub fn silences_path(named: Option<&str>) -> PathBuf {
     .map_or_else(|| std::env::temp_dir().join("bmo-herdr-silences.jsonl"), PathBuf::from)
 }
 
+/// What a pane read reads, by the words herdr's `pane.read` takes for it: what the pane shows now, its latest
+/// lines as they wrapped, or its latest lines with the soft wraps joined again.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadSource {
+  Visible,
+  Recent,
+  RecentUnwrapped,
+}
+
 /// One herdr: its socket, and, for this machine's own, where an unanswered call is written down; for another
 /// machine's, how long a call is waited on before it is answered as herdr silent.
 #[derive(Clone, Debug)]
@@ -133,6 +143,29 @@ impl Herdr {
 
   pub fn socket(&self) -> &Path {
     &self.socket
+  }
+
+  /// A pane's text as the source reads it, its latest `lines` where it reads latest lines, or what herdr said
+  /// instead.
+  pub async fn read_pane(
+    &self,
+    pane: &str,
+    source: ReadSource,
+    lines: Option<u32>,
+  ) -> Result<String, Fault> {
+    let mut params = json!({ "pane_id": pane, "source": source });
+
+    if let Some(lines) = lines {
+      params["lines"] = json!(lines);
+    }
+
+    let answer = self.call("pane.read", params, None).await?;
+
+    answer
+      .pointer("/read/text")
+      .and_then(Value::as_str)
+      .map(str::to_owned)
+      .ok_or_else(|| Fault::new("unreadable", "herdr answered the read with no text".to_owned()))
   }
 
   /// One request, answered with its result or what herdr said instead, however long this machine's herdr

@@ -126,12 +126,7 @@ pub async fn status_of(herdr: &Herdr, pane: &str, confirm: GoneConfirm) -> Look 
 /// What a person looking at the pane would read: always the read, never the scroll, since the program
 /// draws on the alternate screen.
 pub async fn screen_of(herdr: &Herdr, pane: &str) -> String {
-  herdr
-    .call("pane.read", json!({ "pane_id": pane, "source": "visible" }), None)
-    .await
-    .ok()
-    .and_then(|answer| answer.pointer("/read/text").and_then(Value::as_str).map(str::to_owned))
-    .unwrap_or_default()
+  herdr.read_pane(pane, herdr::ReadSource::Visible, None).await.unwrap_or_default()
 }
 
 /// Keys pressed in a pane, as a person at its keyboard would.

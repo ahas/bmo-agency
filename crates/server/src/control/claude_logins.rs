@@ -558,7 +558,7 @@ struct NodePane {
 }
 
 // How many of the pane's latest lines a look reads: the sign-in's whole exchange.
-const SCREEN_LINES: i64 = 200;
+const SCREEN_LINES: u32 = 200;
 
 impl NodePane {
   /// The workspace made on the node's herdr and the launch laid out alone in its tab; a workspace whose pane
@@ -600,19 +600,19 @@ impl NodePane {
     })
   }
 
-  /// What the pane has written lately, its soft-wrapped lines joined again by herdr itself.
-  async fn screen(&self) -> String {
+  /// What the pane has written lately, its soft-wrapped lines joined again by herdr itself, or herdr's words where
+  /// it read none.
+  async fn read(&self) -> Result<String, String> {
     self
       .herdr
-      .call(
-        "pane.read",
-        json!({ "pane_id": self.pane, "source": "recent-unwrapped", "lines": SCREEN_LINES }),
-        None,
-      )
+      .read_pane(&self.pane, herdr::ReadSource::RecentUnwrapped, Some(SCREEN_LINES))
       .await
-      .ok()
-      .and_then(|answer| answer.pointer("/read/text").and_then(Value::as_str).map(str::to_owned))
-      .unwrap_or_default()
+      .map_err(|fault| fault.message)
+  }
+
+  /// What the pane has written lately, or nothing where herdr read none.
+  async fn screen(&self) -> String {
+    self.read().await.unwrap_or_default()
   }
 
   /// The pane and its workspace closed, the CLI and the shell holding it ended with them.
@@ -639,17 +639,32 @@ const NODE_CARRIED_LOGINS: [&str; 3] =
   ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"];
 
 /// The launch of a person's sign-in on their node: the CLI's own sign-in, the same words as the owner's, run
-/// as the node's user under the node's workplace, its configuration directory `home`, no browser opened
-/// there, and every other login taken away first. A shell holds the pane after the CLI ends, so what it said
-/// last stays to be read; the CLI's words are handed to it as arguments, never spliced into its script.
-pub fn node_launch(node_root: &str, node_home: &str, home: &str, lang: &str) -> NodeLaunch {
+/// by the workplace's own Claude Code in place of the word `claude` (docs/work-nodes.md, 「The workplace on a
+/// node」), as the node's user under the node's workplace, its configuration directory `home`, its updater off,
+/// no browser opened there, and every other login taken away first. Where that Claude Code does not stand, the
+/// pane says the policy's line for it in place of starting anything. A shell holds the pane after the CLI ends, so
+/// what it said last stays to be read; the CLI's words are handed to it as arguments, never spliced into its script.
+/// A `fresh` sign-in, a new login's, takes its directory away as its pane closes where no login was written into it,
+/// so a new login given up, refused or never shown an address leaves nothing on the node.
+pub fn node_launch(node_root: &str, node_home: &str, home: &str, lang: &str, fresh: bool) -> NodeLaunch {
+  let policy = &CLAUDE_CODE.console_login;
+  let leave = if fresh {
+    format!(
+      r#"gone() {{ [ -f "$CLAUDE_CONFIG_DIR/{CREDENTIAL_FILE}" ] || rm -rf "$CLAUDE_CONFIG_DIR"; exit 0; }}; trap gone HUP INT TERM; "#
+    )
+  } else {
+    String::new()
+  };
   let script = format!(
-    r#"unset {}; mkdir -p -m 700 "$CLAUDE_CONFIG_DIR" && "$@"; while :; do sleep 3600; done"#,
-    NODE_CARRIED_LOGINS.join(" ")
+    r#"{leave}unset {}; mkdir -p -m 700 "$CLAUDE_CONFIG_DIR" && if [ -x "$1" ]; then "$@"; else printf '%s\n' {}; fi; while :; do sleep 3600; done"#,
+    NODE_CARRIED_LOGINS.join(" "),
+    crate::verbs::work_node_setup::shell_word(&policy.missing),
   );
   let mut command = vec!["/bin/sh".to_owned(), "-c".to_owned(), script, "claude-sign-in".to_owned()];
+  let mut words = policy.command.iter().cloned();
 
-  command.extend(CLAUDE_CODE.console_login.command.iter().cloned());
+  command.extend(words.next().map(|_| crate::watches::links::own_claude(node_root)));
+  command.extend(words);
 
   let path = crate::watches::links::path_head(node_home, node_root)
     .into_iter()
@@ -667,8 +682,16 @@ pub fn node_launch(node_root: &str, node_home: &str, home: &str, lang: &str) -> 
       ("CLAUDE_CONFIG_DIR".to_owned(), home.to_owned()),
       // The browser is the person's own, wherever they are: none is opened on the node.
       ("BROWSER".to_owned(), "true".to_owned()),
-    ]),
+    ])
+    .into_iter()
+    .chain(CLAUDE_CODE.workplace_copy.env.iter().cloned())
+    .collect(),
   }
+}
+
+/// Whether a sign-in's pane says the workplace's own Claude Code does not stand, by the policy's line for it.
+pub fn says_missing(screen: &str) -> bool {
+  plain(screen).lines().any(|line| line.trim() == CLAUDE_CODE.console_login.missing)
 }
 
 /// What a sign-in's pane says of the login once its code was typed.
@@ -704,6 +727,24 @@ pub fn said_since(before: &str, now: &str) -> String {
   let shared = before.chars().zip(now.chars()).take_while(|(one, other)| one == other).count();
 
   now.chars().skip(shared).collect()
+}
+
+// The refusal of a sign-in on a node whose workplace holds no Claude Code of its own yet, the node's setup started
+// to lay it, so a start a few minutes later finds it.
+async fn no_cli(ground: &crate::places::Ground, node: &str) -> Refused {
+  use crate::watches::links::LinkUnits;
+
+  if !crate::watches::links::Systemd(&ground.roots).set_up(node).await {
+    eprintln!("{node}: the setup that lays the workplace's own Claude Code did not start");
+  }
+
+  Refused::new(StatusCode::CONFLICT, fill_marks(&words().no_cli, &[("node", node)])).with_code("no-cli")
+}
+
+// The refusal of a sign-in whose pane herdr would not read until the bound, in herdr's words.
+fn unread(node: &str, why: &str) -> Refused {
+  Refused::new(StatusCode::BAD_GATEWAY, fill_marks(&words().unread, &[("node", node), ("said", why)]))
+    .with_code("pane-unread")
 }
 
 fn not_attached(node: &str, words_of: &str) -> Refused {
@@ -803,24 +844,38 @@ async fn start_on_node(
       new_home(&Path::new(&node_root).join("data"), &name).to_string_lossy().into_owned(),
     ),
   };
+  if !crate::watches::links::holds_own_claude(&ground.roots, &node) {
+    return Err(no_cli(ground, &node).await);
+  }
+
   let lang = ground.vars().get("LANG").cloned().unwrap_or_else(|| "C.UTF-8".to_owned());
-  let launch = node_launch(&node_root, &node_home, &home, &lang);
+  let launch = node_launch(&node_root, &node_home, &home, &lang, again.is_none());
   let herdr = herdr::Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
     .within(crate::places::node_herdr_ceiling());
   let pane = NodePane::open(herdr, &format!("sign-in · {name}"), &launch).await?;
 
   let bound = Instant::now() + Duration::from_secs(CLAUDE_CODE.console_login.link_seconds);
   let address = loop {
-    let screen = pane.screen().await;
+    let read = pane.read().await;
+    let screen = read.as_deref().unwrap_or_default();
 
-    if let Some(address) = sign_in_address(&screen) {
+    if let Some(address) = sign_in_address(screen) {
       break address;
+    }
+
+    if says_missing(screen) {
+      pane.close().await;
+
+      return Err(no_cli(ground, &node).await);
     }
 
     if Instant::now() >= bound {
       pane.close().await;
 
-      return Err(no_link(&screen));
+      return Err(match read {
+        Err(why) => unread(&node, &why),
+        Ok(screen) => no_link(&screen),
+      });
     }
 
     tokio::time::sleep(Duration::from_millis(500)).await;

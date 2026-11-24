@@ -1492,8 +1492,9 @@ keys, localAis}`, how many it turned off. A person's own call is refused 403 `fo
 
 **A person's sign-in** (`POST /claude-logins` from a person's call) starts on the person's node, named by its
 record (「person-nodes」): a person with no node record is signed in on their isolation node, and one whose node
-is not attached now is refused 409 `node-not-attached`, and one with no ready workplace yet 409 `node-not-ready`. It
-takes `account` or `name`, not both, 400 `account-or-name`:
+is not attached now is refused 409 `node-not-attached`, one with no ready workplace yet 409 `node-not-ready`, and
+one whose workplace holds no Claude Code of its own yet 409 `no-cli`, the node's setup started to install it
+(`docs/supply.md`, 「Signing a person's login in」). It takes `account` or `name`, not both, 400 `account-or-name`:
 - `account` signs the person's own login in again in its directory on their node, and the code's answer lifts its
   mark of a login waiting for its person (`docs/supply.md`, 「Signing a person's login in」). An account that is not
   the person's own, or not there, is 404 `unknown-account`; an `api-key` account 422 `not-a-directory`; and a login

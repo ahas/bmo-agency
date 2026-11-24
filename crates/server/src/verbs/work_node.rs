@@ -21,12 +21,14 @@ use super::work_node_hub::{HubDoor, HubHands};
 use super::work_node_isolated::{IsolatedDoor, IsolatedHands};
 use super::work_node_setup::{
   COPY_LEFT_OUT, FarEnd, SetupCheckout, SetupHands, SetupLogin, SetupOutcome, SetupPlace, SetupShell,
-  ShellRun, set_up_workplace, shell_word,
+  ShellRun, claude_release_of, set_up_workplace, shell_word,
 };
 use super::{Answer, VerbError, deploy_link, home, service};
 use crate::control::claude_accounts::accounts;
 use crate::peers::node::{NodeKind, NodeService};
-use crate::watches::links::{Roots, deployed_commit, link_heard, link_refused, link_unit, node_path};
+use crate::watches::links::{
+  Roots, SETUP_CLAUDE, deployed_commit, link_heard, link_refused, link_unit, node_path,
+};
 
 /// The root a workplace takes where its setup names none, under the node's home.
 pub const DEFAULT_WORKPLACE_ROOT: &str = "~/.local/share/bmo-node";
@@ -664,6 +666,7 @@ async fn stand(
     herdr: local_program("herdr"),
     rust: local_version("rustc", &["--version"], Some("rustc ")),
     bun: local_version("bun", &["--version"], None),
+    claude: local_version("claude", &["--version"], None).and_then(|said| claude_release_of(&said)),
     session: HERDR_SESSION.to_owned(),
     far_end: matches!(door, Door::Hub(_)).then(person_far_end),
   };
@@ -752,6 +755,12 @@ async fn stand(
       read_json(&path).and_then(|setup| setup.get("commit").cloned())
     };
     let mut record = json!({ "herdrSession": HERDR_SESSION, "herdrSocket": socket, "commit": commit.unwrap_or(Value::Null) });
+
+    // The release the workplace's own Claude Code reports, where it stands, by which the link runs it in place of the
+    // word `claude` (docs/work-nodes.md, 「The link」).
+    if let Some(claude) = &outcome.claude {
+      record[SETUP_CLAUDE] = Value::String(claude.clone());
+    }
 
     // On a PC, whether its personal tools run confined, and why not where they cannot.
     if place.far_end.is_some() {

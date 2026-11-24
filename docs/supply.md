@@ -106,6 +106,17 @@ platform pays for takes it.
 - **A person with no node attached cannot sign in yet:** the start is refused 409 `node-not-attached` where the
   node's link is not heard now, and 409 `node-not-ready` where it has no ready workplace yet, as while it is first
   set up (`docs/person-nodes.md`, 「The workplace on a PC」).
+- **The sign-in runs the workplace's own Claude Code,** `<root>/bin/bmo-claude` (`docs/work-nodes.md`, 「The
+  workplace on a node」), never a `claude` the person installed for themselves. Where it does not stand yet — the
+  node's setup record names no copy, or the pane finds none at its path — the start is refused 409 `no-cli`,
+  saying Claude Code is not installed on the PC yet and is being installed, and the node's setup is started with
+  `--install` as a unit of its own (`docs/person-nodes.md`, 「The workplace on a PC」), so a start a few minutes
+  later finds it.
+- **A new login that does not take leaves nothing on the node:** given up, refused, past its bound or never shown an
+  address, its pane closes and the shell holding it takes the new login's directory away where the CLI wrote no
+  login into it. A login signed in again keeps its directory whatever the sign-in came to.
+- **A pane herdr cannot read is said as such:** a start whose pane herdr refused to read until the bound ends 502
+  with herdr's own words, never as a CLI that said nothing.
 
 ## The sources a run walks
 

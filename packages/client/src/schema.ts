@@ -7002,6 +7002,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-cli */
+        NoCli: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-job */
         NoJob: {
             headers: {
@@ -7247,6 +7256,15 @@ export interface components {
         };
         /** @description own-repository */
         OwnRepository: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description pane-unread */
+        PaneUnread: {
             headers: {
                 [name: string]: unknown;
             };
@@ -9453,6 +9471,7 @@ export interface operations {
             404: components["responses"]["UnknownAccount"];
             409: components["responses"]["NameTaken"];
             422: components["responses"]["NotADirectory"];
+            502: components["responses"]["PaneUnread"];
         };
     };
     codeClaudeLogin: {

@@ -320,10 +320,22 @@ async fn a_person_s_sign_in_says_each_refusal_and_signs_their_own_login_in_again
     (409, "login-elsewhere".to_owned())
   );
 
-  // One standing on their node now goes past every refusal to the node's herdr, which no test stands.
+  // One standing on their node now, whose workplace holds no Claude Code of its own, hears so and the node's
+  // setup is started to lay it, so a start a few minutes later finds it.
   scratch
     .run(r#"UPDATE "claude_accounts" SET "node" = 'account-7' WHERE "id" = 'seven'"#, vec![])
     .await;
+  assert_eq!(
+    refusal(started(json!({ "account": "seven" })).await.unwrap()).await,
+    (409, "no-cli".to_owned())
+  );
+
+  // That Claude Code laid, the sign-in goes past every refusal to the node's herdr, which no test stands.
+  std::fs::write(
+    node_dir.join("setup.json"),
+    json!({ "claude": "~/.bmo/workplace/bin/bmo-claude" }).to_string(),
+  )
+  .unwrap();
   assert_eq!(started(json!({ "account": "seven" })).await.unwrap().status().as_u16(), 502);
 }
 

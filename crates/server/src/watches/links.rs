@@ -12,10 +12,12 @@ use std::process::Stdio;
 use agent_host::place::Place;
 use harness_machine::model_use::with_user_bus;
 use harness_providers::Machine;
+use harness_providers::claude_code::ClaudeCode;
 use node_link::frame::Pull;
 use node_link::spec::{Forward, Jake, Landing, Local, Push, Spec};
 use policy::account_isolation::ACCOUNT_ISOLATION;
 use policy::person_nodes::PERSON_NODES;
+use policy::providers::claude_code::CLAUDE_CODE;
 use policy::work_nodes::WORK_NODES;
 use sea_orm::{ConnectionTrait, DatabaseConnection};
 use serde::Serialize;
@@ -123,6 +125,28 @@ const HEARD_WITHIN_MS: i64 = 20_000;
 
 /// The directory under the data root every agent's place stands in.
 const PLACES_DIR: &str = "agent-places";
+
+/// The field of a node's setup record naming the release of the workplace's own Claude Code, where it stands
+/// (docs/work-nodes.md, 「The workplace on a node」).
+pub const SETUP_CLAUDE: &str = "claude";
+
+/// Whether a node's setup record names the workplace's own Claude Code standing.
+pub fn names_own_claude(setup: &Value) -> bool {
+  setup.get(SETUP_CLAUDE).is_some_and(Value::is_string)
+}
+
+/// Whether the workplace on a node holds its own Claude Code, as its setup record last said.
+pub fn holds_own_claude(roots: &Roots, node: &str) -> bool {
+  read_json(&roots.setup_path(node)).is_some_and(|setup| names_own_claude(&setup))
+}
+
+/// Where the workplace's own Claude Code stands under the workplace's root on the node.
+pub fn own_claude(node_root: &str) -> String {
+  Path::new(node_root)
+    .join(&CLAUDE_CODE.workplace_copy.path)
+    .to_string_lossy()
+    .into_owned()
+}
 
 /// The unit one node's link runs under.
 pub fn link_unit(node: &str) -> String {
@@ -823,6 +847,19 @@ pub async fn spec(
     None => Vec::new(),
   };
 
+  // The workplace's own Claude Code runs in place of the word `claude`, its updater off, once the node's setup record
+  // names it standing; a node whose record names none yet runs the word as it is (docs/work-nodes.md, 「The link」).
+  let own_claude = setup.as_ref().is_some_and(names_own_claude).then(|| own_claude(&node_root));
+  let mut env_add = vec![
+    ("BMO_HOME_BRIDGE".into(), bridge),
+    ("BMO_DATA_DIR".into(), join(&node_root, "data")),
+    ("BMO_NODE".into(), node.to_owned()),
+  ];
+
+  if own_claude.is_some() {
+    env_add.extend(CLAUDE_CODE.workplace_copy.env.iter().cloned());
+  }
+
   Ok(Ok(Spec {
     node: node.to_owned(),
     ssh: ssh.unwrap_or_default(),
@@ -857,11 +894,8 @@ pub async fn spec(
     handed,
     path_head: path_head(&home, &node_root),
     env_keep: NODE_ENV_KEEP.map(str::to_owned).to_vec(),
-    env_add: vec![
-      ("BMO_HOME_BRIDGE".into(), bridge),
-      ("BMO_DATA_DIR".into(), join(&node_root, "data")),
-      ("BMO_NODE".into(), node.to_owned()),
-    ],
+    env_add,
+    programs: own_claude.map(|own| vec![(ClaudeCode::PROGRAM.to_owned(), own)]).unwrap_or_default(),
     folders: agents
       .iter()
       .filter(|placed| !placed.checkout)

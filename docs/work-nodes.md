@@ -25,11 +25,11 @@ side of a remote agent, the rotation, and what a dropped node does.
   user (`docs/account-isolation.md`, 「Standing it up」).
 - **What setup makes, each step checked before the next, and everything still missing said:**
   1. the login, and the node's home read through it;
-  2. the tools: git, rsync and curl are the machine's to have; the JavaScript runtime, the Rust
-     toolchain and Claude Code are installed into the node's account with `--install`, each installer
-     fetched into a file and run with nothing on its standing input, and waited on until it exits;
-     where Claude Code's own install step ended without putting the binary in place, the binary it
-     fetched is put there from its downloads. The runtime is the version this
+  2. the tools: git, rsync and curl are the machine's to have; the JavaScript runtime and the Rust
+     toolchain are installed into the node's account with `--install`, each installer
+     fetched into a file and run with nothing on its standing input, and waited on until it exits.
+     Claude Code is none of the account's tools: the workplace keeps its own (step 4), and a `claude` the
+     account installed for itself is never run, installed or updated by agency. The runtime is the version this
      machine runs, since a newer one may refuse the repository's own configuration: where the account
      has none or another version, that version is installed into the workplace's own `<root>/bun`, which
      every command and program of the workplace finds ahead of the account's, so the account's own
@@ -51,7 +51,14 @@ side of a remote agent, the rotation, and what a dropped node does.
      fields and dependencies are the repository workspace's own, which a test holds it to. The testbed binary a
      node runs is the testbed unit's, not one agency builds; each binary built is put in place by renaming
      a copy over it, since one running there — the far end, the agent host — refuses to be written over;
-     a build ends the agent host standing on the old binary;
+     a build ends the agent host standing on the old binary. With every copy the workplace's own Claude Code
+     is laid too, under a name of its own, `<root>/bin/bmo-claude`, on no search path of the account's, so it
+     never stands in for or over a `claude` the account keeps: the release this machine's `claude` reports,
+     fetched by the node from Claude Code's release downloads for the node's processor and C library, checked
+     against the checksum the release's manifest names, and renamed into place, where the one standing reports
+     another release or none. It never updates itself, since every program of the workplace runs it with its
+     updater off; the next setup or sync brings it to the release this machine runs then. A check, which copies
+     nothing, finds it missing where it does not stand or does not run;
   5. the node's data root, `<root>/data`, which holds the node's agent places and nothing of the
      store;
   6. herdr: a node with none is given this machine's, which is one static binary, so a matching one is
@@ -168,7 +175,10 @@ side of a remote agent, the rotation, and what a dropped node does.
     the program's environment only the run's own variables, the CLI's (the account's token for the nodes
     among them), its place, its tool token, the console's public address, a supervisor's owner account and
     a gateway road's own variables: no other token of the bot's leaves this machine. The node's own search
-    path and the bridge's socket are laid over it. A path a string names counts wherever it stands whole —
+    path and the bridge's socket are laid over it. A command whose program is `claude` runs the workplace's own
+    Claude Code there, `<root>/bin/bmo-claude` in its place, with Claude Code's updater off, once the node's setup
+    record names that copy standing (step 4 above); a node whose record names none yet runs the word as it is. A
+    path a string names counts wherever it stands whole —
     alone, after a separator a command line or a list of paths puts before one, or between single quotes as
     a key helper's command quotes it;
   - from the node to here: the place's running record and start failure; the program's transcripts,

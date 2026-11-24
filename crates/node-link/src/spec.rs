@@ -60,6 +60,11 @@ pub struct Spec {
   pub env_keep: Vec<String>,
   #[serde(default)]
   pub env_add: Vec<(String, String)>,
+  /// Each program word a pushed command names first with the node's own program run in its place: the word
+  /// `claude` with the workplace's own Claude Code, where the node's setup laid one (docs/work-nodes.md, 「The
+  /// link」).
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub programs: Vec<(String, String)>,
   /// The folders on the node the programs of the places pushed there work in, made where they are not: a
   /// supervisor's own folder or a run's, which nothing else of the place makes there.
   #[serde(default)]

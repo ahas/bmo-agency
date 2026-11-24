@@ -711,6 +711,7 @@ impl Pushing {
       keep: &spec.env_keep,
       path: node_path,
       add: &spec.env_add,
+      programs: &spec.programs,
     };
 
     rewrite_json(&mut value, &spec.rewrite, &env, &spec.follow, &mut named);

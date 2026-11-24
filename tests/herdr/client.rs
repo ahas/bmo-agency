@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use herdr::{
-  AGENT_BLOCKED, Fault, Herdr, LINE_CAP_BYTES, LayoutNode, TOO_LARGE, command_of_pane, read_frame,
-  socket_path,
+  AGENT_BLOCKED, Fault, Herdr, LINE_CAP_BYTES, LayoutNode, ReadSource, TOO_LARGE, command_of_pane,
+  read_frame, socket_path,
 };
 use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -154,4 +154,45 @@ async fn a_node_s_herdr_that_never_answers_is_answered_silent_past_its_ceiling()
   held.abort();
   assert_eq!(silent.code, herdr::SILENT);
   assert!(silent.message.contains("pane.read"), "{}", silent.message);
+}
+
+// "a pane is read by the source words herdr takes"
+#[tokio::test]
+async fn a_pane_is_read_by_the_source_words_herdr_takes() {
+  let dir = tempfile::tempdir().unwrap();
+  let socket = dir.path().join("herdr.sock");
+  let listener = tokio::net::UnixListener::bind(&socket).unwrap();
+
+  // herdr's own sources: any other word is refused as an unknown variant, as herdr refuses it.
+  tokio::spawn(async move {
+    loop {
+      let (stream, _) = listener.accept().await.unwrap();
+      let mut reader = BufReader::new(stream);
+      let mut line = String::new();
+
+      reader.read_line(&mut line).await.unwrap();
+
+      let asked: Value = serde_json::from_str(&line).unwrap();
+      let source = asked["params"]["source"].as_str().unwrap_or_default().to_owned();
+      let answer = if ["visible", "recent", "recent_unwrapped", "detection"].contains(&source.as_str()) {
+        json!({ "id": asked["id"], "result": { "read": { "text": format!("{source} {}", asked["params"]["lines"]) } } })
+      } else {
+        json!({ "id": asked["id"], "error": { "code": "invalid_request", "message": format!("unknown variant `{source}`") } })
+      };
+
+      reader.into_inner().write_all(format!("{answer}\n").as_bytes()).await.unwrap();
+    }
+  });
+
+  let herdr = Herdr::there(socket);
+
+  assert_eq!(
+    herdr.read_pane("p", ReadSource::RecentUnwrapped, Some(200)).await,
+    Ok("recent_unwrapped 200".to_owned())
+  );
+  assert_eq!(herdr.read_pane("p", ReadSource::Visible, None).await, Ok("visible null".to_owned()));
+  assert_eq!(
+    serde_json::to_value([ReadSource::Visible, ReadSource::Recent, ReadSource::RecentUnwrapped]).unwrap(),
+    json!(["visible", "recent", "recent_unwrapped"])
+  );
 }

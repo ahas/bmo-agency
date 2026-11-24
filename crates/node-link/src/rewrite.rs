@@ -59,15 +59,18 @@ fn named_under(text: &str, root: &str, found: &mut Vec<String>) {
   }
 }
 
-/// How a program's environment reads on the node: only the variables kept, its search path the
-/// node's own, and the node's own variables laid over it. A variable this machine's environment holds
-/// that is not kept never leaves it, which is how a token of the bot's stays here.
+/// How a program reads on the node: only the variables of its environment kept, its search path the
+/// node's own, the node's own variables laid over it, and a program word the node keeps a program of its own for
+/// run as that one. A variable this machine's environment holds that is not kept never leaves it, which is how a
+/// token of the bot's stays here.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct NodeEnv<'a> {
   /// The names kept; one ending in `*` keeps every name it begins.
   pub keep: &'a [String],
   pub path: Option<&'a str>,
   pub add: &'a [(String, String)],
+  /// Each program word with the path of the node's own program run in its place, as a command's first word.
+  pub programs: &'a [(String, String)],
 }
 
 fn kept(name: &str, keep: &[String]) -> bool {
@@ -121,6 +124,14 @@ pub fn rewrite_json(
         }
 
         rewrite_json(field, roots, env, gather, named);
+
+        // A command's program the node keeps one of its own for runs as that one.
+        if key == "args"
+          && let Some(Value::String(program)) = field.as_array_mut().and_then(|args| args.first_mut())
+          && let Some((_, own)) = env.programs.iter().find(|(word, _)| word == program)
+        {
+          *program = own.clone();
+        }
       }
     }
     _ => {}
