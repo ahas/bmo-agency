@@ -51,17 +51,6 @@ pub struct Room {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Capabilities {
-  pub document: String,
-  pub withheld: String,
-  pub handed: String,
-  pub sending: String,
-  pub sending_none: String,
-  pub sending_handed: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Rules {
   pub room_rules: String,
   pub grants_down: String,
@@ -105,7 +94,6 @@ pub struct ChatLine {
   pub tools: Tools,
   pub persona: Persona,
   pub room: Room,
-  pub capabilities: Capabilities,
   pub downgrade: Downgrade,
   pub fallback: Fallback,
   pub rules: Rules,
