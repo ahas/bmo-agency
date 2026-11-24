@@ -3638,8 +3638,11 @@
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
+          "400": {
+            "$ref": "#/components/responses/AccountOrName"
+          },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "$ref": "#/components/responses/UnknownAccount"
           },
           "422": {
             "$ref": "#/components/responses/NotADirectory"
@@ -3650,12 +3653,15 @@
         },
         "x-codes": [
           "unauthorized",
-          "not-found",
+          "account-or-name",
+          "unknown-account",
           "not-a-directory",
           "directory-taken",
           "name-taken",
           "no-link",
-          "node-not-attached"
+          "node-not-attached",
+          "node-not-ready",
+          "login-elsewhere"
         ],
         "requestBody": {
           "required": true,
@@ -15063,7 +15069,7 @@
           "account",
           "name"
         ],
-        "description": "A Claude account's sign-in started from the console: a directory account there by its id, or a new account by\nits name, one of the two."
+        "description": "A Claude account's sign-in started from the console: a directory account there by its id, or a new account by\nits name, at most one of the two; naming neither starts a new account agency names."
       },
       "ClaudeLoginCode": {
         "type": "object",
@@ -22171,6 +22177,16 @@
           }
         }
       },
+      "AccountOrName": {
+        "description": "account-or-name",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "AgentBusy": {
         "description": "agent-busy",
         "content": {
@@ -22381,6 +22397,16 @@
           }
         }
       },
+      "LoginElsewhere": {
+        "description": "login-elsewhere",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "MembersUnread": {
         "description": "members-unread",
         "content": {
@@ -22543,6 +22569,16 @@
       },
       "NodeNotAttached": {
         "description": "node-not-attached",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NodeNotReady": {
+        "description": "node-not-ready",
         "content": {
           "application/json": {
             "schema": {

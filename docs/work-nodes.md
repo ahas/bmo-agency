@@ -93,7 +93,7 @@ side of a remote agent, the rotation, and what a dropped node does.
   that finds it ready makes the next pass stand its link again, and a sync of its copy where the deployment has
   moved past it. So a check that failed on something passing — a hub that did not answer one step — does not
   keep the link down. An account's isolation node is stood up again instead (`docs/account-isolation.md`,
-  「Standing it up」).
+  「Standing it up」), and so is a person's PC (`docs/person-nodes.md`, 「The workplace on a PC」).
 - **The node's copy follows the deployment.** The setup writes down the deployed commit it copied, as
   the deployment's record beside the deploy tree's link names it, and only where its copy was laid over the
   node's: a copy that failed leaves the commit the node held written, so the next sync copies again. Where the deployed commit has moved

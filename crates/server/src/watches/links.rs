@@ -5,7 +5,7 @@
 //! no longer ready. A process on a copy of the data root keeps none, since a link is the machine's unit
 //! for that node.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -134,7 +134,7 @@ pub fn check_unit(node: &str) -> String {
   format!("bmo-node-check-{node}")
 }
 
-/// The unit an isolation node's workplace is stood up under.
+/// The unit an isolation node's or a person's PC's workplace is stood up under.
 pub fn setup_unit(node: &str) -> String {
   format!("bmo-node-setup-{node}")
 }
@@ -246,7 +246,8 @@ pub trait LinkUnits {
   fn stop(&self, unit: &str) -> impl Future<Output = ()> + Send;
   /// The node's copy of the code brought to the deployed commit, apart from the server.
   fn sync(&self, node: &str) -> impl Future<Output = bool> + Send;
-  /// An isolation node's workplace stood up, its user made with it, apart from the server; whether its setup runs.
+  /// An isolation node's workplace stood up, its user made with it, or a person's PC's, apart from the server;
+  /// whether its setup runs.
   fn set_up(&self, node: &str) -> impl Future<Output = bool> + Send;
   /// A workplace not ready checked again, apart from the server; whether its check runs.
   fn check(&self, node: &str) -> impl Future<Output = bool> + Send;
@@ -400,7 +401,8 @@ pub struct Settled {
   pub started: Vec<String>,
   pub stopped: Vec<String>,
   pub syncing: Vec<String>,
-  /// The isolation nodes whose setup was started (docs/account-isolation.md, 「Standing it up」).
+  /// The isolation nodes and persons' PCs whose setup was started (docs/account-isolation.md, 「Standing it up」, and
+  /// docs/person-nodes.md, 「The workplace on a PC」).
   pub setting_up: Vec<String>,
   /// The workplaces not ready whose check was started again (docs/work-nodes.md, 「The workplace on a node」).
   pub checking: Vec<String>,
@@ -1084,6 +1086,33 @@ pub async fn settle(
     }
   }
 
+  // A person's PC, a node an account's record names, is stood up apart from the server once its hub holds it: at
+  // once where it has no workplace, and again once a while has passed since what left it not ready, since a check
+  // installs nothing (docs/person-nodes.md, 「The workplace on a PC」).
+  let pcs: BTreeSet<String> = crate::person_nodes::every(db)
+    .await
+    .map_err(refused)?
+    .into_iter()
+    .map(|record| record.node)
+    .filter(|node| crate::account_isolation::Isolation::of_node(node).is_none())
+    .collect();
+
+  for node in &pcs {
+    let due = match held.iter().find(|place| &place.node == node) {
+      None => true,
+      Some(place) => {
+        place.state != "ready"
+          && place.checked_at.is_none_or(|at| now - at >= PERSON_NODES.setup_again_seconds)
+      }
+    };
+
+    // A PC whose hub does not hold it now is not asked: its setup would fail at the first step, and it is stood up
+    // once its agent attaches.
+    if due && nodes.link_up(node).await.unwrap_or(false) && units.set_up(node).await {
+      settled.setting_up.push(node.clone());
+    }
+  }
+
   let deployed = deployed_commit(&roots.deploy);
 
   for workplace in held {
@@ -1097,8 +1126,9 @@ pub async fn settle(
       }
 
       // A workplace not ready is checked again once its while has passed, so a check that failed on something
-      // passing does not keep its link down; an isolation node is stood up again above instead.
+      // passing does not keep its link down; an isolation node and a person's PC are stood up again above instead.
       let due = crate::account_isolation::Isolation::of_node(&node).is_none()
+        && !pcs.contains(&node)
         && workplace.checked_at.is_none_or(|at| now - at >= WORK_NODES.check_again_seconds);
 
       if due && units.check(&node).await {

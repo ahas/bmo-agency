@@ -3,13 +3,14 @@
 //! said in the CLI's last words with the code taken out; and a new account's directory named by its name. A
 //! person's sign-in on their node, as far as it is read without a node: the pane it runs in, the address read off
 //! a screen that wrapped it, and the CLI's words after the code judging whether the login took. A person's new
-//! login named past every account's names, and a name another account holds refused under its field.
+//! login named past every account's names, and a name another account holds refused under its field; the owner's
+//! new login named the same way, past a directory that already holds files.
 
 use std::path::Path;
 
 use agency_server::control::claude_logins::{
-  NodeOutcome, last_words, name_refusal, new_home, next_login_name, node_launch, node_outcome, said_since,
-  sign_in_address,
+  NodeOutcome, last_words, name_refusal, new_home, new_login_name, next_login_name, node_launch,
+  node_outcome, said_since, sign_in_address,
 };
 use policy::control_words::CONTROL_WORDS;
 
@@ -107,4 +108,25 @@ fn a_name_another_account_holds_is_refused_under_the_name_field() {
   assert_eq!((long.status.as_u16(), long.field.as_deref()), (400, Some("name")));
 
   assert!(name_refusal("claude-02", &["claude-01"]).is_none());
+}
+
+#[test]
+fn a_new_login_named_by_agency_passes_every_name_and_every_directory_already_holding_files() {
+  let data = tempfile::tempdir().unwrap();
+  let names = ["claude-01", "claude-03"];
+
+  // A person's login, whose directory stands on their node, is the next number past every account's names.
+  assert_eq!(new_login_name(None, &names, None).unwrap(), "claude-04");
+
+  // The owner's stands here: a directory left holding files passes its number on to the next.
+  let left = new_home(data.path(), "claude-04");
+
+  std::fs::create_dir_all(&left).unwrap();
+  std::fs::write(left.join(".claude.json"), "{}").unwrap();
+  std::fs::create_dir_all(new_home(data.path(), "claude-05")).unwrap();
+  assert_eq!(new_login_name(None, &names, Some(data.path())).unwrap(), "claude-05");
+
+  // A name given is taken as given where no account holds it, and refused where one does.
+  assert_eq!(new_login_name(Some("mine"), &names, Some(data.path())).unwrap(), "mine");
+  assert_eq!(new_login_name(Some("claude-03"), &names, None).unwrap_err().code(), "name-taken");
 }

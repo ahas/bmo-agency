@@ -4064,7 +4064,7 @@ export interface components {
         };
         /**
          * @description A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
-         *     its name, one of the two.
+         *     its name, at most one of the two; naming neither starts a new account agency names.
          */
         ClaudeLoginStart: {
             /** @default null */
@@ -6640,6 +6640,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description account-or-name */
+        AccountOrName: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description agent-busy */
         AgentBusy: {
             headers: {
@@ -6829,6 +6838,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description login-elsewhere */
+        LoginElsewhere: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description members-unread */
         MembersUnread: {
             headers: {
@@ -6975,6 +6993,15 @@ export interface components {
         };
         /** @description node-not-attached */
         NodeNotAttached: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description node-not-ready */
+        NodeNotReady: {
             headers: {
                 [name: string]: unknown;
             };
@@ -9284,8 +9311,9 @@ export interface operations {
                     "application/json": components["schemas"]["ClaudeLoginStarted"];
                 };
             };
+            400: components["responses"]["AccountOrName"];
             401: components["responses"]["Unauthorized"];
-            404: components["responses"]["NotFound"];
+            404: components["responses"]["UnknownAccount"];
             409: components["responses"]["NameTaken"];
             422: components["responses"]["NotADirectory"];
         };

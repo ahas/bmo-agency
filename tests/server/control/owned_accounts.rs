@@ -234,7 +234,7 @@ async fn a_member_changes_their_own_accounts_alone_and_a_platform_account_alone_
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_person_s_sign_in_is_refused_while_their_node_is_not_attached() {
+async fn a_person_s_sign_in_says_each_refusal_and_signs_their_own_login_in_again_on_their_node() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
 
@@ -257,8 +257,19 @@ async fn a_person_s_sign_in_is_refused_while_their_node_is_not_attached() {
     (status, body["code"].as_str().unwrap_or_default().to_owned())
   };
 
-  // A person names a new account alone, never another's.
-  assert_eq!(refusal(started(json!({ "account": "eight" })).await.unwrap()).await.0, 400);
+  // A person names a login to sign in again or a new one's name, not both, and only their own login.
+  assert_eq!(
+    refusal(started(json!({ "account": "seven", "name": "mine" })).await.unwrap()).await,
+    (400, "account-or-name".to_owned())
+  );
+  assert_eq!(
+    refusal(started(json!({ "account": "eight" })).await.unwrap()).await,
+    (404, "unknown-account".to_owned())
+  );
+  assert_eq!(
+    refusal(started(json!({ "account": "main" })).await.unwrap()).await,
+    (404, "unknown-account".to_owned())
+  );
 
   // A name another account holds, the platform's here, is refused under its field, though the person sees none
   // of the platform's accounts.
@@ -273,4 +284,82 @@ async fn a_person_s_sign_in_is_refused_while_their_node_is_not_attached() {
     (409, "node-not-attached".to_owned())
   );
   assert_eq!(refusal(started(json!({})).await.unwrap()).await, (409, "node-not-attached".to_owned()));
+  assert_eq!(
+    refusal(started(json!({ "account": "seven" })).await.unwrap()).await,
+    (409, "node-not-attached".to_owned())
+  );
+
+  // Its link heard now, with no ready workplace yet, as while it is first set up.
+  let node_dir = home.path().join("data/nodes/account-7");
+
+  std::fs::create_dir_all(&node_dir).unwrap();
+  std::fs::write(
+    node_dir.join("link-state.json"),
+    json!({ "state": "connected", "heard": agency_server::now_ms() }).to_string(),
+  )
+  .unwrap();
+  assert_eq!(refusal(started(json!({})).await.unwrap()).await, (409, "node-not-ready".to_owned()));
+
+  // Ready, a login of theirs that stands elsewhere is not signed in again there.
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "created_at", "updated_at")
+         VALUES ('account-7', '~/node-root', '/home/tester', 'ready', 0, 0)"#,
+      vec![],
+    )
+    .await;
+  assert_eq!(
+    refusal(started(json!({ "account": "seven" })).await.unwrap()).await,
+    (409, "login-elsewhere".to_owned())
+  );
+  scratch
+    .run(r#"UPDATE "claude_accounts" SET "node" = 'n9' WHERE "id" = 'seven'"#, vec![])
+    .await;
+  assert_eq!(
+    refusal(started(json!({ "account": "seven" })).await.unwrap()).await,
+    (409, "login-elsewhere".to_owned())
+  );
+
+  // One standing on their node now goes past every refusal to the node's herdr, which no test stands.
+  scratch
+    .run(r#"UPDATE "claude_accounts" SET "node" = 'account-7' WHERE "id" = 'seven'"#, vec![])
+    .await;
+  assert_eq!(started(json!({ "account": "seven" })).await.unwrap().status().as_u16(), 502);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_owner_s_sign_in_says_each_refusal_by_its_own_code() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+
+  accounts_of_four(&scratch, home.path()).await;
+
+  let port = front(ground_on(scratch.db().clone(), home.path())).await;
+  let started = |body: Value| {
+    reqwest::Client::new()
+      .post(format!("http://127.0.0.1:{port}/claude-logins"))
+      .bearer_auth(TOKEN)
+      .json(&body)
+      .send()
+  };
+  let refusal = |answer: reqwest::Response| async move {
+    let status = answer.status().as_u16();
+    let body: Value = answer.json().await.unwrap();
+
+    (status, body["code"].as_str().unwrap_or_default().to_owned())
+  };
+
+  assert_eq!(
+    refusal(started(json!({ "account": "main", "name": "mine" })).await.unwrap()).await,
+    (400, "account-or-name".to_owned())
+  );
+  assert_eq!(
+    refusal(started(json!({ "account": "nine" })).await.unwrap()).await,
+    (404, "unknown-account".to_owned())
+  );
+  // A person's login is named in the one namespace every account's names share.
+  assert_eq!(
+    refusal(started(json!({ "name": "seven" })).await.unwrap()).await,
+    (409, "name-taken".to_owned())
+  );
 }

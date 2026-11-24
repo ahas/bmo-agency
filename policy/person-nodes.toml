@@ -35,3 +35,7 @@ bridge_verbs = ["agent-status", "use", "see", "watch", "talk", "archive"]
 # How often agency looks for the PCs heard again since its last look, to keep their shared apps' copies, in seconds
 # (docs/person-nodes.md, 「Keeping the copies」).
 copies_seconds = 30
+
+# How long after a setup, sync or check of a person's PC that left it not ready agency's server stands it up again by
+# itself, while its hub holds it, in seconds (docs/person-nodes.md, 「The workplace on a PC」).
+setup_again_seconds = 3600

@@ -21,6 +21,8 @@ pub struct PersonNodes {
   pub bridge_verbs: Vec<String>,
   /// How often the PCs heard again are looked for, to keep their shared apps' copies, in seconds.
   pub copies_seconds: u64,
+  /// How long after a setup, sync or check that left a person's PC not ready it is stood up again, in seconds.
+  pub setup_again_seconds: i64,
 }
 
 crate::part!(pub PERSON_NODES: PersonNodes = "person-nodes.toml");

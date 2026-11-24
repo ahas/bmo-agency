@@ -494,9 +494,11 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **It signs in an account that is there, or one that is not yet:**
   - an account that is there is a directory account, signed in again in its own directory, where its login
     has ended or is about to; a token or endpoint account keeps no login of its own and is refused;
-  - an account that is not yet is named, and its directory is made under the data root's env directory,
-    named by the account's name, readable by this user alone; a name whose directory already holds anything is
-    refused. The account is added, at the end of the order, only once the CLI has left a login there, so a
+  - an account that is not yet is named, or named by agency where the start names none: `claude-NN`, one past
+    the highest number among every account's names, the people's among them, which the owner's own list does not
+    show, the next number taken where that name's directory already holds anything. A name another account holds
+    is refused 409 `name-taken`. Its directory is made under the data root's env directory, named by the account's
+    name, readable by this user alone; a name whose directory already holds anything is refused. The account is added, at the end of the order, only once the CLI has left a login there, so a
     sign-in abandoned leaves no account behind; the directory it made, which the CLI writes its own files into
     as it starts, is taken away whole as that sign-in ends, given up, refused or ended for standing too long, so
     the same name may be tried again.

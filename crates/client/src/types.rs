@@ -4433,7 +4433,7 @@ pub struct CatalogueSeen {
 }
 
 /// A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
-/// its name, one of the two.
+/// its name, at most one of the two; naming neither starts a new account agency names.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeLoginStart {

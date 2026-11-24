@@ -90,7 +90,7 @@ silent = "the CLI said nothing"
 no_node = "There is no node to sign you in on yet."
 node_not_attached = "{node} is not attached now: sign in once its link is heard again."
 node_unready = "{node} has no ready workplace to sign in on yet."
-name_only = "Name the new account alone: a person signs in a login of their own, never another's."
+login_elsewhere = "{name} was signed in on {node}, not on the PC you sign in on now: sign a new login in instead."
 
 # A person's own keys for the gateway's roads (docs/supply.md, 「What a person brings」): a call naming no
 # person, a {road} no member serves, a key {id} not the caller's, a change naming nothing it takes, and the

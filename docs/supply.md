@@ -70,10 +70,19 @@ platform pays for takes it.
   at the policy's bound otherwise.
 - **Its credentials file stands on the node, not here,** so a login of a person's found waiting for them is
   opened again by their next sign-in, not by a file this machine reads.
+- **A person signs their own login in again on their node,** by the account (`account`), where its login has ended
+  or is about to: the CLI's same sign-in, run in the account's own directory there, so the login it writes stands
+  where the account already names it, and the account's mark of a login waiting for its person is lifted once the
+  CLI says it took. Only the person's own account is signed in so: another's, or one that is not there, is refused
+  404 `unknown-account`; an `api-key` account, which keeps no login, 422 `not-a-directory`; and a login that stands on
+  another node than the person's now, 409 `login-elsewhere`, since its directory is there and not on the PC the
+  sign-in runs on: the person signs a new login in instead.
 - **A person's new login is named by agency** where the start names none: `claude-NN`, one past the highest
   number among every account's names, the platform's and other people's among them, which the person cannot see.
   A name the person gives that another account holds is refused 409 `name-taken`.
-- **A person with no node attached cannot sign in yet:** the start is refused 409 `node-not-attached`.
+- **A person with no node attached cannot sign in yet:** the start is refused 409 `node-not-attached` where the
+  node's link is not heard now, and 409 `node-not-ready` where it has no ready workplace yet, as while it is first
+  set up (`docs/person-nodes.md`, 「The workplace on a PC」).
 
 ## The sources a run walks
 

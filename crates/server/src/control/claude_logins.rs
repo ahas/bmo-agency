@@ -84,6 +84,8 @@ struct NodeSignIn {
   pane: NodePane,
   user: i64,
   node: String,
+  /// The person's own account signed in again, by its identifier, or none for a new one added once the login took.
+  again: Option<String>,
   name: String,
   /// The configuration directory on the node the CLI writes the login into.
   home: String,
@@ -273,34 +275,83 @@ fn text<'a>(body: &'a Value, field: &str) -> Option<&'a str> {
   body.get(field).and_then(Value::as_str).map(str::trim).filter(|text| !text.is_empty())
 }
 
+// The refusal of a start naming both an account there and a new one's name.
+fn which() -> Refused {
+  Refused::new(StatusCode::BAD_REQUEST, words().which.clone()).with_code("account-or-name")
+}
+
+// The refusal of a start naming an account the caller has none of.
+fn unknown_account(id: &str) -> Refused {
+  Refused::new(StatusCode::NOT_FOUND, fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)]))
+    .with_code("unknown-account")
+}
+
+// The refusal of a start naming an account that keeps no login of its own.
+fn not_directory(name: &str) -> Refused {
+  Refused::new(StatusCode::UNPROCESSABLE_ENTITY, fill_marks(&words().not_directory, &[("name", name)]))
+    .with_code("not-a-directory")
+}
+
+// The name a new login takes: the one the start gives, where no other account holds it and it can be a name, or
+// the next free `claude-NN` past every account's names whose directory under `data_root`, where one is given, holds
+// nothing yet.
+pub fn new_login_name(
+  given: Option<&str>,
+  names: &[&str],
+  data_root: Option<&Path>,
+) -> Result<String, Refused> {
+  if let Some(name) = given {
+    return match name_refusal(name, names) {
+      Some(refused) => Err(refused),
+      None => Ok(name.to_owned()),
+    };
+  }
+
+  let mut passed: Vec<&str> = names.to_vec();
+  let mut tried = Vec::new();
+
+  loop {
+    let name = next_login_name(&passed);
+    let free = data_root.is_none_or(|root| !holds_files(&new_home(root, &name)));
+
+    if free {
+      return Ok(name);
+    }
+
+    tried.push(name);
+    passed = names.iter().copied().chain(tried.iter().map(String::as_str)).collect();
+  }
+}
+
+fn holds_files(directory: &Path) -> bool {
+  std::fs::read_dir(directory)
+    .map(|mut entries| entries.next().is_some())
+    .unwrap_or(false)
+}
+
 // What a start's body names: an account there, which must be a directory account, or a new one's name, whose
-// directory must be empty or not yet made.
+// directory must be empty or not yet made, or neither, for a new one agency names.
 async fn target_of(db: &DatabaseConnection, data_root: &Path, body: &Value) -> Result<Target, Refused> {
+  let held = accounts(db).await?;
+
   match (text(body, "account"), text(body, "name")) {
+    (Some(_), Some(_)) => Err(which()),
     (Some(id), None) => {
-      let held = accounts(db).await?;
-      let account = held.iter().find(|one| one.id == id).ok_or_else(|| {
-        Refused::new(StatusCode::NOT_FOUND, fill_marks(&CONTROL_WORDS.accounts.unknown, &[("id", id)]))
-      })?;
+      let account = held.iter().find(|one| one.id == id).ok_or_else(|| unknown_account(id))?;
       match &account.credential {
         // A person's login stands on their node, where alone it is signed in again.
         Credential::Directory { home } if account.node.is_none() => Ok(Target::Again {
           name: account.name.clone(),
           home: home.clone(),
         }),
-        _ => Err(
-          Refused::new(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            fill_marks(&words().not_directory, &[("name", &account.name)]),
-          )
-          .with_code("not-a-directory"),
-        ),
+        _ => Err(not_directory(&account.name)),
       }
     }
-    (None, Some(name)) => {
-      let home = new_home(data_root, name);
-      let holds = std::fs::read_dir(&home).map(|mut entries| entries.next().is_some()).unwrap_or(false);
-      if holds || home == data_root.join("env") {
+    (None, given) => {
+      let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
+      let name = new_login_name(given, &names, Some(data_root))?;
+      let home = new_home(data_root, &name);
+      if holds_files(&home) || home == data_root.join("env") {
         return Err(
           Refused::new(
             StatusCode::CONFLICT,
@@ -309,12 +360,8 @@ async fn target_of(db: &DatabaseConnection, data_root: &Path, body: &Value) -> R
           .with_code("directory-taken"),
         );
       }
-      Ok(Target::New {
-        name: name.to_owned(),
-        home,
-      })
+      Ok(Target::New { name, home })
     }
-    _ => Err(Refused::new(StatusCode::BAD_REQUEST, words().which.clone())),
   }
 }
 
@@ -684,36 +731,78 @@ async fn person_workplace(
     vec![node.as_str().into()],
   )
   .await?;
+  let unready = || {
+    Refused::new(StatusCode::CONFLICT, fill_marks(&words().node_unready, &[("node", &node)]))
+      .with_code("node-not-ready")
+  };
   let Some(workplace) = workplace else {
-    return Err(not_attached(&node, &words().node_unready));
+    return Err(unready());
   };
   let (root, home): (String, Option<String>) =
     (workplace.try_get("", "root")?, workplace.try_get("", "home")?);
-  let Some(home) = home else { return Err(not_attached(&node, &words().node_unready)) };
+  let Some(home) = home else { return Err(unready()) };
 
   Ok((node, crate::watches::links::node_path(&root, Some(&home)), home))
 }
 
-// A person's sign-in started on their node: a new account alone, by the name the start gives or the next free one
-// agency names, its directory under the node's data root, the address read off the pane the CLI runs in.
+// A person's sign-in started on their node: their own login there signed in again in its own directory, or a new
+// account by the name the start gives or the next free one agency names, its directory under the node's data root;
+// the address read off the pane the CLI runs in.
 async fn start_on_node(
   ground: &crate::places::Ground,
   user: i64,
   body: &Value,
 ) -> Result<Response, Refused> {
-  if text(body, "account").is_some() {
-    return Err(Refused::new(StatusCode::BAD_REQUEST, words().name_only.clone()));
-  }
   let held = accounts(&ground.db).await?;
-  let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
-  let name = text(body, "name").map_or_else(|| next_login_name(&names), str::to_owned);
+  // The person's own login signed in again: its identifier, its name, the node it stands on and its directory there.
+  let again = match (text(body, "account"), text(body, "name")) {
+    (Some(_), Some(_)) => return Err(which()),
+    (Some(id), None) => {
+      let account = held
+        .iter()
+        .find(|one| one.id == id && one.user_id == Some(user))
+        .ok_or_else(|| unknown_account(id))?;
+      let Credential::Directory { home } = &account.credential else {
+        return Err(not_directory(&account.name));
+      };
 
-  if let Some(refused) = name_refusal(&name, &names) {
-    return Err(refused);
-  }
+      Some((
+        account.id.clone(),
+        account.name.clone(),
+        account.node.clone(),
+        home.to_string_lossy().into_owned(),
+      ))
+    }
+    (None, _) => None,
+  };
+  let name = match &again {
+    Some((_, name, ..)) => name.clone(),
+    None => {
+      let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
+
+      new_login_name(text(body, "name"), &names, None)?
+    }
+  };
 
   let (node, node_root, node_home) = person_workplace(ground, user).await?;
-  let home = new_home(&Path::new(&node_root).join("data"), &name).to_string_lossy().into_owned();
+  let (again, home) = match again {
+    Some((id, _, on, home)) if on.as_deref() == Some(node.as_str()) => (Some(id), home),
+    Some((_, name, on, _)) => {
+      let elsewhere = on.unwrap_or_else(|| "the server".to_owned());
+
+      return Err(
+        Refused::new(
+          StatusCode::CONFLICT,
+          fill_marks(&words().login_elsewhere, &[("name", &name), ("node", &elsewhere)]),
+        )
+        .with_code("login-elsewhere"),
+      );
+    }
+    None => (
+      None,
+      new_home(&Path::new(&node_root).join("data"), &name).to_string_lossy().into_owned(),
+    ),
+  };
   let lang = ground.vars().get("LANG").cloned().unwrap_or_else(|| "C.UTF-8".to_owned());
   let launch = node_launch(&node_root, &node_home, &home, &lang);
   let herdr = herdr::Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
@@ -741,6 +830,7 @@ async fn start_on_node(
     pane,
     user,
     node,
+    again,
     name,
     home,
     started: Instant::now(),
@@ -798,6 +888,20 @@ async fn code_on_node(
   }
 
   pane.close().await;
+
+  // The person's own login signed in again stands where its account names it; its mark of a login waiting for its
+  // person goes, read off nobody's file here since the login stands on the node, and its windows are read afresh.
+  if let Some(account) = &sign_in.again {
+    store::run(
+      &ground.db,
+      r#"UPDATE "claude_accounts" SET "needs_login_at" = NULL WHERE "id" = $1"#,
+      vec![account.as_str().into()],
+    )
+    .await?;
+    super::claude_accounts::forget_windows(&ground.db, account).await?;
+
+    return accounts_answer(Judging::of(ground), Acting::Person(sign_in.user)).await;
+  }
 
   let given = CredentialGiven {
     kind: Some(CredentialKind::Directory),

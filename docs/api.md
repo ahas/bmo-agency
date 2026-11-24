@@ -1107,7 +1107,7 @@ node's link keeps of that checkout instead.
 | POST | `/model-catalogue` | Save or remove a model file's entry, or choose one for its engine. |
 | GET | `/fallback` | The Claude accounts, the account in use and the chosen one. |
 | PATCH | `/fallback` | Add, change, order, switch or choose the Claude accounts. |
-| POST | `/claude-logins` | Start a Claude account's sign-in through the CLI: an account there by `account`, or a new one by `name`; answers the sign-in's `login` and the `url` to approve it at. |
+| POST | `/claude-logins` | Start a Claude account's sign-in through the CLI: an account there by `account`, or a new one by `name` or named by agency where the start names neither; answers the sign-in's `login`, the `url` to approve it at and the account's `name`. |
 | POST | `/claude-logins/{login}/code` | Hand the sign-in the code its page showed; answers the accounts as the fallback's change does once the login is written. |
 | DELETE | `/claude-logins/{login}` | Give a sign-in up, ending the CLI it holds. |
 | GET | `/gateway-members` | The gateway's members, each with its road, label and owner. |
@@ -1470,12 +1470,21 @@ many it turned off. A person's own call is refused 403 `forbidden`.
 
 **A person's sign-in** (`POST /claude-logins` from a person's call) starts on the person's node, named by its
 record (「person-nodes」): a person with no node record is signed in on their isolation node, and one whose node
-is not attached now is refused 409 `node-not-attached`. It takes `name` alone, never `account` of another's, and
-may name none: agency then names the account `claude-NN`, one past the highest number any account's name holds,
-since account names are one namespace across every owner and a person sees only their own. A name another
-account already holds is refused 409 `name-taken`, and one that cannot be a name 400, each with `field` `name`. A
-person's login that stands on a node is signed in again there alone: the owner's sign-in naming it by `account`
-is refused 422 `not-a-directory`, as an account that keeps no login here is.
+is not attached now is refused 409 `node-not-attached`, and one with no ready workplace yet 409 `node-not-ready`. It
+takes `account` or `name`, not both, 400 `account-or-name`:
+- `account` signs the person's own login in again in its directory on their node, and the code's answer lifts its
+  mark of a login waiting for its person (`docs/supply.md`, 「Signing a person's login in」). An account that is not
+  the person's own, or not there, is 404 `unknown-account`; an `api-key` account 422 `not-a-directory`; and a login
+  that stands on another node than the person's now 409 `login-elsewhere`.
+- `name` names a new login, and may be left out: agency then names the account `claude-NN`, one past the highest
+  number any account's name holds, since account names are one namespace across every owner and a person sees only
+  their own. A name another account already holds is refused 409 `name-taken`, and one that cannot be a name 400,
+  each with `field` `name`.
+
+A person's login that stands on a node is signed in again there alone: the owner's sign-in naming it by `account`
+is refused 422 `not-a-directory`, as an account that keeps no login here is. The owner's sign-in takes `account` or
+`name` as a person's does, 400 `account-or-name` for both, an account not there 404 `unknown-account`, and names a
+new login the same way where it names neither, a name another account holds 409 `name-taken`.
 
 ### settings
 

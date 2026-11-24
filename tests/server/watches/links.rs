@@ -183,6 +183,71 @@ async fn a_workplace_not_ready_is_checked_again_once_its_while_has_passed_and_st
   assert!(units.started.lock().unwrap().is_empty(), "no link stands on a workplace not ready");
 }
 
+/// A node service whose hub holds the PCs `u7`, `u8` and `u9` now, and not `u6`.
+struct HoldsPcs;
+
+impl NodeService for HoldsPcs {
+  fn link_up<'a>(&'a self, node: &'a str) -> Asking<'a, bool> {
+    Box::pin(async move { Ok(["u7", "u8", "u9"].contains(&node)) })
+  }
+
+  fn node_rows(&self) -> Asking<'_, Vec<NodeRow>> {
+    Box::pin(async { Ok(vec![]) })
+  }
+
+  fn ssh_login<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<Vec<String>>> {
+    Box::pin(async { Ok(None) })
+  }
+}
+
+// "a person's PC is stood up by itself once its hub holds it, and again past the while where it is left not ready"
+#[tokio::test]
+async fn a_persons_pc_is_stood_up_by_itself_once_its_hub_holds_it_and_again_past_the_while_where_it_is_not_ready()
+ {
+  let scratch = Scratch::new().await;
+  let trees = tempfile::tempdir().unwrap();
+  let roots = Roots {
+    data: trees.path().join("data"),
+    deploy: trees.path().join("agency/deploy"),
+    cli_deploy: trees.path().join("cli/deploy"),
+    agents: trees.path().join("agents"),
+    home: trees.path().to_path_buf(),
+    mcp_port: 3290,
+    gateway_port: Some(18030),
+    gateway_key: trees.path().join("data/env/llm-gateway.key"),
+    jake_hub: Some("/opt/jake/jake-hub".into()),
+    config_dir: trees.path().join(".claude"),
+    path: "/usr/bin:/bin".into(),
+    bun: "bun".into(),
+  };
+  let db = scratch.db();
+  let now = chrono::Utc::now().timestamp();
+  let again = policy::person_nodes::PERSON_NODES.setup_again_seconds;
+
+  // u6 is off, u7 newly joined with no workplace, u8 left missing longer ago than the while, u9 just now; u5 is a
+  // hub node no account's record names, left missing, which is checked again as any node is.
+  for (account, node) in [("6", "u6"), ("7", "u7"), ("8", "u8"), ("9", "u9")] {
+    agency_server::person_nodes::set(db, account, node, false).await.unwrap().unwrap();
+  }
+  for (node, checked_at) in [("u5", now - 3600 * 24), ("u8", now - again), ("u9", now - 1)] {
+    scratch
+      .run(
+        r#"INSERT INTO "node_workplaces" ("node", "root", "home", "state", "checked_at", "created_at", "updated_at")
+           VALUES ($1, '~/node-root', '/home/tester', 'missing', $2, 0, 0)"#,
+        vec![node.into(), checked_at.into()],
+      )
+      .await;
+  }
+
+  let units = Units::default();
+  let settled = settle(db, &HoldsPcs, &units, &roots).await.unwrap();
+
+  assert_eq!(settled.setting_up, ["u7", "u8"], "the PCs held now, new or left missing past the while");
+  assert_eq!(*units.set_up.lock().unwrap(), ["u7", "u8"]);
+  assert_eq!(settled.checking, ["u5"], "a PC is stood up again rather than checked");
+  assert!(units.started.lock().unwrap().is_empty(), "no link stands on a workplace not ready");
+}
+
 #[tokio::test]
 async fn a_ready_workplace_gets_its_spec_over_the_node_services_login_or_its_hub_and_one_with_no_route_is_skipped()
  {

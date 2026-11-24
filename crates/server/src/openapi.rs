@@ -1399,12 +1399,15 @@ pub const OPERATIONS: &[Operation] = &[
     body: Some("ClaudeLoginStart"),
     answers: &[(201, Some("ClaudeLoginStarted"), false)],
     codes: &[
-      "not-found",
+      "account-or-name",
+      "unknown-account",
       "not-a-directory",
       "directory-taken",
       "name-taken",
       "no-link",
       "node-not-attached",
+      "node-not-ready",
+      "login-elsewhere",
     ],
   },
   Operation {
@@ -4586,7 +4589,7 @@ const ENTRY: &str = "A harness holding an item asks for a worker with agency_ass
 /// What a status and a kebab-case code come to.
 fn status_of(code: &str) -> u16 {
   match code {
-    "bad-request" => 400,
+    "bad-request" | "account-or-name" => 400,
     "unauthorized" => 401,
     "forbidden" => 403,
     "no-route" | "not-found" | "no-job" | "unknown-session" | "unknown-repository" | "unknown-worker"
@@ -4605,7 +4608,8 @@ fn status_of(code: &str) -> u16 {
     "conflict" | "name-taken" | "node-taken" | "seeded" | "running" | "no-turn" | "not-owner"
     | "worker-on-node" | "agent-busy" | "node-not-attached" | "no-runner" | "no-older-version"
     | "withdrawn" | "awaiting-approval" | "locked" | "too-many-agents" | "road-not-supplied"
-    | "supplied-agent" | "secret-missing" | "installed-copy" | "line-takes-none" => 409,
+    | "supplied-agent" | "secret-missing" | "installed-copy" | "line-takes-none" | "node-not-ready"
+    | "login-elsewhere" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" | "checkout-not-made" | "members-unwritten" => 500,
