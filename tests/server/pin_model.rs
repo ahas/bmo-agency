@@ -14,26 +14,26 @@ async fn a_worker_s_model_is_the_pin_s_never_its_last_model() {
 
   repository(
     scratch.db(),
-    "kiki",
-    "/checkouts/kiki",
+    "kakia",
+    "/checkouts/kakia",
     &[("pinned_provider", "registered".into()), ("pinned_model", "flash-next".into())],
   )
   .await;
 
   assert_eq!(
-    agency_server::herdr_backend::pinned_worker_model(scratch.db(), "kiki").await.unwrap(),
+    agency_server::herdr_backend::pinned_worker_model(scratch.db(), "kakia").await.unwrap(),
     Some("flash-next".to_owned())
   );
 
   scratch
     .run(
-      r#"UPDATE "repositories" SET "pinned_model" = 'next-registration' WHERE "name" = 'kiki'"#,
+      r#"UPDATE "repositories" SET "pinned_model" = 'next-registration' WHERE "name" = 'kakia'"#,
       vec![],
     )
     .await;
 
   assert_eq!(
-    agency_server::herdr_backend::pinned_worker_model(scratch.db(), "kiki").await.unwrap(),
+    agency_server::herdr_backend::pinned_worker_model(scratch.db(), "kakia").await.unwrap(),
     Some("next-registration".to_owned()),
     "a pin moved to another registration is the model, not the last one"
   );
@@ -67,7 +67,7 @@ async fn a_supervisor_program_on_an_old_model_is_stale_for_its_pin_and_left_stan
 
   supervisor(
     scratch.db(),
-    "kiki-chat",
+    "kakia-chat",
     &[
       ("provider", "registered".into()),
       ("model", "flash-next".into()),
@@ -76,7 +76,7 @@ async fn a_supervisor_program_on_an_old_model_is_stale_for_its_pin_and_left_stan
   )
   .await;
 
-  let place = Place::of(&ground.roots.data, "kiki-chat");
+  let place = Place::of(&ground.roots.data, "kakia-chat");
   let program = Program {
     identity: "stale".into(),
     command: ResidentCommand {
@@ -92,10 +92,10 @@ async fn a_supervisor_program_on_an_old_model_is_stale_for_its_pin_and_left_stan
   std::fs::create_dir_all(&place.path).unwrap();
   std::fs::write(place.path.join("program.json"), serde_json::to_vec(&program).unwrap()).unwrap();
 
-  assert!(agency_server::places::standby::stale_supervisor(&ground, "kiki-chat").await);
+  assert!(agency_server::places::standby::stale_supervisor(&ground, "kakia-chat").await);
   assert_eq!(
     agency_server::places::standby::stale_supervisors(&ground).await,
-    vec!["kiki-chat".to_owned()]
+    vec!["kakia-chat".to_owned()]
   );
   assert!(place.program().is_some(), "the check signals nothing: the handover lets the program go");
 }
