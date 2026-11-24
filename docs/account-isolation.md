@@ -103,6 +103,30 @@ every node shares are `docs/work-nodes.md`.
   link folder that is not the owner's own folder, leaves the node missing that, said, and nothing launched on it.
 - **A deployment syncs it** as it syncs every node whose copy is behind the deployed commit.
 
+## Taking it down
+
+- **The teardown is the setup's inverse,** `bmo-agency node work teardown account-<id>`, and an account's removal for
+  good runs it for the account's isolation node (`docs/api.md`, 「owners and organisation units removed for good」).
+  It takes, in this order:
+  - the units this machine's user keeps for the node: its link, its setup, its check and its sync;
+  - where the account's user stands: every system unit a program of the user runs in stopped, every process of the
+    user still left killed, and the user taken away with its home — its workplace, its logins, its scratch folder
+    and the link's folder in it;
+  - the user's firewall table, where this machine can stand an isolation node;
+  - what this machine keeps of the node: its folder under the data root's `nodes/`, its setup record and its
+    link's spec and state among it, and its workplace row.
+- **A part already gone is nothing to do,** never a failure: a user, a table, a unit, a folder or a row that does not
+  stand is passed over, so a teardown broken half-way is finished by running it again, and one run twice finds
+  nothing the second time.
+- **Its programs are run as root by the paths the policy names,** as the setup's are, never by a name a search path
+  resolves; where the account's user stands on a machine that lacks one of them, nothing is taken and the answer
+  names each program missing.
+- **It refuses every node that is not an isolation node,** a name other than the policy's prefix and an account's
+  digits, so the user it takes is always an isolation node's own, never the owner's or another user of the system.
+- **A test's server stands no user:** a removal asked of a server whose ground names a test's home takes the node's
+  folder and its row alone, and touches no user, unit or firewall table of this machine; the teardown itself is
+  checked on a throwaway user (「Where it is checked」).
+
 ## The link
 
 - **The link to an isolation node is a third transport beside SSH and the hub** (`docs/work-nodes.md`, 「The
@@ -136,6 +160,10 @@ every node shares are `docs/work-nodes.md`.
   - an isolation node's link starts its far end as the account's user with no new privileges, mirrors a place both
     ways through it, lets a program of the node reach the home bridge in the link's folder for the policy's verbs
     alone, run as the owner's user, and leaves nothing of the account's running once the link ends.
+- **The teardown is a test of its own,** on the same machines: a throwaway account's user made by the setup's first
+  step, its sandbox run so its firewall table stands and a process of it left standing, is taken away by the
+  teardown with its home, its process and its table, and a second teardown finds nothing to do; a node that is no
+  isolation node is refused, and a user that does not stand is nothing to do.
 - **Where every run stands is a test of its own:** a supervisor or a run of an account with no PC is placed on its
   isolation node, and one of no account or of the administrator's account stays here as the owner's user, holding
   the administrator's grant.
@@ -146,5 +174,6 @@ every node shares are `docs/work-nodes.md`.
 |---|---|---|
 | the scope | the owner's and the deployment's runs as the owner's user; every other account's on its own node | — |
 | an isolation node | named by agency per account, placed for an account with no PC; its user, home and sandbox made by its setup; its link the local transport | — |
+| the teardown | the setup's inverse, `node work teardown`, run by an account's removal for good: its units, its user's units and processes, its user and home, its firewall table, its folder and its row, each passed over where it does not stand | — |
 | the check | the tests above, a real user each | — |
 | a check on this machine | a throwaway account's isolation node stood up by the setup verb whole, its tools installed and its binaries built in its home; its link connected, the far end, its herdr session and its agent host each running as the account's user with no new privileges and the homes read-only; and a program in a pane of that session refused the hub's settings file, the owner's home, a write there and `sudo`, while it wrote its own home; a live isolation node's sandbox refused every port of this machine's loopback but the tool host's, this machine's own addresses and the private network, shown no other user's process, while it reached the world and its own programs ran | — |

@@ -344,6 +344,37 @@ pub async fn settle_expired(ground: &Ground) -> Result<usize, Refusal> {
   Ok(owed)
 }
 
+/// Every reservation still open that belongs to an account, or that names an organisation unit's supply, captured
+/// with what the store last recorded it covered, as an expired one is: what an owner removed for good leaves open
+/// (docs/api.md, 「owners and organisation units removed for good」). Answers how many were owed.
+pub async fn settle_open_of(ground: &Ground, owner: Owner) -> Result<usize, Refusal> {
+  let (column, id) = match owner {
+    Owner::Account(id) => ("account", id),
+    Owner::Unit(id) => ("unit_id", id),
+  };
+  let rows = all(
+    &ground.db,
+    &format!(r#"SELECT * FROM "supply_reservations" WHERE "state" = 'open' AND "{column}" = $1"#),
+    vec![id.into()],
+  )
+  .await?;
+
+  for row in &rows {
+    let held = held_of(row)?;
+
+    owe_settlement(ground, &held, held.last_step + 1, held.last_step + 2, held.covered_micros).await?;
+  }
+
+  Ok(rows.len())
+}
+
+/// Whose reservations are meant: an account's own, or those naming an organisation unit's supply.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Owner {
+  Account(i64),
+  Unit(i64),
+}
+
 /// The settlement outbox and the expired reservations kept: those expired captured once as the server starts,
 /// then every settlement due sent every few seconds.
 pub async fn keep(ground: std::sync::Arc<Ground>) {

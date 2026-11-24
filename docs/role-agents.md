@@ -237,6 +237,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **`PATCH /role-agents/{agentName}`** changes any field of the row, each judged as the add judges it; a
   field set to null is cleared, which for an override gives the role's own back.
 - **`DELETE /role-agents/{agentName}`** removes an agent, and is refused 409 while it carries a run.
+- **An account removed for good takes every agent seated for it,** each slot request of the account given back first
+  and the role session bound to it ended, so no run is left carrying one (`docs/api.md`, 「owners and organisation
+  units removed for good」).
 - **A change holds from the next admission.** A run already let in finishes on the agent as it stood when
   it was let in; an agent switched off or removed while it carries a run takes no further run.
 - **A role's own routes carry no road.** `POST /roles` and `PATCH /roles/{roleName}` take no order, no cap

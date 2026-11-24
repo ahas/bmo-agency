@@ -1509,6 +1509,66 @@ is refused 422 `not-a-directory`, as an account that keeps no login here is. The
 `name` as a person's does, 400 `account-or-name` for both, an account not there 404 `unknown-account`, and names a
 new login the same way where it names neither, a name another account holds 409 `name-taken`.
 
+### owners and organisation units removed for good
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/owners/{account}/removal` | Count what removing a login account for good would take, changing nothing. |
+| DELETE | `/owners/{account}` | Remove everything agency keeps of a login account, for good. |
+| GET | `/org-units/{unit}/removal` | Count what removing an organisation unit for good would take, changing nothing. |
+| DELETE | `/org-units/{unit}` | Remove everything agency keeps of an organisation unit, for good. |
+
+- **The administrator's alone.** Each route takes the control token with `Owner-Role: administrator`, the console's
+  call for the administrator; any other caller — a member, or the deployment's own caller carrying no key — is
+  refused 403 `forbidden` before anything is read.
+- **The numbers:** `{account}` is a login account's user id, the number `Owner-Key` carries and an owner column
+  holds, never a Claude account's id; `{unit}` is an organisation unit's id, and `company`, a query parameter, the
+  unit's company where the caller names it. Each is a positive decimal whole number, anything else refused 400
+  `bad-request`. Agency keys nothing by a company and reads `company` no further.
+- **Agency decides nothing of whether the account or the unit may go:** the console's account service decides that
+  and calls these routes in its cascade. Agency removes what is keyed to the number it is handed.
+- **A count changes nothing** and answers `{"counts": {<kind>: <n>}}`, exactly what the removal would take now; the
+  removal answers `{"removed": {<kind>: <n>}}`. Every kind is present in both, 0 where there is none.
+- **An account's kinds:**
+  - `supervisors`: the supervisors filed under the account, each removed as `DELETE /supervisors/{supervisorName}`
+    removes one with every room read as shared and its brain kept, since the brain's own removal takes it: its
+    conversation reset and its turns cut off, its rows, its program, workspace, place and folders, its execution
+    rows, its agent host records and lock, and its plugin of attached skills;
+  - `slot-requests`: the role slot requests that belong to the account, each still open given back as an owner's
+    release gives one back, the role session bound to it ended, and then every row of them;
+  - `role-agents`: the role agents seated for the account, with their own plugins of attached skills;
+  - `attachments` and `mcp-servers`: the account's rows of each;
+  - `skills`: the skills standing in the account's own folder under the data root, taken with the folder;
+  - `repositories` and `repository-checkouts`: the repositories filed under the account, as
+    `DELETE /repositories/{repositoryName}` removes one, and their node and support checkouts' rows with them;
+  - `registered-models`: the registrations the account owns, its local AIs among them, as the registry removes one;
+  - `claude-accounts`: the Claude accounts whose `userId` is the account, with their usage windows, balances,
+    rests and marks;
+  - `personal-supply`: the account's own keys for the gateway's roads; its secrets stay where the console keeps
+    them, for the account service to take;
+  - `supply-reservations`: the account's runs' reservations, each still open captured through the supply outbox
+    with what it last covered, as an expired one is, then every row of them; the asks owed in the outbox are
+    still sent;
+  - `call-keys` and `gateway-requests`: the account's gateway call key, revoked with its file and its row taken,
+    and the gateway's records of the requests it carried;
+  - `person-nodes`: the account's node record;
+  - `workplaces`: the workplace of the account's isolation node, and of the PC its record names where no other
+    account's record names that node, each with its units stopped and its folder under the data root's `nodes/`;
+  - `isolation-users`: the system user of the account's isolation node, taken away with its home and its
+    firewall table by the isolation node's teardown (`docs/account-isolation.md`, 「Taking it down」).
+- **An organisation unit's kinds:**
+  - `repositories` and `repository-checkouts`: the repositories the unit owns, as above;
+  - `organisation-supply`: the unit's own keys for the gateway's roads;
+  - `claude-accounts`: the Claude accounts given to the unit, as above;
+  - `supply-reservations`: the reservations naming the unit's supply, each still open captured as above and every
+    one of them taken off the unit, since each is a person's run's own.
+- **Nothing of no account's and nothing of another account's is touched:** every row is found by the number handed,
+  so a row of no account — the platform's — and a row of any other account or unit stand as they stood.
+- **Refused 409 `conflict`** while a job holds a checkout of a repository the account or the unit owns, naming
+  it, before anything is taken.
+- **Again and again alike:** a removal asked twice takes nothing the second time and answers every kind at 0; one
+  broken half-way is finished by asking again. Once begun it runs to its end apart from the request.
+
 ### settings
 
 | Method | Path | Does |
@@ -2434,7 +2494,7 @@ input, so `bmo` finds it from any directory.
 | `model` (`models`) | `add`, `set`, `remove`, `use` or `run-use`, with an entry's file, bytes, hash, engine, registration and settings; `--entry` and `--placed` for an installer; `--json` | the store's model catalogue |
 | `session fold` | `--role <role>`, `--path <path>`, `--model <model>`, `--all` or `--dry-run` | the roles' kept sessions, and the store |
 | `reload` | `--path <file>`, repeatable, and `--now` | the store, the checkouts and the deploy tree, and the service for the documents moved |
-| `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off` or `remove <node>`; no step lists the workplaces | the store, the node service and herdr |
+| `node work` (`work-node`) | `setup <node> [--root <dir>] [--install]`, `check`, `sync`, `runs <node> on\|off`, `remove <node>` or `teardown <node>`, the last an account's isolation node alone (`docs/account-isolation.md`, 「Taking it down」); no step lists the workplaces | the store, the node service, herdr, and for a teardown this machine's users, units and firewall |
 | `node claude-token` | `<account>`, and `--paste` to take a token from standard input | the store, and the account's program on this machine |
 | `node person` | none to list every account's node; `<account> <node>` to set one, with `--shared` where the node is shared with other accounts; `<account> --clear` to take it away | the store, and the node service for the node |
 | `node pane` (`node-pane`) | `<node>` | the node service, and the login its pane starts |

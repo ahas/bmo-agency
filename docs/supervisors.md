@@ -846,3 +846,5 @@ rule to.
     carries ends as the program is killed. The deployment's quiet counts no turn of a supervisor that no longer
     stands (`docs/sessions.md`, 「A restart hands the session over」).
   - Once begun it runs to its end apart from the request, as a reset does.
+- **An account removed for good takes every supervisor filed under it** the way this removal takes one, its brain
+  kept for the brain's own removal (`docs/api.md`, 「owners and organisation units removed for good」).

@@ -1208,6 +1208,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/owners/{account}/removal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count what removing a login account for good would take, changing nothing. */
+        get: operations["countOwnerRemoval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/owners/{account}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove everything agency keeps of a login account, for good. */
+        delete: operations["removeOwner"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/org-units/{unit}/removal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Count what removing an organisation unit for good would take, changing nothing. */
+        get: operations["countOrgUnitRemoval"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/org-units/{unit}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove everything agency keeps of an organisation unit, for good. */
+        delete: operations["removeOrgUnit"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rest": {
         parameters: {
             query?: never;
@@ -4663,6 +4731,20 @@ export interface components {
              */
             localAis: number;
         };
+        /** @description What removing an owner or an organisation unit for good would take now, by kind, every kind present. */
+        RemovalCounts: {
+            /** @description How many of each kind the removal would take. */
+            counts: {
+                [key: string]: number;
+            };
+        };
+        /** @description What removing an owner or an organisation unit for good took, by kind, every kind present. */
+        RemovalDone: {
+            /** @description How many of each kind the removal took. */
+            removed: {
+                [key: string]: number;
+            };
+        };
         /** @description Rest: the deployment's rest as it stands, or as a write or an end of it left it. */
         Rest: {
             resting: boolean;
@@ -6869,6 +6951,15 @@ export interface components {
         };
         /** @description escalation-early */
         EscalationEarly: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description failed */
+        Failed: {
             headers: {
                 [name: string]: unknown;
             };
@@ -10189,6 +10280,114 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    countOwnerRemoval: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalCounts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    removeOwner: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                account: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["Failed"];
+        };
+    };
+    countOrgUnitRemoval: {
+        parameters: {
+            query?: {
+                company?: number;
+            };
+            header?: never;
+            path: {
+                unit: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalCounts"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    removeOrgUnit: {
+        parameters: {
+            query?: {
+                company?: number;
+            };
+            header?: never;
+            path: {
+                unit: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RemovalDone"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["Failed"];
         };
     };
     getRest: {

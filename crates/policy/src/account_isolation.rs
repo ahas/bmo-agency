@@ -21,12 +21,14 @@ pub struct AccountIsolation {
   /// The firewall's script of the user's network rule, which the sandbox stands before its program starts, with
   /// `{user}` and `{tool_port}` marks.
   pub firewall: String,
-  /// The programs that make the node's user and stand its firewall, run as root by their paths.
+  /// The programs that make the node's user and stand its firewall, and those its teardown takes them away with,
+  /// run as root by their paths.
   pub user_programs: UserPrograms,
 }
 
-/// The programs that make an isolation node's user, its home and its folders, and the firewall's program its
-/// sandbox stands the network rule with, each by the path it stands at.
+/// The programs that make an isolation node's user, its home and its folders, the firewall's program its sandbox
+/// stands the network rule with, and the programs its teardown stops the user's units, ends its processes and
+/// takes the user away with, each by the path it stands at.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UserPrograms {
@@ -35,17 +37,23 @@ pub struct UserPrograms {
   pub setfacl: String,
   pub install: String,
   pub nft: String,
+  pub systemctl: String,
+  pub pkill: String,
+  pub userdel: String,
 }
 
 impl UserPrograms {
   /// Each program by its name and the path it is run by.
-  pub fn each(&self) -> [(&'static str, &str); 5] {
+  pub fn each(&self) -> [(&'static str, &str); 8] {
     [
       ("useradd", &self.useradd),
       ("chmod", &self.chmod),
       ("setfacl", &self.setfacl),
       ("install", &self.install),
       ("nft", &self.nft),
+      ("systemctl", &self.systemctl),
+      ("pkill", &self.pkill),
+      ("userdel", &self.userdel),
     ]
   }
 }

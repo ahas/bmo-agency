@@ -44,6 +44,12 @@ fn within(path: &Path, dir: &Path) -> bool {
   absolute(path).starts_with(absolute(dir))
 }
 
+/// Whether the machine given is a test's, its environment naming a test's home: such a process reaches no user, unit
+/// or firewall of this machine (docs/account-isolation.md, 「Taking it down」).
+pub fn names_test_home(machine: &Machine) -> bool {
+  machine.var(TEST_HOME).is_some()
+}
+
 /// Why a process on this machine may not reach the herdr at `socket`, or nothing.
 pub fn socket_refusal(socket: &Path, machine: &Machine) -> Option<String> {
   let home = PathBuf::from(machine.var(TEST_HOME)?);

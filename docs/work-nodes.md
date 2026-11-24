@@ -10,8 +10,9 @@ side of a remote agent, the rotation, and what a dropped node does.
 - `bmo-agency node work` lists every workplace with its state, its link and what is missing.
   `setup <node> [--root <path>] [--install]` stands one, `check <node>` reads the same without writing
   anything on the node, `sync <node>` copies and builds the code again, `runs <node> on|off` says
-  whether heavy runs go to it, and `remove <node>` makes it no workplace. The root is a default under
-  the node's home unless named.
+  whether heavy runs go to it, and `remove <node>` makes it no workplace. `teardown <node>` takes an account's
+  isolation node away whole, its user and home with its workplace, and refuses any other node
+  (`docs/account-isolation.md`, 「Taking it down」). The root is a default under the node's home unless named.
 - **The node verbs ask the node service the deployment names:** the one their environment names, else the one
   the data root's `env/agency.env` names, the file the links' units run on, so `node work` and `node person`
   reach the same node service from a shell as from those units.

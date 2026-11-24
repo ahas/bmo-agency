@@ -637,6 +637,40 @@ impl Route for RepositoryChange {
 
 crate::moved!(RepositoryChange);
 
+/// The checkout of a repository a job holds now, its base or one of its support checkouts, where one does.
+pub(super) async fn held_checkout(ground: &Ground, name: &str) -> Result<Option<String>, Refused> {
+  let checkouts: Vec<Worker> = workers::workers(&ground.db, &ground.source)
+    .await?
+    .into_iter()
+    .filter(|worker| worker.name == name || worker.support_of.as_deref() == Some(name))
+    .collect();
+
+  for checkout in checkouts {
+    if holder(ground, &checkout.name).await?.is_some() {
+      return Ok(Some(checkout.name));
+    }
+  }
+
+  Ok(None)
+}
+
+/// A repository taken away with its node checkouts' rows, its support checkouts' going with its row, and its
+/// removal published.
+pub(super) async fn take_away(ground: &Ground, name: &str) -> Result<(), Refused> {
+  run(
+    &ground.db,
+    r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = $1"#,
+    vec![name.into()],
+  )
+  .await?;
+  run(&ground.db, r#"DELETE FROM "repositories" WHERE "name" = $1"#, vec![name.into()]).await?;
+  ground.events.publish(WorkerRemoved {
+    worker: name.to_owned(),
+  });
+
+  Ok(())
+}
+
 /// `DELETE /repositories/{repositoryName}`: a repository no job holds a checkout of, removed.
 pub struct RepositoryDelete;
 
@@ -649,37 +683,14 @@ impl Route for RepositoryDelete {
 
     repositories::named(call.store(), &name).await?.ok_or_else(|| not_found(&name))?;
 
-    let checkouts: Vec<Worker> = workers::workers(call.store(), &call.ground().source)
-      .await?
-      .into_iter()
-      .filter(|worker| worker.name == name || worker.support_of.as_deref() == Some(name.as_str()))
-      .collect();
-
-    for checkout in &checkouts {
-      if holder(call.ground(), &checkout.name).await?.is_some() {
-        return Err(
-          Refused::new(
-            StatusCode::CONFLICT,
-            format!("A job holds {}, a checkout of {name}.", checkout.name),
-          )
+    if let Some(checkout) = held_checkout(call.ground(), &name).await? {
+      return Err(
+        Refused::new(StatusCode::CONFLICT, format!("A job holds {checkout}, a checkout of {name}."))
           .with_code("conflict"),
-        );
-      }
+      );
     }
 
-    run(
-      call.store(),
-      r#"DELETE FROM "repository_node_checkouts" WHERE "repository" = $1"#,
-      vec![name.clone().into()],
-    )
-    .await?;
-    run(
-      call.store(),
-      r#"DELETE FROM "repositories" WHERE "name" = $1"#,
-      vec![name.clone().into()],
-    )
-    .await?;
-    call.events().publish(WorkerRemoved { worker: name });
+    take_away(call.ground(), &name).await?;
 
     Ok(StatusCode::NO_CONTENT.into_response())
   }

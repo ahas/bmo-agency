@@ -32,6 +32,7 @@ pub mod work_node;
 pub mod work_node_hub;
 pub mod work_node_isolated;
 pub mod work_node_setup;
+pub mod work_node_teardown;
 
 use std::fmt;
 use std::path::{Path, PathBuf};

@@ -64,12 +64,16 @@ sandbox = [
 # separated by commas.
 firewall = "add table inet {user}; delete table inet {user}; table inet {user} { chain refuse { meta l4proto tcp reject with tcp reset; reject; }; chain account { ip daddr 127.0.0.1 tcp dport { {ports} } accept; ip daddr { 127.0.0.53, 127.0.0.54 } meta l4proto { tcp, udp } th dport 53 accept; meta oif lo goto refuse; ip daddr { 10.0.0.0/8, 100.64.0.0/10, 127.0.0.0/8, 169.254.0.0/16, 172.16.0.0/12, 192.168.0.0/16, 224.0.0.0/4 } goto refuse; ip6 daddr { ::1, fc00::/7, fe80::/10, ff00::/8 } goto refuse; }; chain out { type filter hook output priority filter; policy accept; meta skuid {user} jump account; }; }"
 
-# The programs that make an isolation node's user, its home and its folders, and the firewall's program its sandbox
-# stands the network rule with, run as root by these paths and never by a name a search path resolves; the setup
-# refuses a machine where one does not stand at its path.
+# The programs that make an isolation node's user, its home and its folders, the firewall's program its sandbox
+# stands the network rule with, and the programs its teardown stops the user's units, ends its processes and takes
+# the user away with (docs/account-isolation.md, 「Taking it down」), run as root by these paths and never by a name a
+# search path resolves; the setup refuses a machine where one does not stand at its path.
 [user_programs]
 useradd = "/usr/sbin/useradd"
 chmod = "/usr/bin/chmod"
 setfacl = "/usr/bin/setfacl"
 install = "/usr/bin/install"
 nft = "/usr/sbin/nft"
+systemctl = "/usr/bin/systemctl"
+pkill = "/usr/bin/pkill"
+userdel = "/usr/sbin/userdel"

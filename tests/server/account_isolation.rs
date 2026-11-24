@@ -4,7 +4,9 @@
 //! loopback and a sight of another user's process, and is allowed its own home and the tool host's port; while
 //! a program of the owner's user still reads and writes them. The user is real and is taken away again with its
 //! firewall table, so the test runs where this machine's user holds passwordless sudo, as the deployment's does. A
-//! copy into the node whose writing side ends early fails at once, which needs no user.
+//! copy into the node whose writing side ends early fails at once, which needs no user. The teardown takes such a
+//! user away again with its home, its processes and its firewall table, refuses any node that is no isolation node,
+//! and finds nothing to do where nothing stands (docs/account-isolation.md, 「Taking it down」).
 
 use std::net::{TcpListener, TcpStream};
 use std::os::unix::fs::PermissionsExt;
@@ -24,9 +26,13 @@ impl Drop for MadeUser {
   }
 }
 
-// The user and the firewall table its sandbox stood, which is named after it.
+// The user, any process of it a test left standing, and the firewall table its sandbox stood, which is named after it.
 fn remove_user(user: &str) {
-  for line in [&["userdel", "--remove", user][..], &["nft", "delete", "table", "inet", user]] {
+  for line in [
+    &["pkill", "-KILL", "-u", user][..],
+    &["userdel", "--remove", user],
+    &["nft", "delete", "table", "inet", user],
+  ] {
     let _ = Command::new("sudo")
       .arg("-n")
       .args(line)
@@ -455,4 +461,115 @@ async fn an_isolation_node_s_link_runs_its_far_end_as_the_account_s_user_in_the_
       .is_ok_and(|status| status.success())
   })
   .await;
+}
+
+#[test]
+fn the_teardown_takes_an_isolation_node_s_own_user_alone() {
+  use agency_server::verbs::work_node_teardown::{account_user, isolation_of};
+
+  for refused in ["u7pc", "account-", "account-7x", "account-../7", "bmo", "", "account-7 "] {
+    assert!(isolation_of(refused).is_err(), "{refused:?} is no isolation node");
+  }
+
+  assert_eq!(isolation_of("account-7").expect("an isolation node").user, "bmo-account-7");
+
+  for user in ["root", "bmo-account-", "bmo-account-7a", "bmo-account-../7", "account-7", "bmo-agency"] {
+    assert!(!account_user(user), "{user:?} is no isolation node's user");
+  }
+
+  assert!(account_user("bmo-account-7"));
+}
+
+#[tokio::test]
+async fn a_teardown_where_nothing_stands_is_nothing_to_do_and_takes_the_node_s_row_and_folder() {
+  use agency_server::verbs::work_node_teardown::{Reach, tear_down};
+
+  let scratch = crate::support::scratch::Scratch::new().await;
+  let data = tempfile::tempdir().expect("a data root");
+  let node = format!("account-96{}", std::process::id());
+  // Where this machine cannot stand an isolation node its firewall cannot be asked, and the store's part alone is.
+  let reach = if can_stand_one_here() { Reach::Machine } else { Reach::StoreAlone };
+
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "runs", "state", "created_at", "updated_at") VALUES ($1, '~/w', 0, 'ready', 1, 1)"#,
+      vec![node.clone().into()],
+    )
+    .await;
+  std::fs::create_dir_all(data.path().join("nodes").join(&node)).expect("its folder");
+  std::fs::write(data.path().join("nodes").join(&node).join("setup.json"), "{}").expect("its record");
+
+  let first = tear_down(scratch.db(), data.path(), &node, reach).await.expect("a teardown");
+
+  assert_eq!((first.user, first.firewall, first.workplace), (false, false, true));
+  assert!(!data.path().join("nodes").join(&node).exists());
+
+  let again = tear_down(scratch.db(), data.path(), &node, reach).await.expect("a teardown");
+
+  assert_eq!((again.user, again.firewall, again.workplace), (false, false, false));
+  assert_eq!(again.lines, [format!("{node}: nothing of it stood")]);
+  assert!(
+    tear_down(scratch.db(), data.path(), "u7pc", reach).await.is_err(),
+    "a PC is no isolation node"
+  );
+}
+
+#[tokio::test]
+async fn a_teardown_takes_a_throwaway_account_s_user_its_processes_and_its_table_away() {
+  use agency_server::verbs::work_node_teardown::{Reach, tear_down};
+
+  if !can_stand_one_here() {
+    return;
+  }
+
+  let scratch = crate::support::scratch::Scratch::new().await;
+  let data = tempfile::tempdir().expect("a data root");
+  let account = format!("97{}", std::process::id());
+  let isolation = Isolation::of_account(&account).expect("a login id");
+
+  remove_user(&isolation.user);
+
+  let _made = MadeUser(isolation.user.clone());
+  let door = IsolatedDoor::open(&isolation, true, &[NO_TOOL_HOST]).await.expect("the user is made");
+  let uid =
+    String::from_utf8(Command::new("id").args(["-u", &isolation.user]).output().expect("its id").stdout)
+      .expect("an id")
+      .trim()
+      .to_owned();
+
+  // Its sandbox stands its firewall table, and a process of it is left standing past the command that started it.
+  let left = door.run("setsid sleep 300 </dev/null >/dev/null 2>&1 &").await;
+
+  assert_eq!(left.code, 0, "{}", left.stderr);
+  wait_for("the account's process", || owner_runs(&format!("pgrep -U {uid}"))).await;
+  assert!(
+    owner_runs(&format!("sudo -n nft list table inet {}", isolation.user)),
+    "its table stands"
+  );
+
+  scratch
+    .run(
+      r#"INSERT INTO "node_workplaces" ("node", "root", "runs", "state", "created_at", "updated_at") VALUES ($1, '~/w', 0, 'ready', 1, 1)"#,
+      vec![isolation.node.clone().into()],
+    )
+    .await;
+
+  let done = tear_down(scratch.db(), data.path(), &isolation.node, Reach::Machine)
+    .await
+    .expect("a teardown");
+
+  assert_eq!((done.user, done.firewall, done.workplace), (true, true, true), "{:?}", done.lines);
+  assert!(!owner_runs(&format!("id -u {}", isolation.user)), "the user is gone");
+  assert!(isolation.home.symlink_metadata().is_err(), "its home is gone");
+  assert!(!owner_runs(&format!("pgrep -U {uid}")), "no process of it is left");
+  assert!(
+    !owner_runs(&format!("sudo -n nft list table inet {}", isolation.user)),
+    "its table is gone"
+  );
+
+  let again = tear_down(scratch.db(), data.path(), &isolation.node, Reach::Machine)
+    .await
+    .expect("a teardown");
+
+  assert_eq!((again.user, again.firewall, again.workplace), (false, false, false));
 }

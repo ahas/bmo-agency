@@ -73,6 +73,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   whose chain runs through the unit, read off the chain afresh, so no other account's agents and none of the
   platform's work there; anything else is refused 403 `foreign-repository` as every crossing of sides is
   (`docs/api.md`, 「A repository takes the work of its own side alone」).
+- **An account or a unit removed for good takes the repositories filed under it** as a removal takes one, its node
+  and support checkouts' rows with it, and is refused while a job holds a checkout of one (`docs/api.md`, 「owners
+  and organisation units removed for good」).
 
 ## What a run in a repository is handed
 

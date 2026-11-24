@@ -85,6 +85,7 @@ mod control {
   mod models;
   mod own_llm;
   mod owned_accounts;
+  mod owner_removal;
   mod pane_death;
   mod person_node_routes;
   mod personal_models;

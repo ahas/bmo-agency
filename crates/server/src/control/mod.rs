@@ -35,6 +35,7 @@ mod node_reads;
 pub mod organisation_supply;
 mod own_agent_routes;
 pub mod own_llm;
+mod owner_removal;
 mod person_node_routes;
 mod personal_app_routes;
 pub mod personal_models;

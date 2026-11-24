@@ -1055,6 +1055,22 @@ pub struct OffBoarded {
   pub local_ais: i64,
 }
 
+/// What removing an owner or an organisation unit for good would take now, by kind, every kind present.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RemovalCounts {
+  /// How many of each kind the removal would take.
+  pub counts: BTreeMap<String, i64>,
+}
+
+/// What removing an owner or an organisation unit for good took, by kind, every kind present.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RemovalDone {
+  /// How many of each kind the removal took.
+  pub removed: BTreeMap<String, i64>,
+}
+
 /// The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

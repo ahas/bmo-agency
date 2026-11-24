@@ -16,7 +16,7 @@ use tokio::net::TcpListener;
 use crate::support::grounds::ground_on;
 use crate::support::scratch::Scratch;
 
-const TOKEN: &str = "secret";
+pub(super) const TOKEN: &str = "secret";
 
 // The front on a port of its own, over the ground given.
 pub(super) async fn front(ground: agency_server::places::Ground) -> u16 {

@@ -4969,6 +4969,224 @@
         ]
       }
     },
+    "/owners/{account}/removal": {
+      "get": {
+        "operationId": "countOwnerRemoval",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Count what removing a login account for good would take, changing nothing.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the login account's user id, a positive whole number"
+            }
+          }
+        ]
+      }
+    },
+    "/owners/{account}": {
+      "delete": {
+        "operationId": "removeOwner",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Remove everything agency keeps of a login account, for good.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalDone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failed"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "conflict",
+          "failed"
+        ],
+        "parameters": [
+          {
+            "name": "account",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the login account's user id, a positive whole number"
+            }
+          }
+        ]
+      }
+    },
+    "/org-units/{unit}/removal": {
+      "get": {
+        "operationId": "countOrgUnitRemoval",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Count what removing an organisation unit for good would take, changing nothing.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalCounts"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the organisation unit's id, a positive whole number"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "the unit's company, a positive whole number; agency keys nothing by it"
+            }
+          }
+        ]
+      }
+    },
+    "/org-units/{unit}": {
+      "delete": {
+        "operationId": "removeOrgUnit",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Remove everything agency keeps of an organisation unit, for good.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovalDone"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/Failed"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "conflict",
+          "failed"
+        ],
+        "parameters": [
+          {
+            "name": "unit",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the organisation unit's id, a positive whole number"
+            }
+          },
+          {
+            "name": "company",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "the unit's company, a positive whole number; agency keys nothing by it"
+            }
+          }
+        ]
+      }
+    },
     "/rest": {
       "get": {
         "operationId": "getRest",
@@ -16680,6 +16898,40 @@
         ],
         "description": "What a person's off-boarding turned off."
       },
+      "RemovalCounts": {
+        "type": "object",
+        "properties": {
+          "counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "How many of each kind the removal would take."
+          }
+        },
+        "required": [
+          "counts"
+        ],
+        "description": "What removing an owner or an organisation unit for good would take now, by kind, every kind present."
+      },
+      "RemovalDone": {
+        "type": "object",
+        "properties": {
+          "removed": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "How many of each kind the removal took."
+          }
+        },
+        "required": [
+          "removed"
+        ],
+        "description": "What removing an owner or an organisation unit for good took, by kind, every kind present."
+      },
       "Rest": {
         "type": "object",
         "properties": {
@@ -22699,6 +22951,16 @@
       },
       "EscalationEarly": {
         "description": "escalation-early",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "Failed": {
+        "description": "failed",
         "content": {
           "application/json": {
             "schema": {

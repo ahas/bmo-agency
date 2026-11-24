@@ -55,6 +55,9 @@ platform pays for takes it.
   holds the platform's accounts alone.
 - **A person off-boarded has their personal supply switched off:** each of their Claude accounts, keys and local
   AIs is turned off and their gateway call key is revoked. Their secrets stay sealed where the console keeps them.
+- **A person removed for good has their supply taken:** their Claude accounts, keys, local AIs, reservations, call
+  key and the gateway's records of their requests, and an organisation unit removed for good its keys and Claude
+  accounts (`docs/api.md`, 「owners and organisation units removed for good」). Their secrets are the console's to take.
 
 ### A person's local AI
 

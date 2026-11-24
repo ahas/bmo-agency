@@ -3,7 +3,8 @@
 //! `--install`, the deploy tree's commit copied and built there, the herdr session, the checkouts placed
 //! there cloned, set up and trusted — and writes down what is still missing; `check` reads the same
 //! without writing anything on the node; `sync` copies and builds the code again after a deployment;
-//! `runs` says whether heavy runs go to it; `remove` lets it go.
+//! `runs` says whether heavy runs go to it; `remove` lets it go; `teardown` takes an account's isolation node
+//! away whole.
 
 use std::io::Write;
 use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
@@ -63,6 +64,9 @@ pub enum WorkNodeVerb {
   },
   /// Lets the workplace go; what stands on the node is left as it is.
   Remove { node: String },
+  /// Takes an account's isolation node away whole: its units, its user and home, its firewall table and its
+  /// workplace; refuses any other node.
+  Teardown { node: String },
 }
 
 /// One workplace as its row holds it.
@@ -932,6 +936,12 @@ pub async fn work_node_on(
       Ok(Answer::from(vec![format!(
         "{node}: its workplace is no longer one; what stands on the node is left as it is"
       )]))
+    }
+    Some(WorkNodeVerb::Teardown { node }) => {
+      let reach = super::work_node_teardown::Reach::of(&harness_providers::Machine::of_process(data_root));
+      let done = super::work_node_teardown::tear_down(db, data_root, &node, reach).await?;
+
+      Ok(Answer::from(done.lines))
     }
     Some(verb) => stand(db, nodes, data_root, &verb).await,
   }

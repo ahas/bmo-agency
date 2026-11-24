@@ -302,6 +302,14 @@ pub struct GetUsageQuery {
 
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OrgUnitRemovalQuery {
+  /// the unit's company
+  #[serde(skip_serializing_if = "Option::is_none")]
+  pub company: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DeleteRoomHoldingQuery {
   #[serde(skip_serializing_if = "Option::is_none")]
   pub dry_run: Option<bool>,
@@ -822,6 +830,32 @@ impl AgencyClient {
   /// `POST /people/{user}/off-boarding`: Switch a person's supply off and revoke their call key.
   pub async fn off_board_person(&self, user: i64) -> Answer<OffBoarded> {
     Self::answered(self.request(Method::POST, &["people", &user.to_string(), "off-boarding"])).await
+  }
+
+  /// `GET /owners/{account}/removal`: Count what removing a login account for good would take, changing nothing.
+  pub async fn count_owner_removal(&self, account: i64) -> Answer<RemovalCounts> {
+    Self::answered(self.request(Method::GET, &["owners", &account.to_string(), "removal"])).await
+  }
+
+  /// `DELETE /owners/{account}`: Remove everything agency keeps of a login account, for good.
+  pub async fn remove_owner(&self, account: i64) -> Answer<RemovalDone> {
+    Self::answered(self.request(Method::DELETE, &["owners", &account.to_string()])).await
+  }
+
+  /// `GET /org-units/{unit}/removal`: Count what removing an organisation unit for good would take, changing
+  /// nothing.
+  pub async fn count_org_unit_removal(
+    &self,
+    unit: i64,
+    query: &OrgUnitRemovalQuery,
+  ) -> Answer<RemovalCounts> {
+    Self::answered(self.request(Method::GET, &["org-units", &unit.to_string(), "removal"]).query(query))
+      .await
+  }
+
+  /// `DELETE /org-units/{unit}`: Remove everything agency keeps of an organisation unit, for good.
+  pub async fn remove_org_unit(&self, unit: i64, query: &OrgUnitRemovalQuery) -> Answer<RemovalDone> {
+    Self::answered(self.request(Method::DELETE, &["org-units", &unit.to_string()]).query(query)).await
   }
 
   /// `PATCH /accounts/{accountId}`: Record an account's usage and its rest.
