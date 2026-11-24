@@ -1,14 +1,13 @@
-//! The sources a person's chain leaves open and organisation supply (docs/supply.md, 「The sources a person's chain
-//! leaves open」 and 「Organisation supply」): the order's fixed shape, organisation supply opened by the platform's
-//! word alone, and a run taking the nearest unit's key of its path through a reservation that names the unit.
+//! The sources a run walks and organisation supply (docs/supply.md, 「The sources a run walks」 and 「Organisation
+//! supply」): the hook's order followed as it stands, organisation supply opened by the platform's word alone, and a
+//! run taking the nearest unit's key of its path through a reservation that names the unit.
 //!
-//! The account service stands in on the loopback: the platform opens organisation supply to the company, unit 3,
-//! by a rule naming it; the person stands in unit 4 under it, which holds a key of its own; and their own supply
-//! is turned off at unit 3.
+//! The account service stands in on the loopback: the person stands in unit 4 under the company, unit 3, and unit
+//! 4 holds a key of its own; the hook's order is the consumer's word on which sources the person may take.
 
 use std::collections::{BTreeMap, HashMap};
 
-use agency_server::supply::sources::{self, Open};
+use agency_server::supply::sources;
 use agency_server::supply::{Choice, Shortfall, Source, choose, personal_member};
 use axum::extract::{Path as Route, Query};
 use policy::supply::SUPPLY;
@@ -20,37 +19,6 @@ use crate::support::scratch::Scratch;
 
 fn order(words: &[&str]) -> Vec<String> {
   words.iter().map(|word| (*word).to_owned()).collect()
-}
-
-#[test]
-fn the_order_keeps_personal_then_organisation_then_the_platform_s_and_drops_what_the_chain_closes() {
-  let hooked = order(&["personal", "plan", "credits"]);
-  let open = |personal, platform, units: &[i64]| Open {
-    personal,
-    platform,
-    units: units.to_vec(),
-  };
-
-  assert_eq!(
-    sources::shaped(&hooked, &Open::default()),
-    hooked,
-    "the defaults leave the hook's order"
-  );
-  assert_eq!(
-    sources::shaped(&hooked, &open(true, true, &[4])),
-    order(&["personal", "organisation", "plan", "credits"])
-  );
-  assert_eq!(
-    sources::shaped(&hooked, &open(false, true, &[4])),
-    order(&["organisation", "plan", "credits"])
-  );
-  assert_eq!(sources::shaped(&hooked, &open(true, false, &[4])), order(&["personal", "organisation"]));
-  assert_eq!(sources::shaped(&hooked, &open(false, false, &[])), Vec::<String>::new());
-  assert_eq!(
-    sources::shaped(&order(&["organisation", "plan"]), &Open::default()),
-    order(&["plan"]),
-    "a hook that names the organisation's supply is not followed"
-  );
 }
 
 #[test]
@@ -77,21 +45,18 @@ fn organisation_supply_opens_on_the_platform_s_word_alone() {
   );
 }
 
-// The chain as the stand-in answers it for the person: what each of the three settings resolves to.
+// The chain as the stand-in answers it for the person: the account service's `supply.organisation`, open for them,
+// whose path names their units.
 fn resolved(key: &str) -> Value {
   let path = json!(["platform", "unit:3", "unit:4", format!("person:{PERSON}")]);
 
-  match key {
-    "supply.organisation" => json!({
-      "value": true,
-      "layers": [{ "link": "platform", "value": true, "rule": "unit:3" }],
-      "path": path,
-    }),
-    "supply.personal" => {
-      json!({ "value": false, "layers": [{ "link": "unit:3", "value": false }], "path": path })
-    }
-    _ => json!({ "value": true, "layers": [], "path": path }),
-  }
+  assert_eq!(key, "supply.organisation", "agency reads no other supply setting");
+
+  json!({
+    "value": true,
+    "layers": [{ "link": "platform", "value": true, "rule": "unit:3" }],
+    "path": path,
+  })
 }
 
 async fn account_service() -> (String, tokio::task::JoinHandle<()>) {
@@ -141,7 +106,8 @@ async fn a_person_s_run_takes_the_nearest_unit_s_key_through_a_reservation_namin
     )
     .await;
   consumer.register(&ground);
-  consumer.answers("order", json!({ "sources": ["personal", "plan"] }));
+  // The consumer closed the person's own supply and opened their organisation's before the platform's.
+  consumer.answers("order", json!({ "sources": ["organisation", "plan"] }));
   consumer.answers(
     "reserve:organisation",
     json!({ "accepted": true, "reservation": "r-org", "amountUsd": 1.0 }),
@@ -156,7 +122,11 @@ async fn a_person_s_run_takes_the_nearest_unit_s_key_through_a_reservation_namin
   };
 
   assert_eq!(unit, 4);
-  assert_eq!(chosen.order, order(&["organisation", "plan"]), "the person's own is closed at unit 3");
+  assert_eq!(
+    chosen.order,
+    order(&["organisation", "plan"]),
+    "the hook's order is walked as it stands"
+  );
   assert_eq!(
     scratch
       .count(
@@ -173,22 +143,19 @@ async fn a_person_s_run_takes_the_nearest_unit_s_key_through_a_reservation_namin
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_chain_that_closes_every_source_the_order_names_closes_the_run_saying_so() {
+async fn an_order_that_names_no_source_closes_the_run_saying_so() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
-  // Every source is turned off above the person, organisation supply never opened.
-  let (address, serving) = account_service_with(|key| match key {
-    "supply.organisation" => json!({ "value": false, "layers": [], "path": ["platform", "unit:3"] }),
-    _ => json!({ "value": false, "layers": [{ "link": "unit:3", "value": false }], "path": ["platform", "unit:3"] }),
-  })
-  .await;
+  let (address, serving) =
+    account_service_with(|_| json!({ "value": false, "layers": [], "path": ["platform", "unit:3"] })).await;
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
   let consumer = Consumer::stand().await;
 
   consumer.register(&ground);
-  consumer.answers("order", json!({ "sources": ["personal", "plan"] }));
+  // Every source closed above the person: the consumer's order names none.
+  consumer.answers("order", json!({ "sources": [] }));
 
   let Choice::Closed(closed) = choose(&ground, &asked(Some(PERSON), "deepseek")).await.unwrap() else {
     panic!("the run was due to be closed");

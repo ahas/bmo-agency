@@ -133,8 +133,7 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
   name `agency`) as its server stands, from the declarations `policy/prompt-layers.toml` holds — the organisation's
   instructions, the persona's choice, and the person's instructions with whether they may give them — and again wherever a
   resolution finds a kind undeclared. A process on a copy of the data root declares nothing as it stands. Its
-  other kinds are declared with them, from `policy/organisation.toml`: the supply sources (`docs/supply.md`,
-  「The sources a person's chain leaves open」), the sign-up composition (`docs/role-agents.md`, 「The agents an
+  other kinds are declared with them, from `policy/organisation.toml`: the sign-up composition (`docs/role-agents.md`, 「The agents an
   account is given」), repository management (`docs/repositories.md`, 「Who may add and change a
   repository」), a person's own changes over the agents supplied to them (`docs/role-agents.md`, 「A person's own
   agents」), personal apps (`docs/person-nodes.md`, 「Personal apps」) and the sharing of them (`docs/person-nodes.md`, 「Shared apps」). A `json` kind's value agency judges on its own route and writes on the chain naming itself the

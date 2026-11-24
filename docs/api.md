@@ -1298,7 +1298,7 @@ notice that holds nothing is withdrawn.
 | POST | `/organisation-supply/{unit}` | Add a key of the unit's for a gateway road, or an Anthropic API key. |
 | PATCH | `/organisation-supply/{unit}/{supplyId}` | Turn one of the unit's keys or accounts on or off. |
 | DELETE | `/organisation-supply/{unit}/{supplyId}` | Remove one of the unit's keys or accounts. |
-| GET | `/supply-sources` | The supply sources the signed-in person's delegation chain leaves open. |
+| GET | `/supply-sources` | The supply sources the order the signed-in person's runs walk holds. |
 | POST | `/people/{user}/off-boarding` | Switch a person's supply off and revoke their call key. |
 
 An account is reached one of four ways: a directory holding a login, a token file, an endpoint — an
@@ -1415,7 +1415,7 @@ configuration home of its own under the data root; it answers 201 with the item,
 already as a key of the road, and 422 `unknown-road` as a person's is. `PATCH` takes `enabled` and answers the
 page; turning a refused key on clears `refusedAt`. `DELETE` answers 204. An item of no such unit's is 404
 `unknown-supply`. `GET /supply-sources` answers a person's call `personal`, `platform`, `organisation`,
-`organisationSupply`, `personalOnly` and `ownSupply` (`docs/supply.md`, 「The sources a person's chain leaves open」); a call
+`organisationSupply`, `personalOnly` and `ownSupply` (`docs/supply.md`, 「The sources a run walks」); a call
 naming no person is refused 403.
 
 **Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it

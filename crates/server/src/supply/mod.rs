@@ -1,8 +1,8 @@
 //! A person's supply inside a road (docs/supply.md): the supply hook, the source a run takes as it starts, its
 //! reservations and their settlement, the meter that extends them while the run goes and finds a source run out,
 //! and the facts told. A run of no account or of the administrator's account takes no source of a person's and is
-//! only recorded; every rule here holds for the runs of the other accounts. Which sources a person's
-//! organisations leave open is read off the delegation chain (`sources`).
+//! only recorded; every rule here holds for the runs of the other accounts. Which sources a person's run may take
+//! is the hook's order; where organisation supply goes out is read off the delegation chain (`sources`).
 
 pub mod hook;
 pub mod meter;
@@ -466,8 +466,8 @@ pub async fn platform_open(
 }
 
 /// Whether the person's supply carries a run on each of `models` of a provider now, as a run's start walks it but
-/// reserving nothing (docs/role-agents.md, 「A person's own agents」): a source of their order, shaped by what their
-/// chain leaves open, holding a credential for the road. The administrator's and the deployment's own runs go out on
+/// reserving nothing (docs/role-agents.md, 「A person's own agents」): a source of the hook's order holding a
+/// credential for the road. The administrator's and the deployment's own runs go out on
 /// every road.
 pub async fn carries(
   ground: &Ground,
@@ -478,7 +478,6 @@ pub async fn carries(
   let Some(account) = person(ground, Some(account)).await? else {
     return Ok(vec![true; models.len()]);
   };
-  let open = sources::open_for(ground, account).await;
   let ask = hook::OrderAsk {
     run: format!("road-choice-{account}-{}", crate::now_ms()),
     account,
@@ -490,7 +489,7 @@ pub async fn carries(
     room: None,
   };
   let order = hook::order(&ground.hooks, ask).await.unwrap_or_else(|| vec![PERSONAL.to_owned()]);
-  let order = sources::shaped(&order, &open);
+  let units = sources::units_for(ground, account, &order).await;
   let mut carried = Vec::with_capacity(models.len());
 
   for model in models {
@@ -500,7 +499,7 @@ pub async fn carries(
       any = if source == PERSONAL {
         personal_source(ground, account, provider, model).await?.is_some()
       } else if source == organisation_word() {
-        organisation_source(ground, &open.units, provider, model).await?.is_some()
+        organisation_source(ground, &units, provider, model).await?.is_some()
       } else {
         platform_open(ground, account, provider, model).await?
       };
@@ -516,25 +515,30 @@ pub async fn carries(
   Ok(carried)
 }
 
-/// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, as the
-/// sources their chain leaves open shape it (`sources::shaped`).
+/// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, with the units
+/// of their path organisation supply goes out on where the order names it.
 ///
-/// Answers too whether the chain closed every source the hook's order named.
+/// Answers too whether the hook answered and named no source at all.
 async fn order_of(
   ground: &Ground,
   asked: &Asked<'_>,
   run: &str,
   account: i64,
 ) -> (Vec<String>, Vec<i64>, bool) {
-  let open = sources::open_for(ground, account).await;
-  let order = hooked_order(ground, asked, run, account).await;
-  let shaped = sources::shaped(&order, &open);
-  let withheld = !order.is_empty() && shaped.is_empty();
+  let (order, withheld) = match hooked_order(ground, asked, run, account).await {
+    Some(order) => {
+      let withheld = order.is_empty();
 
-  (shaped, open.units, withheld)
+      (order, withheld)
+    }
+    None => (vec![PERSONAL.to_owned()], false),
+  };
+  let units = sources::units_for(ground, account, &order).await;
+
+  (order, units, withheld)
 }
 
-async fn hooked_order(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> Vec<String> {
+async fn hooked_order(ground: &Ground, asked: &Asked<'_>, run: &str, account: i64) -> Option<Vec<String>> {
   let ask = hook::OrderAsk {
     run: run.to_owned(),
     account,
@@ -546,7 +550,7 @@ async fn hooked_order(ground: &Ground, asked: &Asked<'_>, run: &str, account: i6
     room: asked.room,
   };
 
-  hook::order(&ground.hooks, ask).await.unwrap_or_else(|| vec![PERSONAL.to_owned()])
+  hook::order(&ground.hooks, ask).await
 }
 
 /// The key a run's money asks are made under: its kind, its number and the moment it chose, so a run after a

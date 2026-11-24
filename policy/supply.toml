@@ -31,8 +31,8 @@ refused = "{source} refused a reservation"
 taken_first = "the order took {source} first as the run started"
 # Why a source left mid-run.
 ran_out = "{source} ran out"
-# Why a run has no source although the hook named some: the person's chain closed every one it named.
-withheld = "the person's organisations close every source the order named"
+# Why a run has no source: the hook's order named none for the person.
+withheld = "the supply hook's order names no source for the person"
 # Where the hook named a moment the source reopens. With {at}.
 reopens = ", and it reopens at {at}"
 # A person's key or login the provider refused, told to their own supervisor room once. With {source} and {why}.

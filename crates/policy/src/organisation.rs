@@ -1,5 +1,5 @@
 //! What agency reads off the account service's delegation chain for the person an agent serves, beside its
-//! prompt layers: the supply sources a person's chain leaves open, the agents an account is given as it is made
+//! prompt layers: where a person's organisation supply goes out, the agents an account is given as it is made
 //! ready, who may add and change repositories, and who may make personal apps and what one may ask for
 //! (docs/supply.md, docs/role-agents.md, docs/repositories.md, docs/person-nodes.md).
 
@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::prompt_layers::Kind;
 
-/// The three supply sources' settings and the words their walk says.
+/// Organisation supply's words, and the account service's setting agency reads it by.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Sources {
@@ -15,9 +15,8 @@ pub struct Sources {
   pub organisation_word: String,
   /// With `{provider}`.
   pub no_organisation: String,
-  pub platform: Kind,
-  pub organisation: Kind,
-  pub personal: Kind,
+  /// The key of the account service's kind saying whether organisation supply stands open.
+  pub organisation_kind: String,
 }
 
 /// The sign-up composition's setting.

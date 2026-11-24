@@ -284,7 +284,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   A person's own instructions are a third, `agency.personal-instructions` (`docs/prompt-layers.md`, 「The person's
   instructions」).
 - **A road a person chooses is one their supply carries now:** a source of the order their run would walk (the
-  hook's order shaped by what their chain leaves open, `docs/supply.md`, 「Choosing a source as a run starts」) that
+  hook's order, `docs/supply.md`, 「Choosing a source as a run starts」) that
   holds a credential for the road, judged as a run's start judges it but reserving nothing. A model another person
   owns is offered to nobody else, and a road is judged against its role's line as every agent's is. A road naming
   none is always open, since the agent's runs then go out on the road of the supervisor that asks them.

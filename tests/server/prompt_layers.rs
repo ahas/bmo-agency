@@ -320,9 +320,6 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
       "agency.personal-instructions.text",
       "agency.own-agents",
       "agency.road-choice",
-      "supply.platform",
-      "supply.organisation",
-      "supply.personal",
       "signup.composition",
       "repositories.manage",
       "personal-apps.make",
@@ -335,8 +332,6 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
   );
   assert_eq!(declared["personal-apps.share-scope"]["shape"], "keys");
   assert_eq!(declared["personal-apps.share-scope"]["default"], json!(["team", "heads"]));
-  assert_eq!(declared["supply.organisation"]["mode"], "narrowing");
-  assert_eq!(declared["supply.organisation"]["default"], json!(false));
   assert_eq!(declared["signup.composition"]["shape"], "json");
   assert!(
     declared["signup.composition"].get("default").is_none(),

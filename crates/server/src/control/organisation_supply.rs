@@ -1,8 +1,8 @@
 //! An organisation's own supply as the routes keep it (docs/supply.md, 「Organisation supply」; docs/api.md,
 //! 「accounts, rest and usage」): the keys a unit registers for the gateway's roads and the Anthropic API keys it
 //! registers for Claude Code, each the name of a secret in the unit's own space of the secret store, made, read,
-//! changed and removed by a head of the unit or the owner; and the sources a person's chain leaves open, which
-//! the console reads to ask a person for a login of their own where nothing else carries their runs.
+//! changed and removed by a head of the unit or the owner; and the sources the order a person's runs walk holds,
+//! which the console reads to ask a person for a login of their own where nothing else carries their runs.
 
 use axum::http::{Method, StatusCode};
 use axum::response::Response;
@@ -49,7 +49,7 @@ async fn head_of(ground: &Ground, acting: Acting, unit: i64) -> Result<(), Refus
   let Acting::Person(person) = acting else { return Ok(()) };
   let service = crate::apps::service(ground);
   let read =
-    chain::entry(&service, &ORGANISATION.sources.organisation.key, &format!("unit:{unit}"), person)
+    chain::entry(&service, &ORGANISATION.sources.organisation_kind, &format!("unit:{unit}"), person)
       .await
       .map_err(|_| {
         Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
@@ -67,7 +67,7 @@ async fn head_of(ground: &Ground, acting: Acting, unit: i64) -> Result<(), Refus
 /// Whether organisation supply stands open for the unit on the chain.
 async fn open_for_unit(ground: &Ground, unit: i64) -> Result<bool, Refused> {
   let service = crate::apps::service(ground);
-  let answer = chain::resolve(&service, &ORGANISATION.sources.organisation.key, Subject::Unit(unit))
+  let answer = chain::resolve(&service, &ORGANISATION.sources.organisation_kind, Subject::Unit(unit))
     .await
     .map_err(|_| {
       Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
@@ -418,9 +418,9 @@ async fn own_supply(ground: &Ground, person: i64) -> Result<bool, Refused> {
   Ok(keyed || accounts(&ground.db).await?.iter().any(|one| one.user_id == Some(person) && one.enabled))
 }
 
-/// `GET /supply-sources`: the sources the signed-in person's chain leaves open — their own, their organisation's
-/// and the platform's — whether a unit on their path holds supply of its own, and whether their own is all that
-/// can carry their runs, and whether they hold one of their own that is on.
+/// `GET /supply-sources`: the sources the order the signed-in person's runs walk holds — their own, their
+/// organisation's and the platform's — whether a unit on their path holds supply of its own, whether their own is
+/// all that can carry their runs, and whether they hold one of their own that is on.
 pub struct SupplySources;
 
 impl Route for SupplySources {
@@ -432,23 +432,34 @@ impl Route for SupplySources {
       return Err(Refused::new(StatusCode::FORBIDDEN, &words().no_person).with_code("forbidden"));
     };
     let ground = call.shared_ground();
-    let open =
-      sources::read(&crate::apps::service(&ground), Subject::Person(person))
-        .await
-        .map_err(|_| {
-          Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
-        })?;
-    let organisation_supply = any_supply(&ground, &open.units).await?;
+    let ask = crate::supply::hook::OrderAsk {
+      run: format!("supply-sources-{person}-{}", now_ms()),
+      account: person,
+      provider: String::new(),
+      model: String::new(),
+      kind: crate::supply::Kind::Turn,
+      job: None,
+      supervisor: None,
+      room: None,
+    };
+    let order = crate::supply::hook::order(&ground.hooks, ask)
+      .await
+      .unwrap_or_else(|| vec![crate::supply::PERSONAL.to_owned()]);
+    let organisation = crate::supply::organisation_word();
+    let personal = order.iter().any(|source| source == crate::supply::PERSONAL);
+    let platform = order.iter().any(|source| source != crate::supply::PERSONAL && source != organisation);
+    let units = sources::units_for(&ground, person, &order).await;
+    let organisation_supply = any_supply(&ground, &units).await?;
     let own_supply = own_supply(&ground, person).await?;
 
     Ok(answer(
       StatusCode::OK,
       json!({
-        "personal": open.personal,
-        "platform": open.platform,
-        "organisation": !open.units.is_empty(),
+        "personal": personal,
+        "platform": platform,
+        "organisation": !units.is_empty(),
         "organisationSupply": organisation_supply,
-        "personalOnly": open.personal && !open.platform && !organisation_supply,
+        "personalOnly": personal && !platform && !organisation_supply,
         "ownSupply": own_supply,
       }),
     ))
