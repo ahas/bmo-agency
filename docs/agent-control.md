@@ -165,9 +165,19 @@ The owner's words:
     last — a command a turn or the standing pass wrote in its place — begins the place's start history
     afresh, so a place whose program is replaced from one turn to the next is neither held back nor taken
     for a loop.
-  - **A place that keeps dying is stood up anew.** Six starts of its program within five minutes is a
-    program in a loop, and the next turn does not put its prompt into it: the place is rebuilt first
-    (「Stopping, falling back and standing up again」).
+  - **A program in a loop rests.** Six starts of its program within five minutes is a program in a
+    loop, and the agent host starts it no more: the head that asks for the seventh start is answered the
+    view, and the place records that its program rests, with the moment and the program's identity.
+    While it rests every head is answered the view, the place does not read as unheld, so no view gives
+    way to it, and nothing starts the program however long no turn comes. A program that can never come
+    up — a file its command names gone, a login refused — so costs six starts and then nothing. Every
+    start costs more than the pane: Claude Code inside WSL asks Windows for its managed settings through
+    interop as it starts, and a few dozen places starting every few seconds starve the whole Windows
+    machine, its screen and every command run there.
+  - **A rest ends when the place changes:** a program of another identity written into it, or the
+    rebuild below, which clears the rest with the start history.
+  - **A place that keeps dying is stood up anew.** A program in a loop or at rest is not given the next
+    turn's prompt: the place is rebuilt first (「Stopping, falling back and standing up again」).
 - **Every supervisor's pane is stood up, not waited for.** The chat receiver stands them all up as it
   attaches to herdr, on every reattachment and every ten minutes (`chat-providers.md`, 「Where the
   receiver runs」), so a supervisor that has not run since the machine came up has its pane and its
@@ -1267,9 +1277,9 @@ takes them, however the job stands when they arrive.
     bot's standing pass on attach and every ten minutes, and a turn that finds it missing waits for
     that rather than opening a pane of its own.
   - **A place that will not stand is rebuilt, once per turn.** A turn waits for its program to come up
-    however long that takes, and ends early only on what the place says. A program in a start loop has
-    its pane closed and its start history cleared, and the workspace is stood again and waited on once
-    more. A place is rebuilt at most once a minute, a loop met inside that minute waited out until it
+    however long that takes, and ends early only on what the place says. A program in a start loop or
+    at rest has its pane closed and its start history and its rest cleared, and the workspace is stood
+    again and waited on once more. A place is rebuilt at most once a minute, a loop met inside that minute waited out until it
     may be; a turn whose program loops again after the rebuild ends as a transport failure naming why.
   - **A program that cannot be started at all is not waited for.** Where the head cannot start the
     program — its executable is not on the `PATH` it was handed, or is not runnable — the agent host

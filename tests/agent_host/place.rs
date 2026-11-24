@@ -2,7 +2,7 @@
 //! starts alone.
 
 use agent_host::identity::ProcessIdentity;
-use agent_host::place::{RunningProgram, recent_starts, restart_delay};
+use agent_host::place::{RunningProgram, in_a_loop, recent_starts, restart_delay};
 
 #[test]
 fn three_starts_a_minute_go_at_once_and_then_the_wait_doubles() {
@@ -34,6 +34,7 @@ fn a_program_written_in_place_of_another_starts_its_history_afresh() {
     pane_id: None,
     recent: (1..=5).map(|i| now - 1_000 * i).collect(),
     pending_until: None,
+    resting_since: None,
   };
 
   // The same program starting again is held back as its own starts say.
@@ -44,4 +45,13 @@ fn a_program_written_in_place_of_another_starts_its_history_afresh() {
   assert!(recent_starts(Some(&running), "second", now).is_empty());
   assert_eq!(restart_delay(&recent_starts(Some(&running), "second", now), now), 0);
   assert!(recent_starts(None, "first", now).is_empty());
+}
+
+#[test]
+fn six_starts_within_five_minutes_are_a_loop_and_older_ones_are_not() {
+  let now = 1_000_000;
+
+  assert!(!in_a_loop(&(1..=5).map(|i| now - 1_000 * i).collect::<Vec<_>>(), now));
+  assert!(in_a_loop(&(1..=6).map(|i| now - 40_000 * i).collect::<Vec<_>>(), now));
+  assert!(!in_a_loop(&[now - 300_000; 6], now));
 }

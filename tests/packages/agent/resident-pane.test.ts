@@ -117,6 +117,12 @@ describe("starting again is bounded", () => {
     expect(startLooping(running([1, 2, 3, 4, 5, 6].map((at) => now - at * 60_000)), now)).toBe(false);
     expect(startLooping(null, now)).toBe(false);
   });
+
+  test("a program resting after a loop reads as one in a loop whatever its starts", () => {
+    const now = 10_000_000;
+
+    expect(startLooping({ identity: "x", pid: 0, birth: null, loop: { pid: 1, birth: "x" }, starts: 6, startedAt: now - 600_000, recent: [], restingSince: now - 300_000 }, now)).toBe(true);
+  });
 });
 
 describe("a place that will not stand", () => {

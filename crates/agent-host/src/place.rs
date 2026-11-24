@@ -60,6 +60,10 @@ pub struct RunningProgram {
   pub recent: Vec<u64>,
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub pending_until: Option<u64>,
+  /// Since when the program has rested: it started in a loop and is started no more until the place
+  /// changes (docs/agent-control.md, 「One standing pane per supervisor」).
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub resting_since: Option<u64>,
 }
 
 impl RunningProgram {
@@ -88,6 +92,8 @@ const REMEMBERED_MS: u64 = 5 * 60_000;
 const FREE_STARTS: u32 = 3;
 const FIRST_WAIT_MS: u64 = 2_000;
 const LONGEST_WAIT_MS: u64 = 30_000;
+/// The starts within the remembered window that make a program one in a loop.
+pub const LOOPING_STARTS: usize = 6;
 
 /// The starts of the program `identity` names still remembered at `now`. A start on another program than
 /// the one that ran last is a command written in its place, not the same program starting again, so its
@@ -101,6 +107,11 @@ pub fn recent_starts(running: Option<&RunningProgram>, identity: &str, now: u64)
       .filter(|at| now.saturating_sub(*at) < REMEMBERED_MS)
       .collect()
   })
+}
+
+/// Whether starts remembered at `now` make a program one in a loop, which is started no more.
+pub fn in_a_loop(recent: &[u64], now: u64) -> bool {
+  recent.iter().filter(|at| now.saturating_sub(**at) < REMEMBERED_MS).count() >= LOOPING_STARTS
 }
 
 /// How long to wait before starting again: nothing for the first three starts within a minute, then
@@ -140,6 +151,17 @@ impl Place {
 
   pub fn record_running(&self, running: &RunningProgram) -> std::io::Result<()> {
     publish(&self.0.join("running.json"), running)
+  }
+
+  /// Whether the program written in the place rests: the place's record says the program of that
+  /// identity started in a loop, and nothing has changed the place since.
+  pub fn resting(&self) -> bool {
+    match (self.program(), self.running()) {
+      (Some(program), Some(running)) => {
+        running.resting_since.is_some() && running.identity == program.identity
+      }
+      _ => false,
+    }
   }
 
   pub fn record_failure(&self, failure: &StartFailure) -> std::io::Result<()> {

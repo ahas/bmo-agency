@@ -44,6 +44,8 @@ export interface RunningProgram {
   recent?: number[];
   // Set while the head waits out that bound before starting it: the place is held until then.
   pendingUntil?: number;
+  // Set once the program started in a loop: the agent host starts it no more until the place changes.
+  restingSince?: number;
 }
 
 // How far back the starts of a place are remembered.
@@ -58,9 +60,9 @@ function recentStarts(running: RunningProgram | null, now: number = Date.now()):
   return (running?.recent ?? []).filter((at) => now - at < recentWindowMs);
 }
 
-// Whether the place's program keeps falling over and being started again.
+// Whether the place's program keeps falling over and being started again, or rests after doing so.
 export function startLooping(running: RunningProgram | null, now: number = Date.now()): boolean {
-  return recentStarts(running, now).length >= loopingStarts;
+  return running?.restingSince !== undefined || recentStarts(running, now).length >= loopingStarts;
 }
 
 const runningFile = (place: string) => join(place, "running.json");
@@ -254,7 +256,7 @@ async function rebuildPlace(options: {
   const up = programAlive(options.place, options.alive);
 
   if (up !== null) options.end(up.pid);
-  if (running !== null) recordStarted(options.place, { ...running, pid: 0, birth: null, recent: [], pendingUntil: undefined });
+  if (running !== null) recordStarted(options.place, { ...running, pid: 0, birth: null, recent: [], pendingUntil: undefined, restingSince: undefined });
 
   const pane = running?.paneId ?? options.paneId;
 

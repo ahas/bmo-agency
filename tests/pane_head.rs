@@ -484,6 +484,48 @@ fn a_program_that_cannot_start_is_written_down_and_the_head_ends_for_the_loop() 
 }
 
 #[test]
+fn a_program_in_a_loop_rests_with_the_view_until_its_place_changes() {
+  let root = Root::new();
+  let said = root.data.path().join("started");
+  let now = now_ms();
+
+  root.giving_way();
+  root.program("chat", &format!("touch {}; sleep 30", said.display()), json!({}));
+  root.write(
+    "chat",
+    "running.json",
+    json!({ "identity": "one", "pid": 0, "birth": null, "loop": { "pid": 0, "birth": "" }, "starts": 6, "startedAt": now - 5_000, "recent": [now - 200_000, now - 150_000, now - 100_000, now - 60_000, now - 30_000, now - 5_000] }),
+  );
+
+  // The seventh start is not made: the head follows the view, and the place records the rest.
+  let follower = root.spawn("chat", "p1", &[]);
+
+  assert!(within(3_000, || cmdline(follower.pid()).starts_with("tail -n 200 -F ")));
+  assert!(root.read("chat", "running.json")["restingSince"].is_u64());
+  assert_eq!(root.read("chat", "running.json")["starts"], 6);
+
+  // Resting, the program stands unheld and no view gives way to it, and a second head is shown the view too.
+  thread::sleep(Duration::from_millis(4_000));
+  assert!(
+    cmdline(follower.pid()).starts_with("tail -n 200 -F "),
+    "the view gave way to a resting program"
+  );
+  assert!(matches!(root.ask("chat", std::process::id() as i32), Answer::View { .. }));
+  assert!(!said.exists());
+
+  // Another program written into the place ends the rest: the view gives way, and a head starts it at once.
+  let mut follower = follower;
+
+  root.program("chat", &format!("touch {}; sleep 30", said.display()), json!({ "identity": "two" }));
+  assert!(follower.ended(6_000).is_some(), "the follower stood in the new program's way");
+
+  let _head = root.spawn("chat", "p1", &[]);
+
+  assert!(within(4_000, || said.exists()));
+  assert!(root.read("chat", "running.json")["restingSince"].is_null());
+}
+
+#[test]
 fn a_program_held_elsewhere_gets_the_view_and_the_view_gives_way_once_it_is_not() {
   let root = Root::new();
   let holder = Holder::new();

@@ -58,11 +58,12 @@ fn fault(code: &str, message: String) -> Fault {
   }
 }
 
-// Whether the program `identity` names is in a loop: its own starts, never those of a program it was
-// written in place of.
+// Whether the program `identity` names is in a loop or rests after one: its own starts, never those of a
+// program it was written in place of.
 fn looping(running: Option<&RunningProgram>, identity: &str, now: i64) -> bool {
   running.filter(|running| running.identity == identity).is_some_and(|running| {
-    running.recent.iter().filter(|at| now - (**at as i64) < RECENT_WINDOW_MS).count() >= LOOPING_STARTS
+    running.resting_since.is_some()
+      || running.recent.iter().filter(|at| now - (**at as i64) < RECENT_WINDOW_MS).count() >= LOOPING_STARTS
   })
 }
 
@@ -95,6 +96,7 @@ async fn rebuild(place: &Place, home: &Home, pane: Option<&str>) -> bool {
       birth: None,
       recent: vec![],
       pending_until: None,
+      resting_since: None,
       ..running.clone()
     };
     let _ = agent_host::place::Place(place.path.clone()).record_running(&cleared);

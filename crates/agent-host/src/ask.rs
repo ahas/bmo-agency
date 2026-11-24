@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use crate::disk::{now_ms, private_dir_below, private_file, publish, read_json};
 use crate::identity::ProcessIdentity;
 use crate::layout::{Layout, name_component};
-use crate::place::{Place, RunningProgram, StartFailure, next_start, recent_starts, restart_delay};
+use crate::place::{
+  Place, RunningProgram, StartFailure, in_a_loop, next_start, recent_starts, restart_delay,
+};
 use crate::signals::signal_process;
 
 /// A head's question, or its report of a start that failed.
@@ -178,9 +180,9 @@ impl Asks {
   }
 
   // How long the agent's written program has stood with no live head holding it, or none where no
-  // program is written or one is held. The agent is named as its place's directory is.
+  // program is written, one is held or it rests. The agent is named as its place's directory is.
   fn unheld_for(&mut self, agent: &str, place: &Place, now: u64) -> Option<Duration> {
-    if place.program().is_none() || place.held_elsewhere(None, now) {
+    if place.program().is_none() || place.resting() || place.held_elsewhere(None, now) {
       self.unheld_since.remove(agent);
       return None;
     }
@@ -224,7 +226,7 @@ impl Asks {
     let now = now_ms();
     let place = Place::of(&self.data_root, agent);
     let unheld = self.unheld_for(&name_component(agent), &place, now);
-    let held = place.program().is_some() && unheld.is_none();
+    let held = place.program().is_some() && unheld.is_none() && !place.resting();
 
     // A head opened for a host beside a pane holding the program is a display left over: the pane
     // is the program's, and this one lets go.
@@ -240,6 +242,13 @@ impl Asks {
       let before = place.running();
       let start = next_start(&program, before.as_ref());
       let recent = recent_starts(before.as_ref(), &start.identity, now);
+
+      // A program in a loop is started no more: the place records that it rests, and this head and every
+      // one after it follow the view until the place changes.
+      if let Some(before) = before.filter(|_| in_a_loop(&recent, now)) {
+        return self.rest(agent, pane, &head, &place, before, recent, now, host_head);
+      }
+
       let wait_ms = restart_delay(&recent, now);
       let started_at = now + wait_ms;
       let mut recent = recent;
@@ -258,6 +267,7 @@ impl Asks {
         pane_id: pane.map(str::to_owned),
         recent,
         pending_until: (wait_ms > 0).then_some(started_at),
+        resting_since: None,
       };
 
       if let Err(why) = place.record_running(&running) {
@@ -284,6 +294,11 @@ impl Asks {
       };
     }
 
+    self.view(agent, pane, &head, host_head)
+  }
+
+  // The head answered the agent's view, which it follows.
+  fn view(&mut self, agent: &str, pane: Option<&str>, head: &ProcessIdentity, host_head: bool) -> Answer {
     let path = self.view_path(agent);
 
     if let Err(why) = private_dir_below(&self.layout.executions, &self.layout.views())
@@ -294,8 +309,45 @@ impl Asks {
       };
     }
 
-    self.record_head(agent, pane, &head, Holds::View, host_head);
+    self.record_head(agent, pane, head, Holds::View, host_head);
     Answer::View { path }
+  }
+
+  // The program in a loop put to rest: its starts kept, no process standing for it, and the moment it
+  // came to rest recorded; the head is answered the view.
+  #[allow(clippy::too_many_arguments)]
+  fn rest(
+    &mut self,
+    agent: &str,
+    pane: Option<&str>,
+    head: &ProcessIdentity,
+    place: &Place,
+    before: RunningProgram,
+    recent: Vec<u64>,
+    now: u64,
+    host_head: bool,
+  ) -> Answer {
+    let resting = RunningProgram {
+      pid: 0,
+      birth: None,
+      recent,
+      pending_until: None,
+      resting_since: Some(now),
+      ..before
+    };
+
+    if let Err(why) = place.record_running(&resting) {
+      return Answer::Refused {
+        reason: format!("{agent}'s rest could not be recorded: {why}"),
+      };
+    }
+
+    eprintln!(
+      "agent-host: {agent}'s program started {} times within five minutes and rests until its place changes",
+      resting.recent.len()
+    );
+    self.unheld_since.remove(&name_component(agent));
+    self.view(agent, pane, head, host_head)
   }
 
   // A program the head could not start: written into the place for the turn waiting on it, and the
