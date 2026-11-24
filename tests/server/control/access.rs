@@ -585,3 +585,60 @@ async fn work_stands_only_on_a_repository_of_its_holder_s_side() {
 
   agency_server::turn_marks::ended("sup-eight", "run-foreign");
 }
+
+#[tokio::test]
+async fn a_unit_s_repository_asks_no_section_and_is_judged_by_the_chain() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  // The member holds the repositories' read and no write.
+  let (port, granting) = granted(&scratch, home.path(), &[("repositories", true, false)]).await;
+
+  scratch
+    .run(
+      r#"INSERT INTO "repositories" ("name", "path", "owner_unit", "created_at", "updated_at")
+         VALUES ('repo-unit', $1, 40, 0, 0)"#,
+      vec![home.path().join("repo-unit").to_string_lossy().into_owned().into()],
+    )
+    .await;
+  rows(&scratch, home.path()).await;
+
+  // A unit's repository, changed or added under the unit, goes past the section to the chain's check, which this
+  // stand-in account service answers no head of the unit.
+  for (method, path, body) in [
+    (reqwest::Method::PATCH, "/repositories/repo-unit", json!({ "label": "Renamed" })),
+    (
+      reqwest::Method::POST,
+      "/repositories",
+      json!({ "name": "added-unit", "path": "/nowhere", "ownerUnit": 40 }),
+    ),
+  ] {
+    let (status, answer) = send(port, method.clone(), path, Some("7"), Some("member"), body).await;
+    let said = answer["error"].as_str().unwrap_or_default();
+
+    assert!(!said.contains("section"), "{method} {path}: {status} {answer}");
+    assert!(
+      ["access-unchecked", "forbidden"].contains(&answer["code"].as_str().unwrap_or_default()),
+      "{method} {path}: {status} {answer}"
+    );
+  }
+
+  // The member's own repository and an add under no unit still ask the section's write.
+  for (method, path, body) in [
+    (reqwest::Method::PATCH, "/repositories/repo-seven", json!({ "label": "Renamed" })),
+    (
+      reqwest::Method::POST,
+      "/repositories",
+      json!({ "name": "added-own", "path": "/nowhere" }),
+    ),
+  ] {
+    let (status, answer) = send(port, method.clone(), path, Some("7"), Some("member"), body).await;
+
+    assert_eq!(status, 403, "{method} {path}: {answer}");
+    assert!(
+      answer["error"].as_str().unwrap().contains("write access to the repositories section"),
+      "{answer}"
+    );
+  }
+
+  assert_eq!(granting.asked(), 2);
+}

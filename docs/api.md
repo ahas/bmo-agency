@@ -105,7 +105,10 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   guessed. Agency keeps no permission of its own: the console's is the only one.
 - **A member's change of a repository needs repository management** on the delegation chain, and a repository
   an organisation unit owns is changed by that unit's heads (`docs/repositories.md`, 「Who may add and change a
-  repository」 and 「An organisation's repository」).
+  repository」 and 「An organisation's repository」). **A unit's repository asks no console section:** a member's
+  `POST /repositories` naming `ownerUnit`, and a change or removal under `/repositories/{repositoryName}` of a
+  repository a unit owns, goes past the section's check, since whether they head the unit is the whole of who
+  may; the chain's check that follows refuses anyone else.
 - **A section's write reaches a member's own rows alone.** Every row of agent management but a role is filed
   under the login account it belongs to, its `ownerAccount`, the user id `Owner-Key` names, or under none, the
   platform's. A member's change — any method but `GET` and `HEAD` — of a supervisor, a repository or a role

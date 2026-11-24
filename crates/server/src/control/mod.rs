@@ -441,6 +441,17 @@ impl Call {
 
     serde_json::from_slice(&bytes).map_err(|_| Refused::failed(CONTROL_WORDS.request.not_json.as_str()))
   }
+
+  /// The request's JSON body read ahead of its route, and put back for the route to read; none where it is no JSON
+  /// or cannot be read, the route then answering it as it does.
+  pub async fn peek_body(&mut self) -> Option<Value> {
+    let body = std::mem::take(self.request.body_mut());
+    let bytes = axum::body::to_bytes(body, BODY_LIMIT).await.ok()?;
+    let read = serde_json::from_slice(&bytes).ok();
+
+    *self.request.body_mut() = axum::body::Body::from(bytes);
+    read
+  }
 }
 
 // The most a body read whole may carry: 128 MiB.
@@ -568,7 +579,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
   let Some((route, params)) = found else {
     return Refused::new(StatusCode::NOT_FOUND, "not found").into_response();
   };
-  let call = Call {
+  let mut call = Call {
     request,
     ground: front.ground.clone(),
     machine: front.machine.clone(),
@@ -583,6 +594,7 @@ async fn dispatch(State(front): State<Arc<Front>>, request: Request) -> Response
   let method = route.method();
 
   if let Some(ask) = crate::access::asked(&call, &method, route.path())
+    && !crate::access::unit_repository(&mut call, &method, route.path()).await
     && let Err(refused) = crate::access::check(ask).await
   {
     return refused.into_response();

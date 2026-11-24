@@ -86,6 +86,10 @@ What each turn shape composes inside its role is `docs/agent-documents.md` (the 
 - **A link below never takes away what one above says:** every link above it is read whatever it holds. A
   lock at a link cuts the chain there, so no link below it adds any instruction of its own while the lock
   stands; what they held stays kept and unread, as the chain keeps everything below a lock.
+- **One text for every role.** The layer reaches every agent serving the person, whatever its role, and each is
+  told its role by the role's own layer after it; so a unit that asks something of one role writes it in its
+  instructions naming the role, and no kind of its own holds a role's instructions. A role's prompt stays the
+  platform's preset, the same for every organisation.
 
 ## The person's instructions
 

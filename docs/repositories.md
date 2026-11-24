@@ -40,7 +40,8 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **Every repository is a row alike,** the platform's own services and the owner's other repositories —
   one kept outside the platform's tree among them. Nothing is built in: the operations repository is a row
   like any other.
-- **A repository is added, changed and removed on the console's repository tab** or through the repository
+- **A repository is added, changed and removed on the console's repository tab**, a unit's on the organisation
+  screen as well (「An organisation's repository」), or through the repository
   routes (`docs/api.md`, 「repositories, prefix-checks and room-holdings」), with no restart; a removal is refused while a job holds one of
   its checkouts. From a shell, `bmo repository add <name> --path <base checkout>` adds one — `--label` names
   what the console and the agent list show it by, and `--umbrella` marks it an umbrella — and `bmo repository remove <name>` takes one away; each
@@ -65,7 +66,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
 - **A repository may belong to an organisation unit in place of an account.** A head of the unit adds one
   naming `ownerUnit` where `repositories.manage` resolves true for the unit, and changes and removes it; the
   owner adds and changes any. A head is the person the chain answers the unit's link of `repositories.manage`
-  to, which it answers its writers alone.
+  to, which it answers its writers alone. Heading the unit is the whole of it: no console section is asked
+  (`docs/api.md`, 「Who a caller acts for」), so a head sets every field of the unit's repository from the
+  console's organisation screen as the owner does from the repository tab.
 - **Only the people of its path work on it:** a holder's work stands on it only where the holder is a person
   whose chain runs through the unit, read off the chain afresh, so no other account's agents and none of the
   platform's work there; anything else is refused 403 `foreign-repository` as every crossing of sides is

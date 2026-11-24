@@ -4,6 +4,9 @@
 //! each kind stands under the console section of the agent management tab that holds it, and the agent list,
 //! which the console's screen reads under any one of its parts, is read under any of the five.
 //!
+//! A repository an organisation unit owns is the exception: a member's change of one, or an add naming the unit,
+//! asks no section, its unit's heads alone passing the chain's check that follows (「unit_repository」).
+//!
 //! A caller carrying no `Owner-Key` is a unit, a tool, a job or the shell acting on the deployment's own
 //! token, and keeps the routes' present behaviour. The platform administrator, `Owner-Role: administrator`,
 //! is the owner and keeps every access. A member's permission is the console's, kept on the account service:
@@ -170,6 +173,32 @@ pub fn asked(call: &Call, method: &Method, path: &str) -> Option<Check> {
     part,
     write: !matches!(method, &Method::GET | &Method::HEAD),
   })
+}
+
+/// Whether a member's write is on a repository an organisation unit owns, or adds one under a unit: such a call asks
+/// no console section, since heading the unit is the whole of who may, and the chain's checks after it judge that
+/// (docs/api.md, 「Who a caller acts for」; docs/repositories.md, 「An organisation's repository」). A change names
+/// the row, read for its unit; an add names the unit in its body, read ahead of the route and put back.
+pub async fn unit_repository(call: &mut Call, method: &Method, path: &str) -> bool {
+  if Part::of(path) != Some(Part::Repositories) || matches!(method, &Method::GET | &Method::HEAD) {
+    return false;
+  }
+
+  if let Some(name) = call.param("repositoryName").map(str::to_owned) {
+    return matches!(
+      crate::repositories::named(&call.ground().db, &name).await,
+      Ok(Some(held)) if held.owner_unit.is_some()
+    );
+  }
+
+  if method != Method::POST || path != Part::Repositories.root() {
+    return false;
+  }
+
+  call
+    .peek_body()
+    .await
+    .is_some_and(|body| body.get("ownerUnit").and_then(Value::as_i64).is_some())
 }
 
 /// Whose the row a managed route changes is (「Part::row」).
