@@ -56,6 +56,10 @@ pub struct Log {
   pub handoff_documents: String,
   pub handoff_road: String,
   pub handoff_reset: String,
+  /// A room session's clean reset begun: it consolidates and writes no note.
+  pub handoff_clean: String,
+  /// A room session started clean: its generation opened with no note.
+  pub started_clean: String,
   /// A turn carrying the receiver's handoff, which asks for none of its own.
   pub handoff_inside: String,
   /// Why a handoff was not had where the receiver did not answer within the ceiling, {seconds} it.

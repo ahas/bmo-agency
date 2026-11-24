@@ -46,6 +46,7 @@ use crate::door::aside;
 use crate::door::record::{ModelSpend, UsageSpent};
 use crate::door::turn::AsideOutcome;
 use crate::events::Event;
+use crate::handoff::{Asking, Cause};
 use crate::job_run::claude::turn::{Shows, TASK_LOCKED, TURN_AGENT, WorkAsked, WorkSeat, carry, continues};
 use crate::lines::Trees;
 use crate::lines::chat::{ChatLaunch, RoomContext, compose_prepared, compose_turn, gate_run};
@@ -963,7 +964,15 @@ impl HerdrSessions {
           job_id: None,
         });
 
-        self.handed_off(&mut log, agent, None, false, true, &why).await;
+        let asking = Asking {
+          reason: &why,
+          room: None,
+          cause: cause_of(&why),
+          clean: false,
+          by: None,
+        };
+
+        self.handed_off(&mut log, agent, false, true, asking).await;
         keep_agent_session(db, agent, None).await.map_err(store_fault)?;
         // The program stood on the session that just went, so it ends with it rather than waiting for the
         // next turn to stand it again: the pane stops showing the road it went out on, the session token it
@@ -1085,7 +1094,7 @@ impl HerdrSessions {
       };
 
       if let Ok(Some(session)) = sessions::session(db, &agent, chat_id).await {
-        self.owe_room_handover(&session, Why::Reset).await;
+        self.owe_room_handover(&session, reset_why(db, &agent, chat_id).await).await;
       }
     }
 
@@ -1181,7 +1190,7 @@ impl HerdrSessions {
 
     if !owed {
       let why = if sessions::reset_waiting(db, agent, chat_id).await.unwrap_or(false) {
-        Why::Reset
+        reset_why(db, agent, chat_id).await
       } else if harness_moved(ground, &harness, provider, model).await {
         Why::Road
       } else {
@@ -1372,6 +1381,8 @@ impl HerdrSessions {
       return settled.await;
     };
 
+    let why = due.why;
+
     hand_over(&ground, &hold, &speaker, chat_id, due).await;
 
     let after = sessions::session(&db, agent, chat_id).await.ok().flatten();
@@ -1386,15 +1397,19 @@ impl HerdrSessions {
       }
 
       // The generation opened without the note it was owed: the receiver opens its first turn on what it
-      // keeps of the room's answers (docs/sessions.md, 「A restart hands the session over」).
-      if let Err(why) =
-        crate::supervisor_turn::replacement::lose(&db, &sessions::room_session_id(agent, chat_id)).await
+      // keeps of the room's answers (docs/sessions.md, 「A restart hands the session over」), unless the reset
+      // it carries out is clean, whose generation opens on nothing.
+      if why != Why::CleanReset
+        && let Err(lost) =
+          crate::supervisor_turn::replacement::lose(&db, &sessions::room_session_id(agent, chat_id)).await
       {
         eprintln!(
           "supervisor {agent} in chat {chat_id}: the handoff it lost was not written down: {}",
-          why.detail
+          lost.detail
         );
       }
+
+      crate::supervisor_turn::handoff::told(&ground, agent, chat_id, why).await;
     }
 
     // The program stood on the session that went, so it ends with it (docs/supervisors.md, 「The program on an
@@ -1780,22 +1795,28 @@ impl HerdrSessions {
   // The handoff asked for where a chat-line turn is about to open a fresh session in place of one the agent
   // had, and what came of it said in the turn's run log (docs/sessions.md, 「A restart hands the session
   // over」); a turn that resumes its session asks nothing. One whose ask was not had leaves its session marked
-  // so, for the receiver to open the fresh one on its transcript.
+  // so, for the receiver to open the fresh one on its transcript, unless the reset it carries out is clean. A
+  // session gone with no program left to ask is told to the receiver all the same, so its room shows the line.
   async fn handed_off(
     &self,
     log: &mut RunLog,
     agent: &str,
-    room: Option<i64>,
     resuming: bool,
     kept: bool,
-    reason: &str,
+    asking: Asking<'_>,
   ) {
     let ground = self.ground();
+    let gone = asking.cause == Cause::Other;
 
     // A room's own session is not asked through the receiver. When its prompt or its road moved, a reset of it
-    // was asked or its window filled, agency asks it for its own handoff note; a generation that opens because
-    // the session it had is gone has no session left to ask, so it carries nothing and the receiver is not asked.
-    if room.is_some() {
+    // was asked or its window filled, agency asks it for its own handoff note and tells the receiver once the
+    // generation opens; a generation that opens because the session it had is gone has no session left to ask,
+    // so it carries nothing and the receiver is told alone.
+    if asking.room.is_some() {
+      if gone {
+        crate::handoff::tell(ground.vars(), agent, asking).await;
+      }
+
       return;
     }
 
@@ -1811,13 +1832,17 @@ impl HerdrSessions {
     let standing = crate::lines::place::Place::of(&ground.roots.data, agent).program_alive().is_some();
 
     if !crate::handoff::replaces(kept, resuming, standing) {
+      if gone && !resuming {
+        crate::handoff::tell(ground.vars(), agent, asking).await;
+      }
+
       return;
     }
 
     // Asks for the same session are paced, never skipped: one sooner than the pace after the last waits out the
     // rest of it and is then made, so a turn that keeps failing does not leave the room in a handoff loop and no
     // replacement lets a session go without asking (docs/sessions.md, 「A restart hands the session over」).
-    let key = format!("handoff_asked:{agent}:{}", room.unwrap_or(0));
+    let key = format!("handoff_asked:{agent}:0");
     let pace = i64::try_from(self.handoff_pace.load(Ordering::Relaxed)).unwrap_or(i64::MAX);
     let asked_at = crate::queue::settings::get(&ground.db, &key)
       .await
@@ -1847,7 +1872,7 @@ impl HerdrSessions {
 
     // A stop asked of the waiting turn ends the wait; the turn then ends stopped, as its run reads the stop.
     let handed = tokio::select! {
-      handed = crate::handoff::asked(ground.vars(), agent, reason, room) => handed,
+      handed = crate::handoff::asked(ground.vars(), agent, asking) => handed,
       () = stop_asked(ground, log.run()) => {
         crate::handoff::Handed::Failed(SUPERVISOR_RUNNER.log.handoff_stopped.clone())
       }
@@ -1858,6 +1883,7 @@ impl HerdrSessions {
     log.write(&ground.db, Line::note(handed.said())).await;
 
     if matches!(handed, crate::handoff::Handed::Failed(_))
+      && !asking.clean
       && let Err(why) = crate::supervisor_turn::replacement::lose(&ground.db, agent).await
     {
       eprintln!("{agent}: the handoff it lost was not written down: {}", why.detail);
@@ -2002,10 +2028,15 @@ impl HerdrSessions {
         .handed_off(
           &mut log,
           agent,
-          Some(chat_id),
           session.harness.is_some(),
           false,
-          &HANDOFF.reasons.replaced,
+          Asking {
+            reason: &HANDOFF.reasons.replaced,
+            room: Some(chat_id),
+            cause: Cause::Road,
+            clean: false,
+            by: None,
+          },
         )
         .await;
     }
@@ -2035,7 +2066,19 @@ impl HerdrSessions {
     {
       session = sessions::open_generation(&db, agent, chat_id).await.map_err(store_fault)?;
       self
-        .handed_off(&mut log, agent, Some(chat_id), false, false, &HANDOFF.reasons.lost)
+        .handed_off(
+          &mut log,
+          agent,
+          false,
+          false,
+          Asking {
+            reason: &HANDOFF.reasons.lost,
+            room: Some(chat_id),
+            cause: Cause::Other,
+            clean: false,
+            by: None,
+          },
+        )
         .await;
       asked = self
         .room_run(
@@ -2320,8 +2363,24 @@ impl HerdrSessions {
     // A reset the owner asked of the supervisor's one session closes it before this turn opens a new one,
     // and the session is asked for its handoff while agency still names it, as before any fresh session
     // replaces one the agent had (docs/session-resets.md, 「Who holds a session」).
-    if !handoff && sessions::reset_waiting_agent(&db, agent).await.map_err(store_fault)? {
-      self.handed_off(&mut log, agent, None, false, true, &HANDOFF.reasons.replaced).await;
+    let waiting = if handoff {
+      None
+    } else {
+      sessions::waiting_reset(&db, agent, None).await.map_err(store_fault)?
+    };
+
+    if let Some(reset) = waiting {
+      // The room the turn answers is the round under way the receiver tells the reset in, so the ask names none:
+      // a room named here is a room's own session, which is not asked.
+      let asking = Asking {
+        reason: &HANDOFF.reasons.reset,
+        room: None,
+        cause: Cause::Reset,
+        clean: reset.clean,
+        by: reset.by,
+      };
+
+      self.handed_off(&mut log, agent, false, true, asking).await;
       keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
       sessions::settle_reset_agent(&db, agent).await.map_err(store_fault)?;
       held = None;
@@ -2382,7 +2441,19 @@ impl HerdrSessions {
         // A fresh session in place of one the agent's program still stands on asks for its handoff first.
         if !moved {
           self
-            .handed_off(&mut log, agent, None, held.is_some(), false, &HANDOFF.reasons.replaced)
+            .handed_off(
+              &mut log,
+              agent,
+              held.is_some(),
+              false,
+              Asking {
+                reason: &HANDOFF.reasons.replaced,
+                room: None,
+                cause: Cause::Road,
+                clean: false,
+                by: None,
+              },
+            )
             .await;
         }
 
@@ -2406,7 +2477,21 @@ impl HerdrSessions {
         {
           // The session the turn could not resume is asked for its handoff while agency still names it,
           // then let go.
-          self.handed_off(&mut log, agent, None, false, false, &HANDOFF.reasons.lost).await;
+          self
+            .handed_off(
+              &mut log,
+              agent,
+              false,
+              false,
+              Asking {
+                reason: &HANDOFF.reasons.lost,
+                room: None,
+                cause: Cause::Other,
+                clean: false,
+                by: None,
+              },
+            )
+            .await;
           keep_agent_session(&db, agent, None).await.map_err(store_fault)?;
           asked = self
             .agent_run(
@@ -4439,5 +4524,30 @@ pub async fn close_turn_run(
 
   if let Err(run_ledger::NotClosed::Store(why)) = run_ledger::close(db, id, &closing).await {
     eprintln!("{}: the turn's run could not be closed in the ledger: {}", end.run, why.detail);
+  }
+}
+
+// The cause the receiver's room line names for an owed replacement of the one session across rooms, by the reason
+// it was owed for (docs/sessions.md, 「A restart hands the session over」, what the ask carries).
+fn cause_of(why: &str) -> Cause {
+  if why == HANDOFF.reasons.moved {
+    Cause::Documents
+  } else if why == HANDOFF.reasons.road {
+    Cause::Road
+  } else if why == HANDOFF.reasons.reset {
+    Cause::Reset
+  } else if why == HANDOFF.reasons.lost {
+    Cause::Other
+  } else {
+    Cause::Road
+  }
+}
+
+// Why a room's session hands over for the reset waiting for it: clean where the reset asks it so
+// (docs/session-resets.md, 「What a reset is」).
+async fn reset_why(db: &sea_orm::DatabaseConnection, agent: &str, chat_id: i64) -> Why {
+  match sessions::waiting_reset(db, agent, Some(chat_id)).await {
+    Ok(Some(reset)) if reset.clean => Why::CleanReset,
+    _ => Why::Reset,
   }
 }

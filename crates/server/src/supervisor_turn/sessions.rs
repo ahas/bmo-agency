@@ -345,6 +345,34 @@ pub async fn reset_waiting(db: &DatabaseConnection, agent: &str, chat_id: i64) -
   )
 }
 
+/// The reset waiting for a session — the room's, or the one across rooms where `chat_id` is none — as its
+/// carrying out reads it: whether it starts the session clean, and the account that asked where its asker is
+/// one (docs/session-resets.md, 「What a reset is」); none where none waits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WaitingReset {
+  pub clean: bool,
+  pub by: Option<i64>,
+}
+
+/// The reset waiting for a session, read as `WaitingReset`.
+pub async fn waiting_reset(
+  db: &DatabaseConnection,
+  agent: &str,
+  chat_id: Option<i64>,
+) -> Result<Option<WaitingReset>, Refusal> {
+  let row = one(
+    db,
+    "SELECT clean, asked_by FROM session_resets WHERE agent = $1 AND chat_id IS NOT DISTINCT FROM $2 AND done_at IS NULL ORDER BY id LIMIT 1",
+    vec![agent.into(), chat_id.into()],
+  )
+  .await?;
+
+  Ok(row.map(|row| WaitingReset {
+    clean: row.try_get("", "clean").unwrap_or(false),
+    by: row.try_get::<String>("", "asked_by").ok().and_then(|by| by.trim().parse().ok()),
+  }))
+}
+
 /// Whether a reset waits for the agent's one session across rooms (the `agent` scope).
 pub async fn reset_waiting_agent(db: &DatabaseConnection, agent: &str) -> Result<bool, Refusal> {
   Ok(

@@ -104,6 +104,7 @@ mod m20270112_000002_deploy_due_retired;
 mod m20270113_000001_road_advisor;
 mod m20270114_000001_follows_asker;
 mod m20270115_000001_organisation_supply;
+mod m20270116_000001_session_reset_clean;
 
 use sea_orm_migration::prelude::*;
 
@@ -302,6 +303,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270113_000001_road_advisor::Migration),
       Box::new(m20270114_000001_follows_asker::Migration),
       Box::new(m20270115_000001_organisation_supply::Migration),
+      Box::new(m20270116_000001_session_reset_clean::Migration),
     ]
   }
 

@@ -438,27 +438,39 @@ async fn view_of<C: ConnectionTrait>(
 }
 
 /// An ask for one session a holder holds, kept under who asked and why unless one already waits for
-/// it, and set going by its holder. Answers how it is carried out, or none where it already waited.
+/// it, and set going by its holder; a clean ask makes the one waiting clean (docs/session-resets.md, 「What a
+/// reset is」). Answers how it is carried out, or none where it already waited.
 async fn ask(
   db: &DatabaseTransaction,
   holder: &dyn SessionHolder,
   session: &AgentSession,
   by: &str,
   reason: &str,
+  clean: bool,
 ) -> Result<Option<Clearing>, Refused> {
   if waiting(db, &session.agent, session.chat_id).await?.is_some() {
+    if clean {
+      run(
+        db,
+        "UPDATE session_resets SET clean = true WHERE agent = $1 AND chat_id IS NOT DISTINCT FROM $2 AND done_at IS NULL",
+        vec![session.agent.clone().into(), session.chat_id.into()],
+      )
+      .await?;
+    }
+
     return Ok(None);
   }
 
   run(
     db,
-    "INSERT INTO session_resets (agent, chat_id, asked_by, asked_at, reason) VALUES ($1, $2, $3, $4, $5)",
+    "INSERT INTO session_resets (agent, chat_id, asked_by, asked_at, reason, clean) VALUES ($1, $2, $3, $4, $5, $6)",
     vec![
       session.agent.clone().into(),
       session.chat_id.into(),
       by.into(),
       (now_ms() / 1000).into(),
       reason.into(),
+      clean.into(),
     ],
   )
   .await?;
@@ -510,7 +522,7 @@ pub async fn ask_agent_resets(
 
   for holder in HOLDERS {
     for session in holder.sessions(db, &running).await?.into_iter().filter(|one| one.agent == agent) {
-      tell |= ask(db, holder, &session, by, reason).await? == Some(Clearing::AtOnce);
+      tell |= ask(db, holder, &session, by, reason, false).await? == Some(Clearing::AtOnce);
     }
   }
 
@@ -690,6 +702,11 @@ impl Asked {
   }
 }
 
+/// Whether a body asks a clean reset: its `clean` true, and not where it names none.
+pub fn clean_of(body: &Value) -> bool {
+  body.get("clean").and_then(Value::as_bool).unwrap_or(false)
+}
+
 /// Who a body says asked, or the console where it names nobody.
 pub fn asked_by(body: &Value) -> String {
   body
@@ -730,8 +747,15 @@ impl Route for SessionResetAsk {
         .into_iter()
         .find(|one| one.agent == asked.agent && (one.chat_id == asked.chat_id || one.chat_id.is_none()))
       {
-        let clearing =
-          ask(&written, holder, &session, &asked_by(&body), &CONTROL_WORDS.sessions.asked).await?;
+        let clearing = ask(
+          &written,
+          holder,
+          &session,
+          &asked_by(&body),
+          &CONTROL_WORDS.sessions.asked,
+          clean_of(&body),
+        )
+        .await?;
 
         found = Some((session, clearing));
         break;

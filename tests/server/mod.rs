@@ -94,6 +94,7 @@ mod control {
   mod room_session_reads;
   mod run_launch;
   mod session_ops;
+  mod session_reset_clean;
   mod sessions;
   mod supervisor_reset;
   mod supervisor_road;

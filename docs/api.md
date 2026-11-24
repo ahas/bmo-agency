@@ -555,7 +555,7 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/sessions/{sessionId}/words` | Say words to a run's session, offered to the turn it is working. |
 | POST | `/sessions/{sessionId}/answers` | Answer a question a turn asked. |
 | POST | `/sessions/{sessionId}/folds` | Fold a session, compacting its context. |
-| POST | `/session-reset` | Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. |
+| POST | `/session-reset` | Ask to clear one agent's session in a room — `agent`, `chatId?`, `by?`, `clean?` (`docs/session-resets.md`) — answered with the session as it stands after; the next round opens a new one. |
 
 **The block a session's answer is writing.** `GET /sessions/{sessionId}/streaming` answers what the model
 gateway holds of the answer the session's program is streaming now (`docs/own-llm.md`, 「The gateway」):

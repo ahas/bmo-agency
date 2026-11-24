@@ -4,12 +4,21 @@
 
 - **An ask to start an agent's session afresh,** made by the owner. It is kept as a row of
   agency's `session_resets` table: the agent, the room where the session is one room's, who asked,
-  when and why, and when it was carried out.
+  when and why, whether it starts clean, and when it was carried out.
+- **A reset is clean or carries a note.** A supervisor's session sleeps before it goes either way: one
+  more turn consolidates its brain. A clean reset — the console's "Reset session" — writes no handoff note, and
+  the next session opens on nothing carried over: no note, no transcript and no word that memory was
+  lost. A reset that is not clean — the console's handover of a room's session, a save of the
+  generation settings, a base prompt — is carried out by the session's handover, whose note the next
+  session opens on. Neither touches a room's record: no message, file or minutes is deleted or hidden.
+- **`POST /session-reset`** takes `agent`, `chatId` where the session is one room's, `by`, who asked,
+  and `clean`, false where it is not named; it answers the session as it stands after, and 400 with
+  `field` `session` where the agent holds no such session.
 - **It never cuts a turn.** A session is cleared by its own holder at a point where nothing of it
   runs: where a turn or a job of it is running, the reset waits for that one to end and is carried
   out as the next one begins.
 - **One ask waits for a session at a time.** An ask for a session that already has one waiting is
-  the same ask, and adds no row.
+  the same ask, and adds no row; a clean ask makes the waiting one clean.
 - **The old session is kept, never deleted:** the program's own record of it stays where the
   program wrote it, and whatever the holder keeps of its turns stays under it. Only a supervisor's
   reset of its conversation deletes sessions, and that is a reset of its own (below).
@@ -33,9 +42,10 @@ flowchart TD
 ```
 
 - **A supervisor of the `agent` scope:** the one session every room's rounds go on in (`unified-bmo.md`).
-  - A reset is the chat's forced replacement: the next round asks the session for its handoff while
-    agency still names it, lets it go, and opens a new one on the note, as every replacement does
-    (`docs/sessions.md`, 「A restart hands the session over」).
+  - A reset is the chat's forced replacement: the next round asks the receiver's handoff while agency
+    still names the session, lets it go, and opens a new one on the note, as every replacement does
+    (`docs/sessions.md`, 「A restart hands the session over」). A clean reset asks the handoff `clean`,
+    so the session consolidates and writes no note, and the new session opens on none.
   - That round settles the ask.
 - **A role:** the sessions kept for it, one for each path, provider and model its runs went out on
   (`docs/sessions.md`, 「A role's session」), or those of one path where the ask names one.
@@ -49,9 +59,10 @@ flowchart TD
 - **A supervisor of the `room` scope in a room:** that room's session, cleared by its handover
   (`docs/supervisors.md`, 「Clearing it」).
   - Once an ask is written, every waiting ask of a room session that holds a harness session owes
-    that session's handover: the session writes its note in one more turn, the new generation opens
-    on it and the ask is settled, at once where the room carries no turn and otherwise once its turn
-    ends or at the head of its next one.
+    that session's handover: the session consolidates and writes its note in one more turn, the new
+    generation opens on it and the ask is settled, at once where the room carries no turn and
+    otherwise once its turn ends or at the head of its next one. A clean ask's one more turn
+    consolidates and writes no note, and the new generation opens holding none.
   - The resident program standing on the cleared session is taken down once the handover is made
     (`docs/supervisors.md`, 「The program on an ended session」).
   - A room whose session holds no harness session has nothing to hand over, and its next turn opens

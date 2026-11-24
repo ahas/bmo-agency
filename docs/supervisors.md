@@ -438,8 +438,9 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 ### Clearing it
 
 - **A reset of a room's session is an ask, carried out by the session's handover**
-  (`docs/session-resets.md`): the session writes its note in one more turn and the new generation opens on
-  it, at once where the room carries no turn and otherwise once its turn ends, so a turn running when the
+  (`docs/session-resets.md`): the session consolidates and writes its note in one more turn and the new
+  generation opens on it — a clean reset's turn, sent `prompts/agents/pieces/handoff-clean.md`, consolidates
+  the same way and writes none, and the generation opens on nothing, no handoff lost — at once where the room carries no turn and otherwise once its turn ends, so a turn running when the
   ask comes ends on the session it began on. A room whose session holds no harness session has nothing to
   hand over, and its next turn opens the new generation before anything else.
 - **The session cleared is kept:** the harness keeps the old session's record under the supervisor's

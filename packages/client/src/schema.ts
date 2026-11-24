@@ -238,7 +238,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one. */
+        /** Ask to clear one agent's session in a room — `agent`, `chatId?`, `by?`, `clean?` (`docs/session-resets.md`) — answered with the session as it stands after; the next round opens a new one. */
         post: operations["resetSession"];
         delete?: never;
         options?: never;

@@ -340,7 +340,7 @@ pub const OPERATIONS: &[Operation] = &[
     path: "/session-reset",
     id: "resetSession",
     tag: "sessions",
-    summary: "Ask to clear one agent's session in a room, answered with the session as it stands after; the next round opens a new one.",
+    summary: "Ask to clear one agent's session in a room — `agent`, `chatId?`, `by?`, `clean?` (`docs/session-resets.md`) — answered with the session as it stands after; the next round opens a new one.",
     params: &[],
     body: None,
     answers: &[(200, Some("Session"), false)],

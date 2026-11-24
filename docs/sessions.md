@@ -217,9 +217,26 @@ statements below about either are kept for a rollback to the road a deployment l
     turn ends. An error answer, a refusal, a broken connection or the ceiling lets the turn go on — the
     fresh session is opened all the same, and the run log says the handoff was not had and why. A
     deployment that names no receiver asks nothing.
+- **What the ask carries:** `reason`, an English sentence for the receiver's journal; `room` where the turn
+  is one room's; `cause`, why the session goes as the receiver's room line names it — `reset` for a reset
+  of it, `documents` for its prompt's documents moved, `road` for its road moved or a fresh session opened
+  in place of one on another road, `full` for its window filled, `other` for a session that is gone — and
+  `clean` for a clean reset (`docs/session-resets.md`), which has the session consolidate and write no
+  note, and whose fresh session opens on nothing and is no handoff lost.
+- **Every handover is told to the room.** The room shows one line as a supervisor's session is handed
+  over or reset (the receiver's `docs/unified-bmo.md`, 「The room's line」), whichever way it went:
+  - the ask above tells it for the one session across rooms, whether or not a program still stood to be
+    asked;
+  - where a session the agent had is gone and its program no longer stands, so nothing is asked, agency
+    tells the receiver all the same: `POST /handoffs/{agentName}` with `ask` false asks no session and only
+    writes the line, with the cause `other`;
+  - a room's own session, whose handover agency makes itself, is told the same way once its new generation
+    opens — with its note, without one, or clean — with `room`, the cause its handover was owed for
+    (`full`, `documents`, `road` or `reset`), and `by`, the account that asked a reset where its ask names
+    one. A handover its turn wrote no note for and left the session as it was tells nothing.
 - **A handoff that was not had is said on the session's state.** Where the ask for the one session across
-  rooms failed, or a room's own handoff turn failed or wrote no note, the fresh session or generation opens
-  all the same and its state answers `handoffLost` until a turn begun after it has answered (`docs/api.md`,
+  rooms failed, or a room's own handoff turn failed or wrote no note, and the reset was not clean, the fresh
+  session or generation opens all the same and its state answers `handoffLost` until a turn begun after it has answered (`docs/api.md`,
   「sessions」). The receiver opens that turn on its transcript of what the session answered — the room's
   own answers for a room's session — and, where it keeps none, on the word that memory could not be
   recovered, telling the owner once (the receiver's `docs/unified-bmo.md`, 「Replacing the session」).

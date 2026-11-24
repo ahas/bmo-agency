@@ -46,14 +46,106 @@ pub fn replaces(kept: bool, resuming: bool, standing: bool) -> bool {
   !resuming && (kept || standing)
 }
 
-/// The receiver asked for `agent`'s handoff, with the reason and the room, under the deployment's address and
-/// token, and waited on for its answer: a 409 waited out `retry` and asked again, and an error answer or a
-/// refused or broken connection ends the ask without a handoff. The caller bounds the wait.
+/// Why a supervisor's session goes, as the receiver's room line names it (docs/sessions.md, 「A restart hands
+/// the session over」, what the ask carries).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Cause {
+  /// A reset of the session was asked.
+  Reset,
+  /// The documents its prompt is composed from moved.
+  Documents,
+  /// Its road moved, or a fresh session opens in place of one on another road.
+  Road,
+  /// Its window filled.
+  Full,
+  /// The session it had is gone.
+  Other,
+}
+
+impl Cause {
+  /// The word the receiver reads.
+  pub fn word(self) -> &'static str {
+    match self {
+      Self::Reset => "reset",
+      Self::Documents => "documents",
+      Self::Road => "road",
+      Self::Full => "full",
+      Self::Other => "other",
+    }
+  }
+}
+
+/// One ask of the receiver's `POST /handoffs/{agentName}`: the reason for its journal, the room, the cause its
+/// line names, whether the reset is clean — the session consolidating and writing no note — and the account
+/// that asked where one did.
+#[derive(Clone, Copy, Debug)]
+pub struct Asking<'a> {
+  pub reason: &'a str,
+  pub room: Option<i64>,
+  pub cause: Cause,
+  pub clean: bool,
+  pub by: Option<i64>,
+}
+
+impl Asking<'_> {
+  // The body the receiver is handed, `ask` false where no session is to be asked and the line alone written.
+  fn body(&self, ask: bool) -> Value {
+    let mut body = json!({ "reason": self.reason, "cause": self.cause.word() });
+
+    if let Some(room) = self.room {
+      body["room"] = json!(room);
+    }
+
+    if let Some(by) = self.by {
+      body["by"] = json!(by);
+    }
+
+    if self.clean {
+      body["clean"] = json!(true);
+    }
+
+    if !ask {
+      body["ask"] = json!(false);
+    }
+
+    body
+  }
+}
+
+/// The receiver told of a handover no session is asked for — a room's own session agency handed over itself, or
+/// a session gone with no program left to ask — so the room shows its line (docs/sessions.md, 「A restart hands
+/// the session over」). What came of it is said in the journal alone.
+pub async fn tell(vars: &BTreeMap<String, String>, agent: &str, asking: Asking<'_>) {
+  let (Some(url), Some(token)) = (
+    address(vars, "BMO_RECEIVER_URL"),
+    token(vars, "BMO_RECEIVER_TOKEN", "BMO_RECEIVER_TOKEN_FILE"),
+  ) else {
+    return;
+  };
+  let told = reqwest::Client::new()
+    .post(format!("{url}/handoffs/{agent}"))
+    .bearer_auth(&token)
+    .json(&asking.body(false))
+    .timeout(Duration::from_secs(HANDOFF.retry_seconds.max(1) * 6))
+    .send()
+    .await;
+
+  match told {
+    Ok(answer) if answer.status().is_success() => {}
+    Ok(answer) => {
+      eprintln!("{agent}: the receiver was not told of the handover: it answered {}", answer.status())
+    }
+    Err(why) => eprintln!("{agent}: the receiver was not told of the handover: {why}"),
+  }
+}
+
+/// The receiver asked for `agent`'s handoff, as `asking` says, under the deployment's address and token, and
+/// waited on for its answer: a 409 waited out `retry` and asked again, and an error answer or a refused or
+/// broken connection ends the ask without a handoff. The caller bounds the wait.
 pub async fn ask(
   vars: &BTreeMap<String, String>,
   agent: &str,
-  reason: &str,
-  room: Option<i64>,
+  asking: Asking<'_>,
   retry: Duration,
 ) -> Handed {
   let (Some(url), Some(token)) = (
@@ -62,11 +154,7 @@ pub async fn ask(
   ) else {
     return Handed::NoReceiver;
   };
-  let mut body = json!({ "reason": reason });
-
-  if let Some(room) = room {
-    body["room"] = json!(room);
-  }
+  let body = asking.body(true);
 
   loop {
     let answer = reqwest::Client::new()
@@ -98,14 +186,9 @@ pub async fn ask(
 
 /// The handoff asked as the policy paces and bounds it: an ask the receiver has not answered within the
 /// policy's ceiling was not had, so a handoff that waits on something that will not come never holds the turn.
-pub async fn asked(
-  vars: &BTreeMap<String, String>,
-  agent: &str,
-  reason: &str,
-  room: Option<i64>,
-) -> Handed {
+pub async fn asked(vars: &BTreeMap<String, String>, agent: &str, asking: Asking<'_>) -> Handed {
   let ceiling = Duration::from_secs(HANDOFF.wait_seconds);
-  let asking = ask(vars, agent, reason, room, Duration::from_secs(HANDOFF.retry_seconds));
+  let asking = ask(vars, agent, asking, Duration::from_secs(HANDOFF.retry_seconds));
 
   tokio::time::timeout(ceiling, asking).await.unwrap_or_else(|_| {
     Handed::Failed(policy::fill_marks(

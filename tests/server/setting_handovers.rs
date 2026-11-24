@@ -2,7 +2,9 @@
 //! 「Where a supervisor's turn runs」, 「A session in each room」, 「Clearing it」; docs/sessions.md, 「A restart
 //! hands the session over」): a road moved on a room's supervisor hands each room's session over, a road moved
 //! while a room carries a turn waits for the turn, a reset of a room's session is carried out by its handover, and
-//! an ask for the one session across rooms paced by the last one waits rather than being skipped.
+//! an ask for the one session across rooms paced by the last one waits rather than being skipped. A clean reset of a
+//! room's session opens its generation on no note and marks no handoff lost, and every room handover is told to the
+//! receiver so the room shows its line (docs/session-resets.md, 「What a reset is」).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -11,7 +13,7 @@ use std::time::{Duration, Instant};
 use axum::Router;
 use axum::extract::Request;
 use axum::response::IntoResponse;
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
 use crate::support::rows::supervisor;
@@ -226,6 +228,84 @@ async fn a_reset_asked_of_a_room_session_is_carried_out_by_its_handover_and_sett
     "the handover settled the reset"
   );
   assert!(room.place.program().is_none());
+}
+
+// A receiver of the test's own keeping the body of every ask, answering each 204.
+async fn bodies() -> (Arc<Mutex<Vec<Value>>>, u16) {
+  let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let port = listener.local_addr().unwrap().port();
+  let heard: Arc<Mutex<Vec<Value>>> = Arc::default();
+  let kept = heard.clone();
+  let app = Router::new().fallback(move |request: Request| {
+    let kept = kept.clone();
+
+    async move {
+      let path = request.uri().path().to_owned();
+      let bytes = axum::body::to_bytes(request.into_body(), 1 << 20).await.unwrap();
+      let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+
+      kept.lock().unwrap().push(json!({ "path": path, "body": body }));
+      axum::http::StatusCode::NO_CONTENT
+    }
+  });
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+  (heard, port)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_clean_reset_of_a_room_session_opens_on_no_note_and_is_told_to_the_receiver() {
+  let (heard, port) = bodies().await;
+  let room = room(&[
+    ("BMO_RECEIVER_URL", format!("http://127.0.0.1:{port}")),
+    ("BMO_RECEIVER_TOKEN", "receiver-token".to_owned()),
+  ])
+  .await;
+  let db = room.scratch.db();
+
+  room
+    .scratch
+    .run(
+      r#"INSERT INTO "session_resets" ("agent", "chat_id", "asked_by", "asked_at", "reason", "clean")
+         VALUES ($1, $2, '7', 1, 'the owner asked', true)"#,
+      vec![AGENT.into(), CHAT.into()],
+    )
+    .await;
+
+  room.sessions.replace_reset_rooms().await;
+
+  let held = room.held().await;
+
+  assert_eq!(held.generation, 2);
+  assert_eq!(held.handoff, None, "a clean reset carries no note");
+  assert!(
+    !replacement::lost(db, &sessions::room_session_id(AGENT, CHAT)).await.unwrap(),
+    "a clean start is no handoff lost"
+  );
+  assert!(!sessions::reset_waiting(db, AGENT, CHAT).await.unwrap(), "the reset is settled");
+  assert!(
+    room
+      .handoff_lines()
+      .await
+      .iter()
+      .any(|line| line.contains("consolidates its brain and writes no note"))
+  );
+  assert_eq!(
+    heard.lock().unwrap().clone(),
+    vec![json!({
+      "path": format!("/handoffs/{AGENT}"),
+      "body": {
+        "reason": "a clean reset of its session was asked",
+        "room": CHAT,
+        "cause": "reset",
+        "clean": true,
+        "by": 7,
+        "ask": false
+      }
+    })],
+    "the receiver is told once, asking no session"
+  );
 }
 
 // What a receiver of the test's own was asked for: each agent whose handoff was asked, when.
