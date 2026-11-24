@@ -1,9 +1,8 @@
-//! A run of the ledger keeps how many tool calls its log lines hold (docs/run-records.md, 「The run
-//! ledger」).
+//! The store's schema at 1.0.0, whole: every table, sequence, key and index (docs/store.md, 「Its tables」).
 
 use sea_orm_migration::prelude::*;
 
-pub const NAME: &str = "m20261107_000001_run_tools";
+pub const NAME: &str = "m20270124_000001_baseline";
 
 pub struct Migration;
 
@@ -16,7 +15,7 @@ impl MigrationName for Migration {
 #[async_trait::async_trait]
 impl MigrationTrait for Migration {
   async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
-    manager.get_connection().execute_unprepared(include_str!("run_tools.sql")).await?;
+    manager.get_connection().execute_unprepared(include_str!("baseline.sql")).await?;
 
     Ok(())
   }

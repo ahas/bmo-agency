@@ -3772,7 +3772,6 @@ dependencies = [
  "sea-orm",
  "sea-orm-migration",
  "serde_json",
- "sha2",
  "sqlx",
  "tokio",
 ]

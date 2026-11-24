@@ -1,6 +1,6 @@
 // A store of a test's own (docs/store.md): a database on the suite's PostgreSQL server, copied from a
-// template this process makes once out of the same `store.sql` and the same migrations after it the store
-// crate runs, and the account seed a deployment's settling writes, and dropped when the file or the test
+// template this process makes once out of the store crate's 1.0.0 baseline and the migrations after it,
+// and the account seed a deployment's settling writes, and dropped when the file or the test
 // that asked for it is done, and the run fails if one cannot be. Before a process makes its first database,
 // the templates and copies a process that is gone left behind are dropped.
 //
@@ -25,92 +25,11 @@ import type { PostgresClient } from "@agency/archive/postgres-client";
 const TEMPLATE = "agency_ts_tmpl_";
 const COPY = "agency_ts_copy_";
 
-// The store's tables, as the store crate's first migration makes them.
+// The store's tables, as the store crate's migrations make them, every file each runs, in the order
+// `crates/store/src/migration.rs` runs them: what a store this process makes has to be the store the
+// server's own migration leaves, or a column the TypeScript side reads would be missing only in its tests.
 const MIGRATION_DIR = join(import.meta.dir, "..", "..", "..", "crates", "store", "src", "migration");
-const STORE_SQL = join(MIGRATION_DIR, "store.sql");
-
-// The migrations after it, every file each runs, in the order `crates/store/src/migration.rs` runs them:
-// what a store this process makes has to be the store the server's own migration leaves, or a column the
-// TypeScript side reads would be missing only in its tests. What a migration runs between its files carries
-// rows, which a new store holds none of.
-const LATER_MIGRATIONS: readonly string[] = [
-  "clocks.sql",
-  "runs.sql",
-  "worker_context.sql",
-  "worker_words.sql",
-  "usage_windows.sql",
-  "work.sql",
-  "job_model.sql",
-  "base_prompt_seeds.sql",
-  "endpoint_accounts.sql",
-  "pool_session.sql",
-  "deepseek_provider.sql",
-  "mapping_thinking.sql",
-  "session_summaries_retired.sql",
-  "fold_ratios.sql",
-  "agent_owner.sql",
-  "recollectors_retired.sql",
-  "usage_balances.sql",
-  "run_rounds.sql",
-  "route_registration.sql",
-  "run_usage.sql",
-  "job_usage.sql",
-  "prefix_documents.sql",
-  "job_instruction.sql",
-  "run_tools.sql",
-  "gate_kinds.sql",
-  "job_roads.sql",
-  "worker_skill_names.sql",
-  "translator_runner.sql",
-  "pickers_retired.sql",
-  "moments_in_milliseconds.sql",
-  "picker_keys_retired.sql",
-  "role_files.sql",
-  "agent_log_prune.sql",
-  "chat_documents.sql",
-  "registration_last_answered.sql",
-  "agent_roles.sql",
-  "agent_log_run_id.sql",
-  "card_services.sql",
-  "pool_asks.sql",
-  "registration_wait_retired.sql",
-  "clock_asks_unbounded.sql",
-  "assignments_unbounded.sql",
-  "role_sessions.sql",
-  "delegation_titles.sql",
-  "job_close_lease.sql",
-  "turn_liveness.sql",
-  "stream_events.sql",
-  "renewal_tables.sql",
-  "renewal_retired.sql",
-  "delegator_follows_supervisor.sql",
-  "role_names.sql",
-  "supervisor_settings.sql",
-  "supervisors_alike.sql",
-  "chosen_roads.sql",
-  "supervisor_card_rank.sql",
-  "relays.sql",
-  "supervisor_system_hash.sql",
-  "role_agents.sql",
-  "role_agent_settings.sql",
-  "role_skills.sql",
-  "agent_wanted.sql",
-  "arbiter_model.sql",
-  "arbiter_model_gone.sql",
-  "account_seats.sql",
-  "job_review.sql",
-  "person_nodes.sql",
-  "coworkers_gone.sql",
-  "agent_order_gone.sql",
-  "job_lines_by_agent.sql",
-  "job_seats_unbound.sql",
-  "job_machine_turn.sql",
-  "notices.sql",
-  "job_turn_words.sql",
-  "registration_languages.sql",
-  "support_auto.sql",
-  "lent_checkouts.sql",
-];
+const MIGRATIONS: readonly string[] = ["baseline.sql"];
 
 let swept: Promise<void> | null = null;
 let made: Promise<string> | null = null;
@@ -190,9 +109,7 @@ function template(): Promise<string> {
     const db = postgresClient(addressOf(name), { connections: 1 });
 
     try {
-      await db.unsafe(readFileSync(STORE_SQL, "utf8")).simple();
-
-      for (const migration of LATER_MIGRATIONS) {
+      for (const migration of MIGRATIONS) {
         await db.unsafe(readFileSync(join(MIGRATION_DIR, migration), "utf8")).simple();
       }
     } finally {

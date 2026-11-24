@@ -11,10 +11,8 @@ use std::str::FromStr;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use sea_orm::{ConnectOptions, ConnectionTrait, Database, DatabaseConnection, DbBackend, Statement, Value};
-use sea_orm_migration::MigratorTrait;
 use sqlx::postgres::{PgConnectOptions, PgConnection};
 use sqlx::{Connection as _, Executor};
-use store::migration::Migrator;
 
 /// What a template's name begins with, followed by the process that made it.
 const TEMPLATE: &str = "agency_rs_tmpl_";
@@ -139,7 +137,7 @@ async fn template() -> String {
 
       let db = connect(&name).await;
 
-      Migrator::up(&db, None).await.unwrap();
+      store::migration::up(&db).await.unwrap();
       db.close().await.unwrap();
 
       name
@@ -291,32 +289,5 @@ impl Drop for Scratch {
     {
       panic!("the scratch database is dropped: {error}");
     }
-  }
-}
-
-/// The migrations a store has not run yet that stand before the two axes' carrying, run: the shape the agent
-/// rows stood in, which a test of an earlier migration reads.
-pub async fn up_to_two_axes(db: &DatabaseConnection) {
-  use sea_orm_migration::MigratorTrait;
-
-  let pending = store::migration::Migrator::get_pending_migrations(db).await.unwrap();
-  let steps = pending
-    .iter()
-    .take_while(|pending| pending.name() != store::migration::TWO_AXES)
-    .count();
-
-  if steps > 0 {
-    store::migration::Migrator::up(db, Some(u32::try_from(steps).unwrap())).await.unwrap();
-  }
-}
-
-impl Scratch {
-  /// A database of the test's own at the shape before the two axes' carrying, dropped when the guard goes.
-  pub async fn before_two_axes() -> Scratch {
-    let scratch = Scratch::blank().await;
-
-    up_to_two_axes(scratch.db()).await;
-
-    scratch
   }
 }

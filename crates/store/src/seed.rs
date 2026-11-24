@@ -5,10 +5,12 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait, Value};
-use sea_orm_migration::MigratorTrait;
 
-use crate::migration::{Migrator, TABLES};
 use crate::statements::{Fault, run};
+
+/// The agents a role is seeded with, as many as its declaration's count, each on the road it names
+/// (docs/role-agents.md, 「The roles the policy seeds」), for a role that holds none yet.
+pub const AGENTS_OF_ROLES: &str = include_str!("seed/agents_of_roles.sql");
 
 /// Every agent given what its role's row holds of the sessions setting and the compaction threshold, as a
 /// seeded role's agents are given theirs (docs/role-agents.md, 「What an agent row holds」).
@@ -91,16 +93,11 @@ pub struct CatalogueSeed {
   pub note: Option<String>,
 }
 
-/// The store brought to this build's shape and its seeds given, as one settling: the migrations run,
-/// then every seed in one transaction. A seed given once is not given again, so a row the owner removed
-/// stays removed.
+/// The store brought to this build's shape and its seeds given, as one settling: the store brought to its
+/// shape (`crate::migration::up`), then every seed in one transaction. A seed given once is not given again,
+/// so a row the owner removed stays removed.
 pub async fn settle(db: &DatabaseConnection, seeds: &Seeds) -> Result<(), Fault> {
-  let made = Migrator::get_pending_migrations(db)
-    .await?
-    .iter()
-    .any(|pending| pending.name() == TABLES);
-
-  Migrator::up(db, None).await?;
+  let made = crate::migration::up(db).await?;
 
   let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |since| since.as_secs() as i64);
   let writing = db.begin().await?;
@@ -279,10 +276,7 @@ async fn role_seed<C: ConnectionTrait>(
   // declaration's count, each on the road it names, given once with the role.
   run(
     db,
-    &format!(
-      r#"{} AND r."name" = $1"#,
-      crate::migration::m20261213_000001_agent_order_gone::AGENTS_OF_ROLES.trim_end()
-    ),
+    &format!(r#"{} AND r."name" = $1"#, AGENTS_OF_ROLES.trim_end()),
     vec![role.name.clone().into()],
   )
   .await?;

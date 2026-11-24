@@ -78,9 +78,7 @@ pub async fn seats(db: &DatabaseConnection, role: &str, roads: &[(&str, &str)]) 
 /// role's row itself.
 pub async fn reseated(db: &DatabaseConnection) {
   store::run(db, r#"DELETE FROM "role_agents""#, vec![]).await.unwrap();
-  store::run(db, store::migration::m20261213_000001_agent_order_gone::AGENTS_OF_ROLES, vec![])
-    .await
-    .unwrap();
+  store::run(db, store::seed::AGENTS_OF_ROLES, vec![]).await.unwrap();
   settled(db).await;
 }
 

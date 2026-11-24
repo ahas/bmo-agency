@@ -6,14 +6,21 @@ seeds. The other crates and the server reach the store only through it.
 
 ## Its tables
 
-- **Made by the store's migrations,** each table carried from the archive in the shape the archive holds
-  it, columns, keys and indexes alike, and the clocks' two tables and the run ledger in agency's own,
-  each made by a migration of its own after the first. The supervisors, the roles, the repositories, the
-  roles' sessions and the role slots are agency's own tables, each made by a migration of its own; a slot
-  request keeps the number of its owner's last ask, drawn from `role_slot_asks`, a sequence of the store's
-  own (`docs/role-slots.md`, 「The line」).
+- **Made by the store's migrations, which start at the 1.0.0 baseline:** one migration makes every table,
+  column, key, index and sequence the store holds, in the shape and the column order the store keeps them,
+  and a later change to the shape is a migration of its own after it. A slot request keeps the number of its
+  owner's last ask, drawn from `role_slot_asks`, a sequence of the store's own (`docs/role-slots.md`, 「The
+  line」).
 - **The record of what ran is `agency_migrations`,** a table of the store's own, so the store may stand
   in a database beside another service's tables without either's record in the other's way.
+- **Every process that brings the store to its shape takes one step,** which first reads the record and
+  then runs the migrations: the server's settling, and a test's template alike.
+- **An install from the last release before 1.0.0 is taken as it stands:** a store whose record names every
+  migration of that release, and nothing else, holds the baseline's shape already, so the step rewrites its
+  record to name the baseline alone, in one transaction, and touches no table and no row. A store whose
+  record names only part of them is from an older release and is refused, the refusal naming the last
+  migration it holds: that release's last migration runs on it first. A store with no record, or an empty
+  one, is given the baseline whole.
 - **A migration is not undone:** a store that must go back is dropped and made again.
 - **The store names its own tables,** the ones its migration makes, so what reads every table of the
   store — a room forgotten among them — reads them and no other service's beside them in one database.
@@ -287,7 +294,8 @@ seeds. The other crates and the server reach the store only through it.
   under `prompts/roles/`, given once by the role and the provider whether the role was seeded then or before. A
   supervisor and a repository are the deployment's to add; the registry's provider is named on a road by the
   owner.
-- **The settling** runs the migrations and then writes every seed in one transaction.
+- **The settling** brings the store to its shape (「Its tables」) and then writes every seed in one
+  transaction.
 - **The account:** a store holding no account is given the one the seed names, the login the machine
   already has; a list the owner has written to is left alone.
 - **The model catalogue:** its entries are written once, as its table is made (`docs/model-catalogue.md`,

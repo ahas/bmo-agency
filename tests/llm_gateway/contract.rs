@@ -14,12 +14,10 @@ use std::time::{Duration, Instant};
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Bytes, Incoming};
 use hyper_util::rt::TokioIo;
-use sea_orm_migration::MigratorTrait;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use sqlx::postgres::PgConnection;
 use sqlx::{Connection, Executor, Row};
-use store::migration::Migrator;
 use tokio::net::TcpStream;
 
 use crate::support::scratch::Scratch;
@@ -686,7 +684,7 @@ async fn before_any_table_it_answers_503_and_serves_the_registry_once_it_stands(
   let (status, _, body) = world.ask("GET", "/v1/models", &[], "").await;
   assert_eq!((status, body.as_str()), (503, "the gateway has no table to serve yet"));
 
-  Migrator::up(world.store.db(), None).await.unwrap();
+  store::migration::up(world.store.db()).await.unwrap();
   world.write(PAIR).await;
   let table = world.serving_holding("pair-0-1").await;
   assert_eq!(world.answered_by().await, table);
@@ -874,7 +872,7 @@ async fn a_request_without_the_gateways_key_is_refused_401_at_the_front() {
   // Before any table stands the key is still asked for first.
   assert_refused(read_whole(world.open_bare("GET", "/v1/models", &[], "").await).await);
 
-  Migrator::up(world.store.db(), None).await.unwrap();
+  store::migration::up(world.store.db()).await.unwrap();
   world.write(PAIR).await;
   let table = world.serving_holding("pair-0-1").await;
 
