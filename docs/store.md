@@ -90,6 +90,9 @@ seeds. The other crates and the server reach the store only through it.
     whether it follows the supervisor that asks its run or none for its role's setting, and the prompt,
     bundles and skills it lays over its role's, each none where the role's own stands
     (`docs/role-agents.md`);
+  - the agents' attachments: `agent_attachments`, one row an item attached to a holder — the account, the holder's
+    kind, `supervisor` or `agent`, its name, the item's kind, `skill` or `mcp`, its name, and when it was attached
+    in epoch milliseconds (`docs/person-nodes.md`, 「Attaching skills and MCP servers」);
   - the accounts' nodes: `person_nodes`, one row an account — its id, the node its runs stand on, whether that
     node is shared with other accounts, and when it was set (`docs/person-nodes.md`, 「Which node is a person's」,
     「Several accounts on one node」);
