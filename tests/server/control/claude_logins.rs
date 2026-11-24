@@ -119,11 +119,10 @@ fn run_pane(launch: &agency_server::control::claude_logins::NodeLaunch, cwd: &Pa
     let _ = said.send(line);
   });
 
-  let line = heard.recv_timeout(std::time::Duration::from_secs(30)).unwrap_or_default();
+  let line = heard.recv_timeout(std::time::Duration::from_secs(10)).unwrap_or_default();
   let group = format!("-{}", shell.id());
   let _ = std::process::Command::new("kill").args([close, "--", &group]).status();
-  // A whole suite running beside it can hold a closing shell for seconds, so it is given 30 s to end.
-  let ended = (0..600).any(|_| {
+  let ended = (0..100).any(|_| {
     std::thread::sleep(std::time::Duration::from_millis(50));
     matches!(shell.try_wait(), Ok(Some(_)))
   });
