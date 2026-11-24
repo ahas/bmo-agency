@@ -290,6 +290,8 @@ account = "An owner is a user's id, a whole number, or none for the platform's."
 owner_only = "Who owns a model or a member of the gateway is the owner's alone to set."
 unknown_member = "Not a member of the gateway: {name}"
 members_unread = "The gateway's members file could not be read: {why}"
+key_file_name = "A key file is one plain file name in the platform's secret space."
+key_both = "An address gives a key or names a key file, not both."
 
 # The model catalogue: a source, a {what}'s word, a field's {label} out of its {min} and {max}, a label
 # or a note past its {most} characters, a {name} not catalogued or being switched to, an {engine} serving

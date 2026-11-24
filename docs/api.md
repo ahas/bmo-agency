@@ -1101,6 +1101,7 @@ node's link keeps of that checkout instead.
 | GET | `/models/{modelKey}` | One registered model and its health. |
 | PATCH | `/models/{modelKey}` | Change a model's registration. |
 | DELETE | `/models/{modelKey}` | Take a model's registration away. |
+| PUT | `/models/{modelKey}/addresses/{node}` | Set one address of a model's registration, its key named by a file. |
 | GET | `/provider-models/{providerName}` | The models a provider holds, for an order's chooser. |
 | GET | `/model-catalogue` | The model files the deployment's engines serve, and each engine's latest choice. |
 | POST | `/model-catalogue` | Save or remove a model file's entry, or choose one for its engine. |
@@ -1187,8 +1188,19 @@ change names at least one of `model`, `cardService`, `roleFiles` and `languages`
 name, empty where it names none, which means every language; the create and the change take it as a list,
 an empty list or null naming none (`docs/own-llm.md`, 「What a registration holds」). Naming a card service takes the
 registration's addresses away, and its `healthy` is the arbiter master's (`docs/own-llm.md`, 「An engine the
-arbiter stands」). A registration's addresses are the registry's, set with `bmo-agency agent
---register-address`; no route of this boundary sets an address.
+arbiter stands」). A registration's addresses are the registry's, set by the address route and with
+`bmo-agency agent --register-address`.
+
+`PUT /models/{modelKey}/addresses/{node}` adds the address of the node the path names, or changes the one standing
+there in place, as the command's `--register-address` does, its key named rather than given: it takes `url`, held to
+the registry's rule (an http or https address ending in `/chat/completions`), and `keyFile`, one plain file name
+under the data root's `env/` — the platform's space of the console's secret store — or null or absent for no key.
+Agency keeps the name alone: it neither writes, reads back nor removes that file, and a key file it wrote for the
+address before is taken away (`docs/own-llm.md`, 「The keys」). The node is a node label by the registry's rule. It
+answers 200 with the model as the read answers it, and stands every program on a pin naming the model again as a
+change does. It is the administrator's and the deployment's own: a member's call is refused 403 `forbidden`. A key
+naming no registration of the registry's provider is 404, and a registration naming a card service, a node label,
+an address or a key file the registry refuses, 400 with the registry's sentence and the `field` it names.
 
 The model catalogue is a resource of its own, never of `/models`: the files the deployment's own engines
 serve, each with its sizes, its source, its nodes and the registration it stands behind, and the latest
@@ -1320,6 +1332,7 @@ notice that holds nothing is withdrawn.
 | PATCH | `/organisation-supply/{unit}/{supplyId}` | Turn one of the unit's keys or accounts on or off. |
 | DELETE | `/organisation-supply/{unit}/{supplyId}` | Remove one of the unit's keys or accounts. |
 | GET | `/supply-sources` | The supply sources the order the signed-in person's runs walk holds. |
+| POST | `/supply-test` | Test whether a supply source of a road answers now: the person's own, or the platform's. |
 | POST | `/people/{user}/off-boarding` | Switch a person's supply off and revoke their call key. |
 
 An account is reached one of four ways: a directory holding a login, a token file, an endpoint — an
@@ -1438,6 +1451,18 @@ page; turning a refused key on clears `refusedAt`. `DELETE` answers 204. An item
 `unknown-supply`. `GET /supply-sources` answers a person's call `personal`, `platform`, `organisation`,
 `organisationSupply`, `personalOnly` and `ownSupply` (`docs/supply.md`, 「The sources a run walks」); a call
 naming no person is refused 403.
+
+**A supply test** (`POST /supply-test`, `docs/supply.md`, 「Testing a source」) takes `road`, one of `claude-code`,
+`codex`, `deepseek`, `openrouter` and `registered`, and `model`, the registration to test on `registered`, and
+answers 200 with `road`, `ok`, whether the source answers now, and where it does not `reasonCode`, its kebab-case
+code, and `reason`, the English sentence, both null where it does: `off` where the owner switched the road's
+provider off, `no-source` where no credential of the road is on (a person's call on `registered` among them),
+`login-needed` where Claude logins are on and none of them is signed in, `not-ready` where the gateway does not
+serve the key's member yet and the test is worth asking again in a few seconds, `refused` where the provider
+refused the key, and `failed` where the test reached no answer. A person's call tests their own supply, the
+administrator's and the deployment's own the platform's. A road that is none of these is refused 400 with the
+`field` `road`; on `registered`, a platform's call that names no model, or one that is no registration, 400 with
+the `field` `model`.
 
 **Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it
 turns off each Claude account and key of the person, revokes their call key and answers `{accounts, keys}`, how

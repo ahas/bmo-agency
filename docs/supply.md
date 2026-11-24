@@ -90,6 +90,33 @@ platform pays for takes it.
   web's `docs/web.md`, 「The join page」). With no hook registered, or one that does not answer, the order is
   personal supply alone.
 
+## Testing a source
+
+- **`POST /supply-test`** answers whether a source of one road answers now (`docs/api.md`, 「accounts, rest and
+  usage」), so the console can tell a person, or the administrator setting the platform up, that the login or key
+  just added works before any run needs it. A road whose provider the owner switched off answers `off` first.
+- **For a person it tests their own supply on the road,** as personal supply is taken (「What a person brings」):
+  - on Claude Code, their own Claude accounts that are on: it answers where one's login stands — signed in and not
+    ended, or an `api-key` account whose key file stands — `no-source` where none of theirs is on, and
+    `login-needed` where every one waits to be signed in. A window full or a rest does not fail it, since the
+    credential stands;
+  - on a gateway road, their first open key of the road: one request of a single answer token through the gateway,
+    under their own call key, naming the road's first member as their personal member (`docs/own-llm.md`,
+    「Personal members」). The launcher lays that member on its next beat, so a gateway that does not serve it yet
+    answers `not-ready`, to be asked again in a few seconds; a key the provider refuses answers `refused`;
+  - on the registry's provider, `no-source`, since a person brings none there.
+- **For the platform** — the administrator's call or the deployment's own — it tests the platform's supply:
+  - on Claude Code, the accounts no other person owns, with those marked lendable (「Owned supply」 and 「The
+    lendable accounts」), judged as a person's are;
+  - on a gateway road, the road's first member owned by no person but the administrator, by the same one request
+    under the gateway's own key;
+  - on the registry's provider, the registration the test names, by the same request, a registration naming a
+    card service going through the gateway's card as any request on it does; a registration with no address and
+    no card service answers `no-source`.
+- **Nothing is reserved or recorded as a run's supply by it:** no reservation is asked of the hook, no run of the
+  ledger opened, no key marked refused and no `supply.changed` told. The gateway records its one request as it
+  records every request (「The ledger」), under the call key it went out on.
+
 ## Organisation supply
 
 - **An organisation unit owns supply as a person does:** a key for a gateway road, a row of the store's
@@ -322,7 +349,7 @@ platform pays for takes it.
 | Part | Stands | Left |
 |---|---|---|
 | call keys and request records | a call key per account on its nodes, the platform key here alone, each request recorded with its account, model, run and cost | — |
-| personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, the off-boarding switch | — |
+| personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, the test of a source, the off-boarding switch | — |
 | owned supply | a Claude account's, a gateway member's and a registration's owner, the walk and the gateway holding to it, the administrator's owned supply carrying the deployment's own runs | — |
 | organisation supply | the three source settings on the chain, the order's shape, a unit's keys and Claude accounts, the walk to the nearest unit, its reservation and the gateway's members of it | a Claude subscription login of a unit's own, signed in from its screen |
 | sources and reservations | the hook, the walk at a run's start, reservations, extension, the settlement outbox, the capture after a restart | — |

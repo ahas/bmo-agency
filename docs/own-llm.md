@@ -227,6 +227,9 @@ never the model's name.
     such an address.
   - `bmo-agency agent --unregister <name> [<node label>]` removes a registration, or one of its
     addresses.
+- **The address route:** `PUT /models/{modelKey}/addresses/{node}` adds or changes one address as
+  `--register-address` does, its key named by a file in the platform's secret space rather than given
+  (「The keys」 below; `docs/api.md`, 「providers, models and model files」).
 - **What a removal is refused for:** a registration a supervisor's road, an agent of a role —
   switched on or off — a repository's pin or a model catalogue entry names is not removed, and the refusal names each of them
   (`docs/provider-order.md`, 「Models a provider holds」); each of those answers for itself whether it
@@ -389,6 +392,9 @@ never the model's name.
     `env/registered/`, named for the registration and the node, at `0600`, and a key given again
     replaces it.
   - A seeded address names a file that was already there — a node's token.
+  - An address set through `PUT /models/{modelKey}/addresses/{node}` may name a key file the console's secret
+    store wrote in the platform's space, one plain file name under `env/`. Agency keeps the name alone and
+    neither writes, reads back nor removes that file.
   - A removed address or registration takes away the files agency wrote for it, and leaves a file it did
     not write where it is.
 - **Who handles the files:** the harness-machine crate writes, takes away and checks them, for agency's

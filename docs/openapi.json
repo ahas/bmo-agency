@@ -3375,6 +3375,75 @@
         ]
       }
     },
+    "/models/{modelKey}/addresses/{node}": {
+      "put": {
+        "operationId": "setModelAddress",
+        "tags": [
+          "models"
+        ],
+        "summary": "Set one address of a model's registration, its key named by a file.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Model"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "modelKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "node",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the address's node label"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelAddressAsk"
+              }
+            }
+          }
+        }
+      }
+    },
     "/model-catalogue": {
       "get": {
         "operationId": "listModelCatalogue",
@@ -4579,6 +4648,51 @@
           "forbidden",
           "access-unchecked"
         ]
+      }
+    },
+    "/supply-test": {
+      "post": {
+        "operationId": "testSupply",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Test whether a supply source of a road answers now: the person's own, or the platform's.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupplyTested"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupplyTestAsk"
+              }
+            }
+          }
+        }
       }
     },
     "/people/{user}/off-boarding": {
@@ -13998,6 +14112,26 @@
         },
         "description": "The body that saves or removes a registration, or sets or removes one of its addresses."
       },
+      "ModelAddressAsk": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "An http or https address ending in `/chat/completions`."
+          },
+          "keyFile": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One plain file name under the data root's `env/`, or null or absent for no key. Agency keeps the name alone."
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "description": "One address of a registration set, its key named by a file in the platform's space of the secret store."
+      },
       "ModelCatalogueView": {
         "type": "object",
         "properties": {
@@ -16080,6 +16214,59 @@
           "ownSupply"
         ],
         "description": "The supply sources the signed-in person's delegation chain leaves open."
+      },
+      "SupplyTested": {
+        "type": "object",
+        "properties": {
+          "road": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "Whether the source answers now."
+          },
+          "reasonCode": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or\n`failed` — or null where it does."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it does not, the English sentence, or null where it does."
+          }
+        },
+        "required": [
+          "road",
+          "ok",
+          "reasonCode",
+          "reason"
+        ],
+        "description": "Whether a source of a road answers now, and where it does not, why."
+      },
+      "SupplyTestAsk": {
+        "type": "object",
+        "properties": {
+          "road": {
+            "type": "string",
+            "description": "One of `claude-code`, `codex`, `deepseek`, `openrouter` and `registered`."
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The registration to test on `registered`, which a platform's test names."
+          }
+        },
+        "required": [
+          "road"
+        ],
+        "description": "The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise."
       },
       "OffBoarded": {
         "type": "object",

@@ -1094,3 +1094,69 @@ impl Route for DeleteModel {
 }
 
 crate::moved!(DeleteModel);
+
+/// One address of a model's registration set, as the command's `--register-address` sets it, its key named by a file
+/// in the platform's space of the console's secret store rather than given (docs/own-llm.md, 「Where it is set」 and
+/// 「The keys」). Where a registration is served is the owner's to set: a member's call is refused.
+pub struct SetModelAddress;
+
+impl Route for SetModelAddress {
+  const METHOD: Method = Method::PUT;
+  const PATH: &'static str = "/models/{modelKey}/addresses/{node}";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let key = call.param("modelKey").unwrap_or_default().to_owned();
+    let node = call.param("node").unwrap_or_default().to_owned();
+    let (provider, name) = super::walk_reads::model_key(&key, call.query("provider").as_deref());
+
+    if Acting::of(&call)? != Acting::Platform {
+      return Err(
+        Refused::new(StatusCode::FORBIDDEN, CONTROL_WORDS.registry.owner_only.as_str())
+          .with_code("forbidden"),
+      );
+    }
+
+    if provider != super::registry::PROVIDER {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{provider}'s models are its own catalogue, and none of them is a registration"),
+      ));
+    }
+
+    let body = call.body().await?;
+    let db = call.store();
+    let data_root = call.data_root();
+
+    if super::registry::registration(db, &name).await?.is_none() {
+      return Err(Refused::new(StatusCode::NOT_FOUND, format!("no model is registered as {name}")));
+    }
+
+    let mut change = json!({
+      "action": "set-address",
+      "name": name,
+      "node": node,
+      "url": body.get("url").cloned().unwrap_or(Value::Null),
+    });
+
+    // No key file named is no key: the address answers with none, and a key agency wrote for it goes.
+    match body.get("keyFile") {
+      None | Some(Value::Null) => change["key"] = Value::Null,
+      Some(file) => change["keyFile"] = file.clone(),
+    }
+
+    match super::registry::made(db, &data_root, &change).await {
+      Ok(()) => {}
+      Err(Fault::Field(field, error)) => return Err(Refused::failed(error).with_field(field)),
+      Err(Fault::Failed(failed)) => return Err(failed),
+    }
+
+    restand(&call);
+
+    match super::registry::registered_model(db, &data_root, &name).await? {
+      Some(view) => Ok(answer(StatusCode::OK, view)),
+      None => Err(Refused::failed("the address was set but the model was not read")),
+    }
+  }
+}
+
+crate::moved!(SetModelAddress);

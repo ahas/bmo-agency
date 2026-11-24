@@ -307,6 +307,10 @@ pub struct RegistryWords {
   pub unknown_member: String,
   /// With `{why}`.
   pub members_unread: String,
+  /// A key file an address names that is not one plain file name.
+  pub key_file_name: String,
+  /// An address that both gives a key and names a key file.
+  pub key_both: String,
 }
 
 /// The model catalogue.

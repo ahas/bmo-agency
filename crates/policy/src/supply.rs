@@ -16,6 +16,42 @@ pub struct Supply {
   /// The ceiling the supply outbox's wait doubles to, in seconds.
   pub retry_ceiling_seconds: i64,
   pub words: Words,
+  pub test: Test,
+}
+
+/// The test of one source of a road (docs/supply.md, 「Testing a source」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Test {
+  /// How long the request on a gateway road's member is waited for, in seconds.
+  pub gateway_seconds: u64,
+  /// How long the request on a registration is waited for, in seconds.
+  pub registered_seconds: u64,
+  /// The one word the request asks.
+  pub asked: String,
+  pub words: TestWords,
+}
+
+/// What the test says where a source does not answer, each with `{road}`.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TestWords {
+  pub off: String,
+  pub no_source_own: String,
+  pub no_source_platform: String,
+  /// With `{model}`.
+  pub no_address: String,
+  pub login_needed: String,
+  pub not_ready: String,
+  /// With `{why}`.
+  pub refused: String,
+  /// With `{why}`.
+  pub failed: String,
+  /// With `{roads}`.
+  pub road: String,
+  pub model_needed: String,
+  /// With `{model}`.
+  pub unknown_model: String,
 }
 
 #[derive(Debug, Deserialize)]

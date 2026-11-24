@@ -68,3 +68,37 @@ owned = "No supply is left for this run: its model is another person's own, whic
 refused = "No supply is left for this run: {source} ran out{reopens}. Top up or change the supply order in your settings ({settings})."
 # The source the run went out on ran out while it went on, and no other took it.
 ran_out = "The run stopped: {source} ran out while it went on{reopens}. Top up or change the supply order in your settings ({settings})."
+
+# The test of one source of a road (docs/supply.md, 「Testing a source」): how long its one request through the
+# gateway is waited for, in seconds, on a gateway road's member and on a registration, whose engine may be a card the
+# arbiter stands first; and the one word it asks.
+[test]
+gateway_seconds = 30
+registered_seconds = 60
+asked = "Hi"
+
+# What the test says where the source does not answer, each with {road}; {model} names a registration and {why} what
+# the gateway or the provider said.
+[test.words]
+# The owner switched the road's provider off.
+off = "The owner switched {road} off, so no source answers on it."
+# A person holds no credential of their own on the road that is on.
+no_source_own = "You hold no login or key of your own for {road} that is on."
+# The platform holds no credential on the road that is on.
+no_source_platform = "The platform holds no login or key for {road} that is on."
+# A registration with no address and no card service.
+no_address = "{model} has no address and names no card service, so nothing serves it."
+# Claude logins are on, and every one waits to be signed in.
+login_needed = "Every login for {road} that is on waits to be signed in again."
+# The gateway does not serve the key's member yet.
+not_ready = "The gateway does not serve this key on {road} yet. Try again in a few seconds."
+# The provider refused the key.
+refused = "The provider refused the key on {road}: {why}"
+# The test reached no answer.
+failed = "The test on {road} reached no answer: {why}"
+# A road the test does not know. With {roads}.
+road = "A road is one of {roads}."
+# The registry's road names no registration.
+model_needed = "The registration to test is named by model."
+# A registration the registry does not hold.
+unknown_model = "Not a registered model: {model}"

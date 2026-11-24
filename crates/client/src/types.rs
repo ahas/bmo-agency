@@ -1050,6 +1050,31 @@ pub struct OffBoarded {
   pub keys: i64,
 }
 
+/// The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupplyTestAsk {
+  /// One of `claude-code`, `codex`, `deepseek`, `openrouter` and `registered`.
+  pub road: String,
+  /// The registration to test on `registered`, which a platform's test names.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub model: Option<String>,
+}
+
+/// Whether a source of a road answers now, and where it does not, why.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupplyTested {
+  pub road: String,
+  /// Whether the source answers now.
+  pub ok: bool,
+  /// Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or
+  /// `failed` — or null where it does.
+  pub reason_code: Option<String>,
+  /// Why it does not, the English sentence, or null where it does.
+  pub reason: Option<String>,
+}
+
 /// The agent serving the chat now: the provider its road answers on, the login it walks to where the
 /// provider holds logins, and that slot's two headline windows and balance.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -2993,6 +3018,17 @@ pub struct PlaceChange {
 pub struct ProviderChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
+}
+
+/// One address of a registration set, its key named by a file in the platform's space of the secret store.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelAddressAsk {
+  /// An http or https address ending in `/chat/completions`.
+  pub url: String,
+  /// One plain file name under the data root's `env/`, or null or absent for no key. Agency keeps the name alone.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub key_file: Option<String>,
 }
 
 /// The body that saves or removes a registration, or sets or removes one of its addresses.

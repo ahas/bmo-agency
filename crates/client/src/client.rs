@@ -684,6 +684,16 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["models", model_key])).await
   }
 
+  /// `PUT /models/{modelKey}/addresses/{node}`: Set one address of a model's registration.
+  pub async fn set_model_address(
+    &self,
+    model_key: &str,
+    node: &str,
+    body: &ModelAddressAsk,
+  ) -> Answer<Model> {
+    Self::answered(self.request(Method::PUT, &["models", model_key, "addresses", node]).json(body)).await
+  }
+
   /// `GET /model-catalogue`: The model files the deployment's engines serve, and each engine's latest
   /// choice.
   pub async fn list_model_catalogue(&self) -> Answer<ModelCatalogueView> {
@@ -778,6 +788,11 @@ impl AgencyClient {
   /// `DELETE /personal-supply/{supplyId}`: Remove one of the person's keys.
   pub async fn delete_personal_supply(&self, supply_id: i64) -> Answer<()> {
     Self::nothing(self.request(Method::DELETE, &["personal-supply", &supply_id.to_string()])).await
+  }
+
+  /// `POST /supply-test`: Test whether a supply source of a road answers now.
+  pub async fn test_supply(&self, body: &SupplyTestAsk) -> Answer<SupplyTested> {
+    Self::answered(self.request(Method::POST, &["supply-test"]).json(body)).await
   }
 
   /// `POST /people/{user}/off-boarding`: Switch a person's supply off and revoke their call key.

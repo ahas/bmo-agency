@@ -250,6 +250,26 @@ async fn who_owns_a_registration_is_not_a_member_s_to_set_even_with_the_models_w
 }
 
 #[tokio::test]
+async fn where_a_registration_is_served_is_not_a_member_s_to_set_even_with_the_models_write() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (port, _granting) = granted(&scratch, home.path(), &[("models", true, true)]).await;
+  let answer = reqwest::Client::new()
+    .put(format!("http://127.0.0.1:{port}/models/registered::made/addresses/n1"))
+    .bearer_auth(TOKEN)
+    .header("Owner-Key", "7")
+    .header("Owner-Role", "member")
+    .json(&json!({ "url": "http://[::1]:9/v1/chat/completions", "keyFile": "made-key" }))
+    .send()
+    .await
+    .unwrap();
+  let status = answer.status().as_u16();
+  let body: Value = answer.json().await.unwrap();
+
+  assert_eq!((status, &body["code"]), (403, &json!("forbidden")), "{body}");
+}
+
+#[tokio::test]
 async fn the_administrator_and_a_caller_carrying_no_key_are_not_checked() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();

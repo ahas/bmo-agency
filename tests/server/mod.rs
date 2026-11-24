@@ -102,6 +102,7 @@ mod control {
   mod supervisor_reset;
   mod supervisor_road;
   mod supervisor_settings;
+  mod supply_test;
   mod support_growth;
   mod turn_restart;
   mod worker_runtime;

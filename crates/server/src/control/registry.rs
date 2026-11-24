@@ -637,6 +637,14 @@ pub fn checked_key_file(key_file: Option<&str>) -> Result<(), Fault> {
   }
 }
 
+/// A key file an address names in the platform's secret space: one plain file name the registry's rule takes.
+fn checked_named_key_file(file: &str) -> Result<String, Fault> {
+  match super::claude_account_changes::plain_secret(file) {
+    Some(plain) if KEY_FILE.is_match(plain) => Ok(plain.to_owned()),
+    _ => refused("keyFile", CONTROL_WORDS.registry.key_file_name.as_str()),
+  }
+}
+
 // A whole number in its bounds, however it was written: a number with nothing after its point counts.
 fn whole(field: &str, value: Option<&Value>, bounds: &WholeBounds, label: &str) -> Result<i64, Fault> {
   let held = value.and_then(Value::as_number).and_then(|number| {
@@ -952,9 +960,20 @@ impl<C: ConnectionTrait> Change<'_, C> {
     let url = text(body, "url");
     let standing = held.addresses.iter().find(|one| one.node == node).cloned();
     let key = body.get("key");
+    // A key file named rather than a key given: a secret the console's store wrote in the platform's space, which
+    // agency neither writes nor removes (docs/own-llm.md, 「The keys」).
+    let named = match body.get("keyFile") {
+      None | Some(Value::Null) => None,
+      Some(Value::String(file)) => Some(checked_named_key_file(file)?),
+      Some(_) => return refused("keyFile", CONTROL_WORDS.registry.key_file_name.as_str()),
+    };
 
     if key.is_some_and(|key| !key.is_null() && !key.is_string()) {
       return refused("key", CONTROL_WORDS.registry.key_text.as_str());
+    }
+
+    if named.is_some() && key.is_some_and(Value::is_string) {
+      return refused("keyFile", CONTROL_WORDS.registry.key_both.as_str());
     }
 
     // Whether the instance keeps role files: as the change names it, else as the address stands, off on a new one.
@@ -968,6 +987,13 @@ impl<C: ConnectionTrait> Change<'_, C> {
     // behind, and the row is written once.
     checked_node(&node)?;
     checked_url(&url)?;
+
+    if let Some(file) = named {
+      self.set_address(name, &node, &url, Some(&file), false, role_files).await?;
+      self.gone.extend(standing);
+
+      return Ok(());
+    }
 
     match key {
       Some(Value::String(key)) => {
@@ -1054,9 +1080,9 @@ impl<C: ConnectionTrait> Change<'_, C> {
   }
 }
 
-// One change made in its transaction, and the key files it left nobody naming taken away once it has
-// committed.
-async fn made(db: &sea_orm::DatabaseConnection, data_root: &Path, body: &Value) -> Result<(), Fault> {
+/// One change made in its transaction, and the key files it left nobody naming taken away once it has
+/// committed: done, or the refusal naming its field.
+pub async fn made(db: &sea_orm::DatabaseConnection, data_root: &Path, body: &Value) -> Result<(), Fault> {
   let written = db.begin().await?;
   let mut change = Change {
     db: &written,

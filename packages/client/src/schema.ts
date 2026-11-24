@@ -790,6 +790,23 @@ export interface paths {
         patch: operations["changeModel"];
         trace?: never;
     };
+    "/models/{modelKey}/addresses/{node}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set one address of a model's registration, its key named by a file. */
+        put: operations["setModelAddress"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/model-catalogue": {
         parameters: {
             query?: never;
@@ -1115,6 +1132,23 @@ export interface paths {
         get: operations["supplySources"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supply-test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test whether a supply source of a road answers now: the person's own, or the platform's. */
+        post: operations["testSupply"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3741,6 +3775,13 @@ export interface components {
              */
             account?: number | null;
         };
+        /** @description One address of a registration set, its key named by a file in the platform's space of the secret store. */
+        ModelAddressAsk: {
+            /** @description An http or https address ending in `/chat/completions`. */
+            url: string;
+            /** @description One plain file name under the data root's `env/`, or null or absent for no key. Agency keeps the name alone. */
+            keyFile?: string | null;
+        };
         /** @description ModelCatalogueView: */
         ModelCatalogueView: {
             entries: components["schemas"]["ModelCatalogueEntry"][];
@@ -4483,6 +4524,26 @@ export interface components {
             personalOnly: boolean;
             /** @description Whether they hold a login or a key of their own that is on. */
             ownSupply: boolean;
+        };
+        /** @description Whether a source of a road answers now, and where it does not, why. */
+        SupplyTested: {
+            road: string;
+            /** @description Whether the source answers now. */
+            ok: boolean;
+            /**
+             * @description Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or
+             *     `failed` — or null where it does.
+             */
+            reasonCode: string | null;
+            /** @description Why it does not, the English sentence, or null where it does. */
+            reason: string | null;
+        };
+        /** @description The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise. */
+        SupplyTestAsk: {
+            /** @description One of `claude-code`, `codex`, `deepseek`, `openrouter` and `registered`. */
+            road: string;
+            /** @description The registration to test on `registered`, which a platform's test names. */
+            model?: string | null;
         };
         /** @description What a person's off-boarding turned off. */
         OffBoarded: {
@@ -9037,6 +9098,37 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    setModelAddress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                modelKey: string;
+                node: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelAddressAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Model"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listModelCatalogue: {
         parameters: {
             query?: never;
@@ -9730,6 +9822,33 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    testSupply: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupplyTestAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupplyTested"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     offBoardPerson: {
