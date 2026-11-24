@@ -1130,6 +1130,20 @@ impl AgencyClient {
       .await
   }
 
+  /// `GET /supervisors/{supervisorName}/sleep`: Whether a supervisor sleeps, at what hour, and its record.
+  pub async fn get_supervisor_sleep(&self, supervisor_name: &str) -> Answer<SupervisorSleep> {
+    Self::answered(self.request(Method::GET, &["supervisors", supervisor_name, "sleep"])).await
+  }
+
+  /// `PUT /supervisors/{supervisorName}/sleep`: Set whether a supervisor sleeps and its own hour.
+  pub async fn set_supervisor_sleep(
+    &self,
+    supervisor_name: &str,
+    body: &SupervisorSleepChange,
+  ) -> Answer<SupervisorSleep> {
+    Self::answered(self.request(Method::PUT, &["supervisors", supervisor_name, "sleep"]).json(body)).await
+  }
+
   /// `POST /supervisors/{supervisorName}/resets`: Start a supervisor afresh in the ranges named; dryRun counts it
   /// first.
   pub async fn create_supervisor_reset(

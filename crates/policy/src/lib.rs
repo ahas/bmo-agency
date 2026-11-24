@@ -50,6 +50,7 @@ pub mod run_groups;
 pub mod run_lines;
 pub mod run_stop;
 pub mod seeds;
+pub mod sleep;
 pub mod span_words;
 pub mod supervisor_runner;
 pub mod supervisors;

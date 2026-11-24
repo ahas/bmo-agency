@@ -40,6 +40,7 @@ mod roles;
 mod run_lines;
 mod run_stop;
 mod seeds;
+mod sleep;
 mod span_words;
 mod supervisor_runner;
 mod supervisors;

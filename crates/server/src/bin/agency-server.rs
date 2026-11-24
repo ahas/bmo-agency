@@ -20,6 +20,7 @@ use clap::Parser;
 use harness_providers::Machine;
 use policy::keepalive::KEEPALIVE;
 use policy::machine_room::MACHINE_ROOM;
+use policy::sleep::SLEEP;
 
 /// The variable naming the quota source's loopback port, and the port it takes where none is named.
 const QUOTA_PORT: &str = "AGENCY_QUOTA_PORT";
@@ -265,6 +266,33 @@ async fn serve(args: Args) -> Result<(), String> {
             sessions.settle_pass().await;
 
             Ok::<(), String>(())
+          }
+        },
+      )
+      .await
+    });
+  }
+
+  // The supervisors' nightly sleep, on a clock of its own, one sleep after another (docs/sleep.md).
+  if let Some(sessions) = front.sessions() {
+    let night = Arc::new(agency_server::sleep::Nightly {
+      ground: ground.clone(),
+      sessions,
+    });
+
+    tokio::spawn(async move {
+      every(
+        "supervisors' sleep",
+        Duration::from_secs(SLEEP.start_delay_seconds),
+        Duration::from_secs(SLEEP.tick_seconds),
+        move || {
+          let night = night.clone();
+
+          async move {
+            agency_server::sleep::pass(&night.ground.db, night.as_ref(), &SLEEP, now_ms())
+              .await
+              .map(|_| ())
+              .map_err(|fault| fault.detail)
           }
         },
       )

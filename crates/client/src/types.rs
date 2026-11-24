@@ -3193,6 +3193,28 @@ pub struct SettingsAsk {
   pub deploy_flush_minutes: Option<Value>,
 }
 
+/// A supervisor's sleep setting (docs/sleep.md, 「Its setting」): whether it sleeps and its own hour, none for the
+/// policy's, beside the policy's hour, the day it last slept for and the moment it last tried.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorSleep {
+  pub on: bool,
+  pub hour: Option<u32>,
+  pub default_hour: u32,
+  pub slept_on: Option<String>,
+  pub tried_at: Option<i64>,
+}
+
+/// The body that sets a supervisor's sleep: whether it sleeps, and its own hour from 0 to 23, or null for the
+/// policy's.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorSleepChange {
+  pub on: bool,
+  #[serde(default)]
+  pub hour: Option<u32>,
+}
+
 /// The body that changes a supervisor's settings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

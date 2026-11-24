@@ -215,6 +215,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | GET | `/supervisors/{supervisorName}/road` | A supervisor's one road, and whether it can take a turn now. |
 | GET | `/supervisors/{supervisorName}/settings` | A supervisor's settings, its system prompt and its room sessions. |
 | PATCH | `/supervisors/{supervisorName}/settings` | Change a supervisor's reference switch, persona, generation settings, registration or thinking. |
+| GET | `/supervisors/{supervisorName}/sleep` | Whether a supervisor sleeps, at what hour, and its record. |
+| PUT | `/supervisors/{supervisorName}/sleep` | Set whether a supervisor sleeps and its own hour. |
 | POST | `/supervisors/{supervisorName}/resets` | Start a supervisor afresh in the ranges named; `dryRun` counts it first. |
 | PATCH | `/supervisors/{supervisorName}` | Change a supervisor's label, call names, road, warming, threshold, gates, sampling or voice. |
 | DELETE | `/supervisors/{supervisorName}` | End a supervisor's registration; `forgetBrain` lets its brain go with it. |
@@ -338,6 +340,12 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   every room session it holds, each carried out by its handover. One that moves its thinking or its
   registration moves its road, which replaces its sessions through their handoff as the row's route does,
   behind the answer (「`PATCH /supervisors/{supervisorName}`」 above). The answer is the settings read as it then stands.
+- **`GET` and `PUT /supervisors/{supervisorName}/sleep`** read and set the supervisor's sleep (`docs/sleep.md`,
+  「Its setting」). The reading answers `on`, `hour` (its own, 0 to 23, or null for the policy's), `defaultHour`
+  (the policy's), `sleptOn` (the day it last slept for, `YYYY-MM-DD`, or null) and `triedAt` (the moment it last
+  tried, or null); a supervisor whose setting was never written answers `on` true and `hour` null. The setting
+  takes `on`, required, and `hour`, a whole hour from 0 to 23 or null, each refused 400 otherwise, and answers the
+  reading as it then stands. A supervisor the store does not hold is answered 404.
 - **`POST /supervisors/{supervisorName}/resets`** starts a supervisor afresh (`docs/supervisors.md`,
   「Starting it afresh」): `conversation` and `person`, the ranges, at least one switched on; `alone` and
   `shared`, the rooms the caller says it answers alone and those it shares with other supervisors, each a list
@@ -2435,7 +2443,11 @@ room the run answers, marked `ridesForGood` so it opens no turn, no source left 
 told」).
 Of the brain it asks an agent's own brain made as the agent is registered, found by the agent's key,
 let go whole or only found for a preview, the discipline a chat launch's system prompt carries, and the
-base layer of the agent's persona that prompt ends with. Of the tool host it asks, on its control socket
+base layer of the agent's persona that prompt ends with; and for a supervisor's sleep (`docs/sleep.md`), the
+newest summary of its sleeps (`GET /brains/{brainId}/memories` by the type `reflection` and the label `sleep`),
+the consolidation state since it (`GET /brains/{brainId}/consolidation` with `since`), and the summary written
+(`POST /brains/{brainId}/memories`). For the same sleep it reads the arbiter master's picture (`GET /cluster`) for a
+card under a claim, and hands the receiver's `POST /lines/{agentName}` the record-only line `slept`. Of the tool host it asks, on its control socket
 with the issuer token, a session token for each program and run that holds a capability, which it takes
 back, the asynchronous calls still running (`GET /uses`, `state=running`) before it takes back a token a
 supervisor's replaced program carried, a namespace's facts, the paragraph on finding and using tools that a chat launch's

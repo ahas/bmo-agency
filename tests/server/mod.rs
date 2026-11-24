@@ -32,6 +32,7 @@ mod command_reading {
 }
 
 mod setting_handovers;
+mod sleep;
 mod supervisor_homes;
 mod supervisor_limits;
 mod supervisor_prompt_change;

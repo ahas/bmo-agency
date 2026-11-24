@@ -105,6 +105,7 @@ mod m20270113_000001_road_advisor;
 mod m20270114_000001_follows_asker;
 mod m20270115_000001_organisation_supply;
 mod m20270116_000001_session_reset_clean;
+mod m20270120_000001_supervisor_sleep;
 
 use sea_orm_migration::prelude::*;
 
@@ -130,7 +131,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 62] = [
+pub const OWN_TABLES: [&str; 63] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -177,6 +178,7 @@ pub const OWN_TABLES: [&str; 62] = [
   "room_sessions",
   "room_session_turns",
   "supervisor_settings",
+  "supervisor_sleep",
   "settings",
   "assignments",
   "jobs",
@@ -304,6 +306,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270114_000001_follows_asker::Migration),
       Box::new(m20270115_000001_organisation_supply::Migration),
       Box::new(m20270116_000001_session_reset_clean::Migration),
+      Box::new(m20270120_000001_supervisor_sleep::Migration),
     ]
   }
 

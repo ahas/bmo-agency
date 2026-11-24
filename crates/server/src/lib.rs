@@ -103,6 +103,7 @@ pub mod seeds;
 pub mod session_output;
 pub mod session_questions;
 pub mod session_tools;
+pub mod sleep;
 pub mod stand_in;
 pub mod streaming;
 pub mod supervisor_homes;

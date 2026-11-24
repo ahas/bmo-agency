@@ -6,7 +6,8 @@
 use std::sync::Arc;
 
 use bmo_brain_client::{
-  Brain as BrainMember, BrainClient, BrainKind, BrainsQuery, ClientFailure, NewBrain, PersonaQuery,
+  Brain as BrainMember, BrainClient, BrainKind, BrainsQuery, ClientFailure, ConsolidationQuery,
+  MemoriesQuery, NewBrain, NewMemory, PersonaQuery,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -57,6 +58,30 @@ pub enum Rendered {
   Undeployed,
 }
 
+/// The label a sleep's summary carries, its value the day the sleep was for (docs/sleep.md, 「The run」).
+pub const SLEEP_LABEL: &str = "sleep";
+
+/// The type a sleep's summary is written as.
+pub const SLEEP_TYPE: &str = "reflection";
+
+/// Who a sleep's summary is written as.
+pub const SLEEP_ACTOR: &str = "sleep";
+
+/// What an agent's brain holds to sleep on: its unconsolidated episodes, and the rows written since its last
+/// sleep (all of them where it never slept).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Pending {
+  pub unconsolidated: i64,
+  pub written_since: i64,
+}
+
+impl Pending {
+  /// Whether there is anything to sleep on.
+  pub fn any(&self) -> bool {
+    self.unconsolidated > 0 || self.written_since > 0
+  }
+}
+
 /// What agency asks the brain.
 pub trait Brain: Send + Sync {
   /// The agent's own brain made under its key, named as given, where the brain keeps none yet: filed under
@@ -70,6 +95,14 @@ pub trait Brain: Send + Sync {
   fn discipline(&self) -> Asking<'_, String>;
   /// The persona the agent's brain renders of the layers named, comma-separated.
   fn persona<'a>(&'a self, agent: &'a str, layers: &'a str) -> Asking<'a, Rendered>;
+  /// What the agent's brain holds to sleep on; none where the agent has no brain.
+  fn pending<'a>(&'a self, _agent: &'a str) -> Asking<'a, Option<Pending>> {
+    Box::pin(async { Ok(None) })
+  }
+  /// A sleep's summary written into the agent's brain: one reflection labelled with the day it slept for.
+  fn slept<'a>(&'a self, _agent: &'a str, _date: &'a str, _summary: &'a str) -> Asking<'a, ()> {
+    Box::pin(async { Ok(()) })
+  }
 }
 
 /// No brain deployed: no agent has a brain, so nothing is counted or taken.
@@ -187,6 +220,60 @@ impl PublishedBrain {
   }
 }
 
+impl PublishedBrain {
+  /// The unconsolidated episodes and the rows written since the newest sleep summary the agent's brain holds.
+  async fn pending_in(&self, agent: &str) -> Result<Option<Pending>, PeerFault> {
+    let Some(brain) = self.find(agent).await? else {
+      return Ok(None);
+    };
+    let last = self
+      .client
+      .memories(
+        brain.id,
+        &MemoriesQuery {
+          kind: Some(SLEEP_TYPE.to_owned()),
+          status: Some("active".to_owned()),
+          label: Some(SLEEP_LABEL.to_owned()),
+          limit: Some(1),
+          record: Some(false),
+          ..MemoriesQuery::default()
+        },
+      )
+      .await
+      .map_err(fault)?;
+    let since = last.items.first().map_or(0, |summary| summary.created_at);
+    let state = self
+      .client
+      .consolidation_since(brain.id, &ConsolidationQuery { since: Some(since) })
+      .await
+      .map_err(fault)?;
+
+    Ok(Some(Pending {
+      unconsolidated: state.unconsolidated_count,
+      written_since: state.written_since.unwrap_or(0),
+    }))
+  }
+
+  /// The sleep's summary written as a first version, where the agent has a brain.
+  async fn summary_in(&self, agent: &str, date: &str, summary: &str) -> Result<(), PeerFault> {
+    let Some(brain) = self.find(agent).await? else {
+      return Ok(());
+    };
+    let written = NewMemory {
+      kind: SLEEP_TYPE.to_owned(),
+      text: summary.to_owned(),
+      importance: Some(3),
+      actor_name: SLEEP_ACTOR.to_owned(),
+      labels: [(SLEEP_LABEL.to_owned(), date.to_owned())].into_iter().collect(),
+      ..NewMemory::default()
+    };
+
+    self.client.memory_add(brain.id, &written).await.map_err(fault)?;
+
+    Ok(())
+  }
+}
+
 fn fault(why: ClientFailure) -> PeerFault {
   match why {
     ClientFailure::Answered {
@@ -231,6 +318,14 @@ impl Brain for PublishedBrain {
 
   fn persona<'a>(&'a self, agent: &'a str, layers: &'a str) -> Asking<'a, Rendered> {
     Box::pin(async move { self.rendered(agent, layers).await })
+  }
+
+  fn pending<'a>(&'a self, agent: &'a str) -> Asking<'a, Option<Pending>> {
+    Box::pin(async move { self.pending_in(agent).await })
+  }
+
+  fn slept<'a>(&'a self, agent: &'a str, date: &'a str, summary: &'a str) -> Asking<'a, ()> {
+    Box::pin(async move { self.summary_in(agent, date, summary).await })
   }
 }
 

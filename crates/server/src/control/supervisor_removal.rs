@@ -19,7 +19,8 @@ use crate::places::home::Home;
 
 /// The tables keyed by the agent alone whose rows a removal takes after the reset: its settings, its base
 /// prompt choice and the asks of its session resets.
-const AGENT_TABLES: [&str; 3] = ["supervisor_settings", "agent_base_prompts", "session_resets"];
+const AGENT_TABLES: [&str; 4] =
+  ["supervisor_settings", "agent_base_prompts", "session_resets", "supervisor_sleep"];
 
 /// What the reset keeps of an agent taken out, in one write, its row last.
 pub(super) async fn remove(written: &DatabaseTransaction, agent: &str) -> Result<(), Fault> {

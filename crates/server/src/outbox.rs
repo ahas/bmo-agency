@@ -36,6 +36,29 @@ impl Receiver {
     Some(Self { url, token })
   }
 
+  /// A line the receiver keeps in the agent's owner's private room, in its record alone (the receiver's
+  /// `docs/api.md`, 「Kept lines」): one try, and why it was not kept where it was not.
+  pub async fn keep_line(&self, agent: &str, line: &Value) -> Result<(), String> {
+    let client = reqwest::Client::builder()
+      .timeout(Duration::from_secs(JOB_NOTICES.answer_seconds))
+      .build()
+      .map_err(|why| why.to_string())?;
+    let answer = client
+      .post(format!("{}/lines/{agent}", self.url))
+      .bearer_auth(&self.token)
+      .json(&json!({ "line": line }))
+      .send()
+      .await
+      .map_err(|why| why.to_string())?;
+    let status = answer.status();
+
+    if status.is_success() {
+      Ok(())
+    } else {
+      Err(format!("the receiver answered {} to a kept line", status.as_u16()))
+    }
+  }
+
   // One try at handing the receiver a notice by its route.
   async fn hand(&self, route: Route, body: &Value) -> Answer {
     let client = match reqwest::Client::builder()

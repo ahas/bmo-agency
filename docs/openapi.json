@@ -6881,6 +6881,102 @@
         }
       }
     },
+    "/supervisors/{supervisorName}/sleep": {
+      "get": {
+        "operationId": "getSupervisorSleep",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Whether a supervisor sleeps, at what hour, and its record.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorSleep"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ]
+      },
+      "put": {
+        "operationId": "setSupervisorSleep",
+        "tags": [
+          "supervisors"
+        ],
+        "summary": "Set whether a supervisor sleeps and its own hour.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SupervisorSleep"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "not-found"
+        ],
+        "parameters": [
+          {
+            "name": "supervisorName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SupervisorSleepChange"
+              }
+            }
+          }
+        }
+      }
+    },
     "/supervisors/{supervisorName}/resets": {
       "post": {
         "operationId": "createSupervisorReset",
@@ -17180,6 +17276,70 @@
           }
         },
         "description": "The body that changes a supervisor's settings."
+      },
+      "SupervisorSleep": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "hour": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0
+          },
+          "defaultHour": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "sleptOn": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "triedAt": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        },
+        "required": [
+          "on",
+          "hour",
+          "defaultHour",
+          "sleptOn",
+          "triedAt"
+        ],
+        "description": "A supervisor's sleep setting (docs/sleep.md, 「Its setting」): whether it sleeps and its own hour, none for the\npolicy's, beside the policy's hour, the day it last slept for and the moment it last tried."
+      },
+      "SupervisorSleepChange": {
+        "type": "object",
+        "properties": {
+          "on": {
+            "type": "boolean"
+          },
+          "hour": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint32",
+            "minimum": 0,
+            "default": null
+          }
+        },
+        "required": [
+          "on",
+          "hour"
+        ],
+        "description": "The body that sets a supervisor's sleep: whether it sleeps, and its own hour from 0 to 23, or null for the\npolicy's."
       },
       "SupervisorReset": {
         "type": "object",

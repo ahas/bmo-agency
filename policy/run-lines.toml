@@ -41,8 +41,9 @@ background_apart = true
 capabilities = ["room.tools", "gate.translate", "gate.reference", "research.ask"]
 namespaces = ["bmo", "gate", "eye", "ear", "testbed", "voice", "research"]
 shown = [
-  "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_episode", "bmo/brain_learn", "bmo/brain_list",
-  "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated", "bmo/room_grant", "bmo/say",
+  "bmo/brain_fold", "bmo/brain_consolidated", "bmo/brain_duplicates", "bmo/brain_episode", "bmo/brain_learn",
+  "bmo/brain_list", "bmo/brain_merge", "bmo/brain_move", "bmo/brain_similar", "bmo/brain_unconsolidated",
+  "bmo/room_grant", "bmo/say",
   "bmo/worker_ask",
   "gate/translate", "gate/reference_index", "gate/reference_piece", "gate/reference_search",
 ]

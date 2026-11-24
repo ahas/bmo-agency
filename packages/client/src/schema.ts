@@ -1682,6 +1682,24 @@ export interface paths {
         patch: operations["changeSupervisorSettings"];
         trace?: never;
     };
+    "/supervisors/{supervisorName}/sleep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether a supervisor sleeps, at what hour, and its record. */
+        get: operations["getSupervisorSleep"];
+        /** Set whether a supervisor sleeps and its own hour. */
+        put: operations["setSupervisorSleep"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/supervisors/{supervisorName}/resets": {
         parameters: {
             query?: never;
@@ -5009,6 +5027,32 @@ export interface components {
             registration?: string | null;
             generation?: unknown;
             thinking?: boolean | null;
+        };
+        /**
+         * @description A supervisor's sleep setting (docs/sleep.md, 「Its setting」): whether it sleeps and its own hour, none for the
+         *     policy's, beside the policy's hour, the day it last slept for and the moment it last tried.
+         */
+        SupervisorSleep: {
+            on: boolean;
+            /** Format: uint32 */
+            hour: number | null;
+            /** Format: uint32 */
+            defaultHour: number;
+            sleptOn: string | null;
+            /** Format: int64 */
+            triedAt: number | null;
+        };
+        /**
+         * @description The body that sets a supervisor's sleep: whether it sleeps, and its own hour from 0 to 23, or null for the
+         *     policy's.
+         */
+        SupervisorSleepChange: {
+            on: boolean;
+            /**
+             * Format: uint32
+             * @default null
+             */
+            hour: number | null;
         };
         /** @description SupervisorReset: what a reset of a supervisor took, or would take on a dry run. */
         SupervisorReset: {
@@ -10629,6 +10673,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupervisorSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    getSupervisorSleep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorSleep"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    setSupervisorSleep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorSleepChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorSleep"];
                 };
             };
             400: components["responses"]["BadRequest"];

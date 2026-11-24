@@ -164,7 +164,9 @@ seeds. The other crates and the server reach the store only through it.
     as its wait looks and closed with its ending (`docs/agent-control.md`, 「Telling that a turn's program
     is gone」); a row ended a week ago goes as a turn's next row is opened;
   - the supervisors' room sessions and settings: `room_sessions`, `room_session_turns`,
-    `supervisor_settings` (`docs/supervisors.md`, 「Its settings」);
+    `supervisor_settings` (`docs/supervisors.md`, 「Its settings」), and `supervisor_sleep`, one row a supervisor's
+    sleep — whether it sleeps, its own hour or none, the day it last slept for and when it last tried
+    (`docs/sleep.md`, 「Its setting」);
     the window a room holds open for an agent is the room's owner's, and agency keeps none;
   - the lines one BMO handed another: `relays`, one row a line — the sending and receiving BMOs, the room,
     the line, the kind, `relay` or `chat`, the state it came to, the answer or the reason, and when it was
