@@ -57,7 +57,11 @@ them.
   process that should end by itself and does not fails the test rather than holding the test binary.
 - **No test touches the owner's own browser profile.** The DeepSeek top-up pays in the owner's Firefox profile
   (`docs/tools.md`, 「How it pays」); every test of it that can reach the browser points the payer at a throwaway
-  profiles folder, and one that drives the machine's Firefox does so on a throwaway profile alone.
+  profiles folder, and one that drives the machine's Firefox does so on a throwaway profile alone. A run leaves
+  nothing behind: Firefox mirrors a profile under its profiles root into a folder of the same name in its cache
+  root, which no preference moves, so the throwaway folder stands outside that root, beside it, its disk cache
+  off; its drop removes any mirror of its name all the same, and each run first sweeps the throwaway folders
+  and mirrors of its prefix past an hour old that killed runs left.
 - **A test drops every database it makes, and fails where it cannot.** A store of a test's own is a copy of
   a template its harness migrates once per process on the server `BMO_TEST_POSTGRES` names. The Rust harness
   names them `agency_rs_tmpl_` and `agency_rs_copy_`, the TypeScript one `agency_ts_tmpl_` and

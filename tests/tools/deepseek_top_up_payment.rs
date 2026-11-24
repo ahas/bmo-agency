@@ -26,8 +26,9 @@ use deepseek_top_up_tool::{MailService, Payer, top_up_with};
 use serde_json::{Value, json};
 
 use super::deepseek_top_up::{
-  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, USERNAME, agency, amount, assert_profile_as_planted,
-  data_root, firefox_profiles, holds_no_secret_value, whole_card, whole_login,
+  CVC, EXPIRY, HOLDER, NUMBER, PASSWORD, Stand, Throwaway, USERNAME, agency, amount,
+  assert_profile_as_planted, cache_root, data_root, firefox_profiles, holds_no_secret_value, whole_card,
+  whole_login,
 };
 
 /// What the fake platform does with a sign-in and a payment.
@@ -444,21 +445,29 @@ async fn mail_service(fake: &Fake) -> MailService {
 struct Firefox {
   executable: String,
   scope: String,
+  /// The folder the throwaway profiles folder is made in.
   near: std::path::PathBuf,
+  /// The Firefox's own profiles root, whose profiles it mirrors into its cache root; none for Playwright's.
+  mirrored: Option<std::path::PathBuf>,
 }
 
 /// The machine's Firefox: the owner's, as the tool's policy names it, where it stands, with a throwaway profiles
-/// folder made beside his profiles, the place a snap's confined Firefox reads; else the newest Firefox Playwright
-/// keeps, as on a machine whose browser tests run on Playwright's, with its profiles in the temporary folder. None
-/// where the machine holds neither, as a placed test machine holding no browser build does.
+/// folder made beside his profiles root, where a snap's confined Firefox reads it and, standing outside that root,
+/// keeps its caches inside the throwaway folder rather than mirroring it into the cache root; else the newest
+/// Firefox Playwright keeps, as on a machine whose browser tests run on Playwright's, with its profiles in the
+/// temporary folder. None where the machine holds neither, as a placed test machine holding no browser build does.
 fn machine_firefox(root: &std::path::Path) -> Option<Firefox> {
   let place = Payer::of(root).platform.place;
 
-  if std::path::Path::new(&place.firefox).is_file() && place.profiles.is_dir() {
+  if std::path::Path::new(&place.firefox).is_file()
+    && place.profiles.is_dir()
+    && let Some(beside) = place.profiles.parent()
+  {
     return Some(Firefox {
-      executable: place.firefox,
-      scope: place.scope,
-      near: place.profiles,
+      executable: place.firefox.clone(),
+      scope: place.scope.clone(),
+      near: beside.to_owned(),
+      mirrored: Some(place.profiles),
     });
   }
 
@@ -482,6 +491,7 @@ fn machine_firefox(root: &std::path::Path) -> Option<Firefox> {
     executable,
     scope: String::new(),
     near: std::env::temp_dir(),
+    mirrored: None,
   })
 }
 
@@ -560,16 +570,22 @@ fn files_holding_a_secret(folder: &std::path::Path) -> Vec<String> {
 /// The machine's Firefox and a throwaway profiles folder for it; none, said on the error stream, where the machine
 /// holds no Firefox, so the test that asked is passed over there, as every browser test of the platform is on
 /// such a machine.
-fn firefox_on_machine(root: &std::path::Path) -> Option<(Firefox, tempfile::TempDir)> {
+fn firefox_on_machine(root: &std::path::Path) -> Option<(Firefox, Throwaway)> {
   let Some(firefox) = machine_firefox(root) else {
     eprintln!(
       "passed over: no Firefox stands on this machine, neither the policy's nor a Playwright Firefox"
     );
     return None;
   };
-  let profiles = firefox_profiles(&firefox.near);
+  let profiles = firefox_profiles(&firefox.near, firefox.mirrored.as_deref());
 
   Some((firefox, profiles))
+}
+
+/// The folder Firefox would mirror the throwaway profiles folder `profiles` into, in the cache root of `firefox`'s
+/// own profiles root; none for a Firefox that mirrors nothing.
+fn mirror_of(firefox: &Firefox, profiles: &std::path::Path) -> Option<std::path::PathBuf> {
+  Some(firefox.mirrored.as_deref().and_then(cache_root)?.join(profiles.file_name()?))
 }
 
 /// One call paid on the fake platform in the machine's Firefox and its answer, checked as `pay_in` says.
@@ -614,6 +630,10 @@ async fn pay_in(
   );
   assert!(processes_naming(profiles).is_empty(), "the browser and its screen ended with the call");
   assert_profile_as_planted(profiles);
+  assert!(
+    mirror_of(firefox, profiles).is_none_or(|mirror| !mirror.exists()),
+    "the call's Firefox mirrored no folder into its cache root"
+  );
   assert_eq!(
     files_holding_a_secret(profiles),
     Vec::<String>::new(),

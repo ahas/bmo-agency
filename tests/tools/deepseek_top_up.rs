@@ -200,12 +200,88 @@ user_pref("network.connectivity-service.enabled", false);
 user_pref("app.normandy.enabled", false);
 user_pref("browser.startup.homepage_override.mstone", "ignore");
 user_pref("startup.homepage_welcome_url", "about:blank");
+user_pref("browser.cache.disk.enable", false);
 "#;
 
+/// The name every throwaway profiles folder begins with, here and in the cache root Firefox mirrors one into.
+const THROWAWAY: &str = ".top-up-test-";
+
+/// How old a throwaway folder or mirror is before a later run takes it for one a killed run left.
+const LEFT_BY_A_KILLED_RUN: Duration = Duration::from_secs(60 * 60);
+
+/// The cache root Firefox mirrors a profile of the profiles root `profiles` into: a profile standing under
+/// `<home>/.mozilla/firefox` keeps its local data, its startup cache and safe-browsing lists among them, in the
+/// folder of the same path under `<home>/.cache/mozilla/firefox`, whatever its preferences say, and a snap's
+/// Firefox takes no `XDG_CACHE_HOME` from its caller. None where `profiles` is no such root.
+pub(super) fn cache_root(profiles: &Path) -> Option<PathBuf> {
+  let mozilla = profiles.parent()?;
+
+  if profiles.file_name()? != "firefox" || mozilla.file_name()? != ".mozilla" {
+    return None;
+  }
+
+  Some(mozilla.parent()?.join(".cache/mozilla/firefox"))
+}
+
+/// Every throwaway folder in each of `folders` past the hour, by its prefix alone, removed: what killed runs left,
+/// never a folder of another name.
+pub(super) fn sweep_killed_runs(folders: &[&Path]) {
+  for folder in folders {
+    for entry in std::fs::read_dir(folder).into_iter().flatten().flatten() {
+      let left = entry.file_name().to_str().is_some_and(|name| name.starts_with(THROWAWAY))
+        && entry
+          .metadata()
+          .and_then(|meta| meta.modified())
+          .is_ok_and(|at| at.elapsed().is_ok_and(|age| age >= LEFT_BY_A_KILLED_RUN));
+
+      if left {
+        let _ = std::fs::remove_dir_all(entry.path());
+      }
+    }
+  }
+}
+
+/// A throwaway Firefox profiles folder, removed when dropped together with the folder of its name in the cache
+/// root Firefox mirrors profiles into, where one stands.
+pub(super) struct Throwaway {
+  folder: Option<tempfile::TempDir>,
+  mirror: Option<PathBuf>,
+}
+
+impl Throwaway {
+  pub(super) fn path(&self) -> &Path {
+    self.folder.as_ref().map_or(Path::new(""), |folder| folder.path())
+  }
+
+  /// The folder kept past the drop, as a test that renames it asks; its mirror is still removed.
+  pub(super) fn keep(mut self) -> PathBuf {
+    self.folder.take().map(tempfile::TempDir::keep).unwrap_or_default()
+  }
+}
+
+impl Drop for Throwaway {
+  fn drop(&mut self) {
+    if let Some(mirror) = self.mirror.as_ref().filter(|mirror| mirror.is_dir()) {
+      let _ = std::fs::remove_dir_all(mirror);
+    }
+  }
+}
+
 /// A throwaway Firefox profiles folder made in `near`, as the owner's Firefox keeps his: `profiles.ini` naming the
-/// one profile, `profile`, its default, which holds the planted session.
-pub(super) fn firefox_profiles(near: &Path) -> tempfile::TempDir {
-  let root = tempfile::Builder::new().prefix(".top-up-test-").tempdir_in(near).unwrap();
+/// one profile, `profile`, its default, which holds the planted session. `mirrored` is the machine's profiles
+/// root, where the folder is made for its Firefox: the leftovers of killed runs are swept from `near`, from that
+/// root and from its cache root first, and the folder's mirror there is removed with it.
+pub(super) fn firefox_profiles(near: &Path, mirrored: Option<&Path>) -> Throwaway {
+  let cache = mirrored.and_then(cache_root);
+  let swept: Vec<&Path> = [Some(near), mirrored, cache.as_deref()].into_iter().flatten().collect();
+
+  sweep_killed_runs(&swept);
+
+  let made = tempfile::Builder::new().prefix(THROWAWAY).tempdir_in(near).unwrap();
+  let root = Throwaway {
+    mirror: cache.zip(made.path().file_name()).map(|(cache, name)| cache.join(name)),
+    folder: Some(made),
+  };
 
   std::fs::write(
     root.path().join("profiles.ini"),
@@ -273,7 +349,7 @@ fn nowhere(root: &Path) -> Payer {
 
 /// The throwaway profiles folder `nowhere` pays from, made under `root`.
 fn profiles_under(root: &Path) -> PathBuf {
-  let made = firefox_profiles(root).keep();
+  let made = firefox_profiles(root, None).keep();
   let named = root.join("firefox");
 
   std::fs::rename(&made, &named).unwrap();
@@ -727,4 +803,81 @@ async fn no_refused_call_moves_the_balance_or_asks_agency_anything_but_its_reads
     assert_eq!(method, Method::GET);
     assert!(["/settings", "/providers/deepseek"].contains(&path.as_str()), "{path}");
   }
+}
+
+/// A folder made under `parent` and dated `age` ago.
+fn dated(parent: &Path, name: &str, age: Duration) -> PathBuf {
+  let folder = parent.join(name);
+
+  std::fs::create_dir_all(folder.join("startupCache")).unwrap();
+  std::fs::File::open(&folder)
+    .unwrap()
+    .set_modified(std::time::SystemTime::now() - age)
+    .unwrap();
+  folder
+}
+
+#[test]
+fn firefox_mirrors_a_profile_of_its_profiles_root_into_the_cache_root_beside_it() {
+  let snap = Path::new("/home/someone/snap/firefox/common");
+
+  assert_eq!(cache_root(&snap.join(".mozilla/firefox")), Some(snap.join(".cache/mozilla/firefox")));
+  assert_eq!(cache_root(Path::new("/tmp")), None);
+}
+
+#[test]
+fn a_throwaway_profile_stands_outside_the_profiles_root_and_takes_its_mirror_with_it() {
+  let home = tempfile::tempdir().unwrap();
+  let (beside, profiles) = (home.path().join(".mozilla"), home.path().join(".mozilla/firefox"));
+  let cache = home.path().join(".cache/mozilla/firefox");
+  let owners = dated(&cache, "abcd1234.default", Duration::from_secs(7200));
+
+  std::fs::create_dir_all(&profiles).unwrap();
+
+  let throwaway = firefox_profiles(&beside, Some(&profiles));
+  let name = throwaway.path().file_name().unwrap().to_owned();
+  let mirror = dated(&cache, name.to_str().unwrap(), Duration::ZERO);
+
+  assert_eq!(
+    throwaway.path().parent(),
+    Some(beside.as_path()),
+    "the folder stands beside the root, outside it"
+  );
+  drop(throwaway);
+
+  assert!(!beside.join(&name).exists());
+  assert!(!mirror.exists(), "a mirror of its name went with it");
+  assert!(owners.exists(), "the owner's own cache is never reached");
+}
+
+#[test]
+fn a_run_sweeps_what_killed_runs_left_past_the_hour_by_its_prefix_alone() {
+  let home = tempfile::tempdir().unwrap();
+  let (beside, profiles) = (home.path().join(".mozilla"), home.path().join(".mozilla/firefox"));
+  let cache = home.path().join(".cache/mozilla/firefox");
+  let hours = Duration::from_secs(7200);
+  let killed = [
+    dated(&beside, ".top-up-test-killed", hours),
+    dated(&profiles, ".top-up-test-older", hours),
+    dated(&cache, ".top-up-test-killed", hours),
+  ];
+  let kept = [
+    dated(&beside, ".top-up-test-running", Duration::ZERO),
+    dated(&cache, ".top-up-test-running", Duration::ZERO),
+    dated(&profiles, "abcd1234.default", hours),
+    dated(&cache, "abcd1234.default", hours),
+    dated(&cache, ".bmo-web-firefox-other", hours),
+  ];
+
+  let throwaway = firefox_profiles(&beside, Some(&profiles));
+
+  for left in killed {
+    assert!(!left.exists(), "{} was swept", left.display());
+  }
+
+  for standing in kept {
+    assert!(standing.exists(), "{} stands", standing.display());
+  }
+
+  drop(throwaway);
 }
