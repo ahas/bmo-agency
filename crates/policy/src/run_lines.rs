@@ -65,8 +65,8 @@ pub struct RunLine {
 }
 
 /// What a line's program carries (docs/launch-lines.md, 「What a line carries」): the pieces of its system prompt
-/// in order, the setting sources it reads, where its skills come from, whether it keeps its own commands and
-/// the program's own subagent types it keeps. A line that declares none carries nothing of any.
+/// in order, the setting sources it reads, where its skills and its MCP servers come from, whether it keeps its own
+/// commands and the program's own subagent types it keeps. A line that declares none carries nothing of any.
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Carries {
@@ -75,7 +75,9 @@ pub struct Carries {
   #[serde(default)]
   pub setting_sources: Vec<String>,
   #[serde(default)]
-  pub skills: Skills,
+  pub skills: Vec<SkillSource>,
+  #[serde(default)]
+  pub mcp: Vec<McpSource>,
   #[serde(default)]
   pub slash_commands: bool,
   #[serde(default)]
@@ -83,14 +85,23 @@ pub struct Carries {
 }
 
 /// Where a line's skills come from.
-#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
-pub enum Skills {
-  /// None at all.
-  #[default]
-  None,
+pub enum SkillSource {
   /// The plugin bundle of its run's role.
   Role,
+  /// The person's skills attached to the run's holder.
+  Attached,
+}
+
+/// Where a line's MCP servers come from.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum McpSource {
+  /// The line's own MCP configuration.
+  Line,
+  /// The person's MCP servers attached to the run's holder.
+  Attached,
 }
 
 impl Carries {
@@ -102,6 +113,16 @@ impl Carries {
   /// Whether its system prompt holds the piece named.
   pub fn holds(&self, piece: &str) -> bool {
     self.prompt.iter().any(|held| held == piece)
+  }
+
+  /// Whether its program carries the skills attached to the run's holder.
+  pub fn takes_attached_skills(&self) -> bool {
+    self.skills.contains(&SkillSource::Attached)
+  }
+
+  /// Whether its program reaches the MCP servers attached to the run's holder.
+  pub fn takes_attached_mcp(&self) -> bool {
+    self.mcp.contains(&McpSource::Attached)
   }
 }
 

@@ -448,9 +448,9 @@
   thinking off. No other provider carries the line. The answer is the translation whole. A translation
   through the gateway leaves a run of the translator role and its log lines (`docs/run-records.md`, 「The run
   ledger」), as a run apart on Claude Code leaves its own.
-- **The app review**: one shared app's review (`docs/person-nodes.md`, 「Shared apps」) goes out as a translation
+- **The app review**: one shared item's review (`docs/person-nodes.md`, 「Shared apps」) goes out as a translation
   does, on the same runner and its key, on the first road of the `app-reviewer` role's agents that can answer,
-  with that role's prompt as its whole system prompt and the app's manifest, permissions and source as its input;
+  with that role's prompt as its whole system prompt and the item's kind, permissions and source as its input;
   it answers the report alone.
 - **Browse runner**: the line a browse goes out on, carried by agency and composed, as the search line is,
   by whoever starts an apart session on it: the model and effort the session names, else those the seeker
@@ -565,7 +565,14 @@
     `instructions`, what a session's caller hands in; `purpose`, a translation's instructions.
   - **`setting_sources`:** the setting sources its program reads; a line naming none reads no CLAUDE.md, no
     memory, no setting and no hook of the machine's or a checkout's.
-  - **`skills`:** `role`, the plugin bundle of its run's role, or `none`.
+  - **`skills`:** the sources of the skills its program carries, a list: `role`, the plugin bundle of its run's role;
+    `attached`, the skills attached to the run's holder (`docs/person-nodes.md`, 「Attaching skills and MCP
+    servers」). An empty list carries none, and a launch asked to place attached skills on a line naming no
+    `attached` is refused.
+  - **`mcp`:** the sources of the MCP servers its program reaches, a list: `line`, the line's own MCP configuration;
+    `attached`, the person's MCP servers attached to the run's holder, reached through the tool host as personal
+    tools, every other one withheld from the run's record. An MCP server of the person's reaches a run of a line
+    naming no `attached` never.
   - **`slash_commands`:** whether its program keeps its own commands.
   - **`subagents`:** the program's own subagent types it keeps. Every other type Claude Code's policy names
     (`policy/providers/claude-code.toml`, `agent_types`) is denied by name, `Agent(<type>)`, on a line that
@@ -577,14 +584,14 @@
   the role to the role's declaration and its line's carries.
 - **The lines' carries:**
 
-  | Line | Prompt | Setting sources | Skills | Own commands | Subagent types |
-  |---|---|---|---|---|---|
-  | chat | harness, platform-rules, organisation, role, personal, persona | none | none | yes | `Explore`, `general-purpose` |
-  | gate | instructions | none | none | yes | none |
-  | worker | opening, organisation, role, personal, rules | project, local | role | yes | `Explore`, `general-purpose` |
-  | search, browse | harness, instructions | none | none | yes | none |
-  | plain | instructions | none | none | no | none |
-  | translate | role, purpose | none | none | no | none |
+  | Line | Prompt | Setting sources | Skills | MCP | Own commands | Subagent types |
+  |---|---|---|---|---|---|---|
+  | chat | harness, platform-rules, organisation, role, personal, persona | none | attached | line, attached | yes | `Explore`, `general-purpose` |
+  | gate | instructions | none | none | none | yes | none |
+  | worker | opening, organisation, role, personal, rules | project, local | role, attached | line, attached | yes | `Explore`, `general-purpose` |
+  | search, browse | harness, instructions | none | none | line | yes | none |
+  | plain | instructions | none | none | line | no | none |
+  | translate | role, purpose | none | none | none | no | none |
 
 - **What the program adds that no declaration removes:** its one-line identity ahead of the system prompt;
   the environment block beside the first prompt (the folder, the platform, the model and the date); the

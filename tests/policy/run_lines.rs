@@ -146,3 +146,32 @@ fn the_plain_line_reaches_nothing_of_the_tool_host() {
   assert!(RUN_LINES.namespaces("plain").is_empty());
   assert!(RUN_LINES.shown("plain").is_empty());
 }
+
+// "chat: skills [attached], mcp [line, attached]; worker: skills [role, attached], mcp [line, attached]; gate,
+// translate: skills [], mcp []; search, browse, plain: skills [], mcp [line]" (docs/launch-lines.md, 「What a line
+// carries」).
+#[test]
+fn each_line_names_the_sources_of_its_skills_and_its_mcp_servers() {
+  for (line, skills, mcp) in [
+    ("chat", vec![SkillSource::Attached], vec![McpSource::Line, McpSource::Attached]),
+    (
+      "worker",
+      vec![SkillSource::Role, SkillSource::Attached],
+      vec![McpSource::Line, McpSource::Attached],
+    ),
+    ("gate", vec![], vec![]),
+    ("translate", vec![], vec![]),
+    ("search", vec![], vec![McpSource::Line]),
+    ("browse", vec![], vec![McpSource::Line]),
+    ("plain", vec![], vec![McpSource::Line]),
+  ] {
+    let carries = RUN_LINES.carries(line);
+
+    assert_eq!(carries.skills, skills, "{line}");
+    assert_eq!(carries.mcp, mcp, "{line}");
+    assert_eq!(carries.takes_attached_skills(), line == "chat" || line == "worker", "{line}");
+    assert_eq!(carries.takes_attached_mcp(), line == "chat" || line == "worker", "{line}");
+  }
+
+  assert!(!RUN_LINES.carries("no-such-line").takes_attached_skills());
+}

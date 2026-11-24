@@ -19,7 +19,7 @@ use agent_session::{Apart, Mapping, Resume, WorkParts};
 use harness_providers::Machine;
 use policy::providers::claude_code::CLAUDE_CODE;
 use policy::roles::ROLES;
-use policy::run_lines::{Carries, RUN_LINES, Skills};
+use policy::run_lines::{Carries, McpSource, RUN_LINES, SkillSource};
 
 use crate::support::scratch::Scratch;
 
@@ -133,7 +133,8 @@ async fn runner(ground: &Ground, trees: &Trees, role: &str, line: &str, carries:
     "{role}"
   );
   assert_eq!(after(args, "--tools"), Some(""), "{role}: no built-in tool, so no subagent type");
-  assert_eq!(carries.skills, Skills::None, "{role}");
+  assert!(carries.skills.is_empty(), "{role}");
+  assert_eq!(carries.mcp, [McpSource::Line], "{role}");
   assert!(!args.iter().any(|arg| arg == "--plugin-dir" || arg == "--settings"), "{role}: {args:?}");
 }
 
@@ -173,7 +174,8 @@ async fn worker(ground: &Ground, trees: &Trees, role: &str, carries: &Carries) {
     Some(carries.setting_sources_word().as_str()),
     "{role}"
   );
-  assert_eq!(carries.skills, Skills::Role, "{role}");
+  assert_eq!(carries.skills, [SkillSource::Role, SkillSource::Attached], "{role}");
+  assert_eq!(carries.mcp, [McpSource::Line, McpSource::Attached], "{role}");
   assert!(after(&args, "--plugin-dir").is_some(), "{role}: its role's plugin");
   assert_eq!(after(&args, "--disallowedTools"), Some(line_denied("worker").as_str()), "{role}");
   subagents_denied(&line_denied("worker"), carries);
@@ -193,7 +195,12 @@ async fn translate(ground: &Ground, trees: &Trees, role: &str, carries: &Carries
   );
   assert_eq!(purpose.is_some(), system.len() > prompt.unwrap_or_default().trim().len(), "{role}");
   assert!(!system.contains(&harness(trees)), "{role}: no platform opening");
-  assert!(carries.setting_sources.is_empty() && !carries.slash_commands && carries.skills == Skills::None);
+  assert!(
+    carries.setting_sources.is_empty()
+      && !carries.slash_commands
+      && carries.skills.is_empty()
+      && carries.mcp.is_empty()
+  );
 }
 
 #[tokio::test]
@@ -235,6 +242,8 @@ fn the_chat_line_denies_every_subagent_type_it_does_not_carry() {
 
   assert!(carries.setting_sources.is_empty() && carries.slash_commands);
   assert_eq!(carries.subagents, ["Explore", "general-purpose"]);
+  assert_eq!(carries.skills, [SkillSource::Attached]);
+  assert_eq!(carries.mcp, [McpSource::Line, McpSource::Attached]);
   subagents_denied(&denied, carries);
 
   for tool in &RUN_LINES.line("chat").unwrap().tools_denied {

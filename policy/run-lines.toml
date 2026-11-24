@@ -39,7 +39,10 @@
 #     organisation, role, personal and persona, the layers docs/prompt-layers.md names, a role's provider
 #     prompt standing in its role layer; rules, the line's rules file; instructions, what the session's caller hands in; purpose, a translation's instructions.
 #   setting_sources: the setting sources its program reads; none reads no CLAUDE.md, memory, setting or hook.
-#   skills: role, the plugin bundle of its run's role, or none.
+#   skills: the sources of its skills, a list: role, the plugin bundle of its run's role; attached, the person's
+#     skills attached to the run's holder (docs/person-nodes.md, 「Attaching skills and MCP servers」).
+#   mcp: the sources of its MCP servers, a list: line, the line's own MCP configuration; attached, the person's MCP
+#     servers attached to the run's holder, every other one withheld from the run's record.
 #   slash_commands: whether its program keeps its own commands.
 #   subagents: the program's own subagent types it keeps; every other type the provider names is denied.
 
@@ -48,7 +51,8 @@ needs = []
 keeps_session = true
 carries.prompt = ["harness", "platform-rules", "organisation", "role", "personal", "persona"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = ["attached"]
+carries.mcp = ["line", "attached"]
 carries.slash_commands = true
 carries.subagents = ["Explore", "general-purpose"]
 composes_typed_lines = true
@@ -130,7 +134,8 @@ needs = []
 keeps_session = false
 carries.prompt = ["instructions"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = []
+carries.mcp = []
 carries.slash_commands = true
 carries.subagents = []
 
@@ -141,7 +146,8 @@ needs = []
 keeps_session = false
 carries.prompt = ["role", "purpose"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = []
+carries.mcp = []
 carries.slash_commands = false
 carries.subagents = []
 
@@ -156,7 +162,8 @@ needs = []
 keeps_session = true
 carries.prompt = ["opening", "organisation", "role", "personal", "rules"]
 carries.setting_sources = ["project", "local"]
-carries.skills = "role"
+carries.skills = ["role", "attached"]
+carries.mcp = ["line", "attached"]
 carries.slash_commands = true
 carries.subagents = ["Explore", "general-purpose"]
 holds_stops = true
@@ -185,7 +192,8 @@ needs = []
 keeps_session = false
 carries.prompt = ["instructions"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = []
+carries.mcp = ["line"]
 carries.slash_commands = false
 carries.subagents = []
 
@@ -201,7 +209,8 @@ needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
 carries.prompt = ["harness", "instructions"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = []
+carries.mcp = ["line"]
 carries.slash_commands = true
 carries.subagents = []
 capabilities = ["room.chat", "room.tools"]
@@ -214,7 +223,8 @@ needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
 carries.prompt = ["harness", "instructions"]
 carries.setting_sources = []
-carries.skills = "none"
+carries.skills = []
+carries.mcp = ["line"]
 carries.slash_commands = true
 carries.subagents = []
 capabilities = ["room.chat", "room.tools"]
