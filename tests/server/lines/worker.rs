@@ -36,6 +36,24 @@ fn no_line_sets_the_compact_share() {
   assert!(!line_environment(&command, "bmo-any-line", None).contains_key(COMPACT_SHARE));
 }
 
+// The worker line's own settings name every plugin Claude Code builds in off, the same list its places name, and
+// carry no list of the CLI's bundled skills, which the line's variables switch off whole (docs/launch-lines.md,
+// 「The CLI's own skills and plugins are switched off on every line」).
+#[test]
+fn the_worker_settings_switch_off_the_cli_s_own_plugins_and_name_no_bundled_skill() {
+  let settings: serde_json::Value = serde_json::from_str(
+    &std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/prompts/agents/worker/settings.json"))
+      .unwrap(),
+  )
+  .unwrap();
+
+  assert_eq!(
+    settings["enabledPlugins"].as_object().unwrap(),
+    &agency_server::lines::place::builtin_plugins_off()
+  );
+  assert!(settings.get("skillOverrides").is_none());
+}
+
 // A ground with a store of its own, its home and data root under one directory the test drops.
 async fn ground(scratch: &Scratch, home: &tempfile::TempDir) -> Ground {
   let machine = Machine::with_env(

@@ -134,6 +134,8 @@ pub struct Launch {
   pub own_words: Vec<String>,
   /// The program's tools whose calls wait long.
   pub long_tools: Vec<String>,
+  /// The plugins the program builds in, each named off in every settings file a line hands it.
+  pub builtin_plugins: Vec<String>,
 }
 
 /// Where under a login's configuration directory the CLI keeps its model catalogue.

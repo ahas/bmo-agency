@@ -176,6 +176,31 @@ fn a_places_settings_keep_the_lines_own_hooks_and_add_the_status_line_and_the_fo
   );
 }
 
+// The plugins Claude Code builds in reach no program a place stands, a supervisor's or a run's, and a plugin the
+// line's own settings name stands as they name it (docs/launch-lines.md, 「The CLI's own skills and plugins are
+// switched off on every line」).
+#[test]
+fn a_places_settings_name_every_built_in_plugin_off() {
+  let dir = tempfile::tempdir().unwrap();
+  let place = dir.path().join("place");
+  let mut given = Map::new();
+
+  given.insert("enabledPlugins".into(), json!({ "cc-plugin-tips@builtin": true, "own@market": true }));
+
+  let path = write_place_settings(&place, given, Path::new("/deploy"), Holds::of_line("chat")).unwrap();
+  let settings: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+  let plugins = settings["enabledPlugins"].as_object().unwrap();
+  let named = &policy::providers::claude_code::CLAUDE_CODE.launch.builtin_plugins;
+
+  assert!(!named.is_empty());
+  for plugin in named.iter().filter(|plugin| *plugin != "cc-plugin-tips") {
+    assert_eq!(plugins[&format!("{plugin}@builtin")], json!(false), "{plugin}");
+  }
+  assert_eq!(plugins["cc-plugin-tips@builtin"], json!(true), "the line's own word stands");
+  assert_eq!(plugins["own@market"], json!(true));
+  assert_eq!(builtin_plugins_off().len(), named.len());
+}
+
 // The worker line's programs are jobs', so their place's shell hook is started as the job guard, and takes
 // the file tools that write beside the shell.
 #[test]

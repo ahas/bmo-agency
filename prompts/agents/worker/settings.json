@@ -9,19 +9,21 @@
   "claudeMdExcludes": [
     "/home/*/.claude/CLAUDE.md"
   ],
-  "skillOverrides": {
-    "artifact-design": "off",
-    "artifact-diagramming": "off",
-    "artifact-capabilities": "off",
-    "keybindings-help": "off",
-    "update-config": "off",
-    "fewer-permission-prompts": "off",
-    "loop": "off",
-    "schedule": "off",
-    "init": "off"
-  },
   "env": {
     "BASH_DEFAULT_TIMEOUT_MS": "2147483647",
     "BASH_MAX_TIMEOUT_MS": "2147483647"
+  },
+  "enabledPlugins": {
+    "cc-plugin-agents-md@builtin": false,
+    "cc-plugin-claude-test@builtin": false,
+    "cc-plugin-diff@builtin": false,
+    "cc-plugin-easel@builtin": false,
+    "cc-plugin-mermaid@builtin": false,
+    "cc-plugin-mods-guide@builtin": false,
+    "cc-plugin-plugin-authoring@builtin": false,
+    "cc-plugin-responsive-mode@builtin": false,
+    "cc-plugin-tips@builtin": false,
+    "cc-plugin-you-should-know@builtin": false,
+    "claude-platform@builtin": false
   }
 }

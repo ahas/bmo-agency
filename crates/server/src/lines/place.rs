@@ -309,6 +309,15 @@ pub fn write_place_settings(
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its
   // start until a person answered it; the setting tells it the answer.
   settings.insert("skipDangerousModePermissionPrompt".to_owned(), Value::Bool(true));
+  // The plugins the program builds in reach no run (docs/launch-lines.md, 「The CLI's own skills and plugins are
+  // switched off on every line」); a plugin the given settings name stands as they name it.
+  let mut plugins = settings.get("enabledPlugins").and_then(Value::as_object).cloned().unwrap_or_default();
+
+  for (plugin, off) in builtin_plugins_off() {
+    plugins.entry(plugin).or_insert(off);
+  }
+
+  settings.insert("enabledPlugins".to_owned(), Value::Object(plugins));
 
   let path = place.join("settings.json");
   let text = serde_json::to_string_pretty(&settings).map_err(|why| fault(why.to_string()))?;
@@ -317,6 +326,16 @@ pub fn write_place_settings(
   std::fs::write(&path, format!("{text}\n")).map_err(|why| fault(format!("{}: {why}", path.display())))?;
 
   Ok(path)
+}
+
+/// The settings entry naming each plugin Claude Code builds in off, by the name the program gives it.
+pub fn builtin_plugins_off() -> Map<String, Value> {
+  policy::providers::claude_code::CLAUDE_CODE
+    .launch
+    .builtin_plugins
+    .iter()
+    .map(|plugin| (format!("{plugin}@builtin"), Value::Bool(false)))
+    .collect()
 }
 
 // The shell hook's entry, read before every call of the tools `matcher` names that the program makes.

@@ -326,13 +326,8 @@
   Every one of those files — the settings and their hooks, the plugin and the rules — is read out of the release the job was launched on rather than through the deploy
   tree's link: the job carries that release in `BMO_DEPLOY_DIR` (`docs/agent-control.md`, 「The
   job's release」), so a deployment during the job changes none of them under it.
-  The skills the CLI bundles itself stand beside the plugin's, and the worker settings'
-  `skillOverrides` turn off those a job has no use for, so they are not listed to it: the three
-  Artifact skills, since the Artifact tools are disallowed; `keybindings-help`, `update-config`
-  and `fewer-permission-prompts`, which edit the CLI's own configuration that a job leaves alone
-  and a line in bypass mode never asks about; `loop` and `schedule`, since a job has no later; and
-  `init`, since the checkout's CLAUDE.md is the owner's. To bring one back, remove its entry and let
-  the commit go live.
+  The skills and plugins the CLI carries of itself reach no run of the line (「The CLI's own skills and
+  plugins are switched off on every line」 below), so a job is listed its role's bundle and nothing else.
   A run on the line is the interactive CLI in a pane of its own, opened when its slot is let in and
   closed with the run (`docs/agents.md`, 「A run in a pane of its own」): the program is started with no
   prompt, on `--resume` of the session its role keeps at that path on that provider and model where one
@@ -523,6 +518,23 @@
   - Both are part of the variables every line sets, beside the git-status one. Those variables are Claude Code's own
     declaration in agency's policy (`policy/providers/`), which every side that starts one of
     its lines reads. To turn one back on, set its value to `1` there and let the commit go live.
+- **The CLI's own skills and plugins are switched off on every line.** A run carries the skills its role
+  declares — the plugin its line hands it — and none the program brings of itself:
+  - `CLAUDE_CODE_DISABLE_BUNDLED_SKILLS=1` is among the variables every line sets, so none of the skills the
+    CLI bundles (a chart guide, a code review, an API reference, the Artifact guides, the CLI's own
+    configuration helpers, a scheduler and the like) is listed to any run or supervisor: no role declares
+    them, and each listing is prefix every turn pays for.
+  - The plugins the CLI builds in that bring a run what no role declares — guides and tips, a chart server, a
+    diagram and a diff renderer, the reading of a checkout's `AGENTS.md` beside its CLAUDE.md, the program's
+    own platform helpers — which Claude Code's policy names (`policy/providers/claude-code.toml`,
+    `builtin_plugins`), are each named off under `enabledPlugins` in every settings file a line hands its
+    program; the built-in plugins holding the program's own security, privacy and telemetry defaults stay as
+    they are. The files a line hands are the settings of a place a supervisor's or a run's program stands in,
+    and the worker line's own settings, which names the same list. Their MCP servers, skills and instructions
+    reach no run. A line that hands no settings file — the runner lines and the translate line — shows its
+    program no built-in tool under a strict MCP configuration, so no skill is listed there and no built-in
+    plugin's server stands. A plugin a later version of the program builds in is added to the policy's list
+    when it appears.
 - **The CLI's own memory is switched off on every line.** `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` is
   among those variables. Left on, the CLI's prompt tells every run that keeps it — the worker line's
   among them — about a memory directory of its own under the login's records and how to write

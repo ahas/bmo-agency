@@ -203,6 +203,8 @@ fn the_pane_is_handed_the_lines_variables_by_name_and_never_the_launchers_whole_
   assert_eq!(env["BMO_DEPLOY_DIR"], "/srv/deploy-releases/0123456789ab");
   assert_eq!(env["BMO_RUN_NAME"], "bmo-standby-worker");
   assert_eq!(env["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"], "1");
+  assert_eq!(env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"], "1", "the CLI's memory reaches no run");
+  assert_eq!(env["CLAUDE_CODE_DISABLE_BUNDLED_SKILLS"], "1", "nor the skills the CLI bundles");
   assert!(!env.contains_key("CLAUDECODE"));
   assert!(!env.contains_key("HOME"));
   assert!(!env.contains_key("BMO_TASK_LOCKED"));
