@@ -16,6 +16,7 @@ mod manifests;
 mod procedures;
 mod relay;
 mod room_grant;
+mod skill_put;
 mod worker_ask;
 
 /// The token the data root's `env/agency.env` names in `agency_named_by_its_file`, written quoted.

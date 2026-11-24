@@ -24,6 +24,7 @@ members = [
   "tools/procedures",
   "tools/relay",
   "tools/room_grant",
+  "tools/skill_put",
   "tools/worker_ask",
 ]
 resolver = "3"
@@ -247,6 +248,7 @@ node-link = { path = "crates/node-link" }
 policy = { path = "crates/policy" }
 procfs.workspace = true
 app-put-tool = { path = "tools/app_put" }
+skill-put-tool = { path = "tools/skill_put" }
 deepseek-top-up-tool = { path = "tools/deepseek_top_up" }
 jobs-tool = { path = "tools/jobs" }
 procedures-tool = { path = "tools/procedures" }

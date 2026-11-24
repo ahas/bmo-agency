@@ -92,7 +92,7 @@ them.
 - `crates/`: the Rust crates. `agent-session`, `herdr`, `agent-host`, `pane-head`, `harness-machine`,
   `harness-providers`, `node-link`, `llm-gateway`, `policy`, `store`, `tool-call`, `cache-siren` (the
   accounts' usage windows and the cache-lifetime judgement, `docs/usage-windows.md`) and `server`.
-- `tools/`: the tools agency provides to the tool host, `procedures`, `worker_ask`, `app_put`, `relay`,
+- `tools/`: the tools agency provides to the tool host, `procedures`, `worker_ask`, `app_put`, `skill_put`, `relay`,
   `room_grant`, `deepseek_top_up` and `jobs`, each a folder with its `tool.toml` and the crate of its executable
   (`docs/tools.md`).
 - `packages/`: the TypeScript packages, `agent`, `archive` and `support`, one Bun workspace.

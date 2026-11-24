@@ -48,6 +48,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "shlex",
+ "skill-put-tool",
  "sqlx",
  "sse-stream",
  "store",
@@ -448,7 +449,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-brain-client"
-version = "0.1.0-rev.43"
+version = "0.1.0-rev.44"
 dependencies = [
  "reqwest",
  "schemars",
@@ -3449,6 +3450,17 @@ name = "similar"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
+
+[[package]]
+name = "skill-put-tool"
+version = "0.1.0-rev.81"
+dependencies = [
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tool-call",
+]
 
 [[package]]
 name = "slab"

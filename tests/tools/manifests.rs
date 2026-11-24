@@ -34,7 +34,16 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   assert_eq!(
     folders,
-    ["app_put", "deepseek_top_up", "jobs", "procedures", "relay", "room_grant", "worker_ask"]
+    [
+      "app_put",
+      "deepseek_top_up",
+      "jobs",
+      "procedures",
+      "relay",
+      "room_grant",
+      "skill_put",
+      "worker_ask"
+    ]
   );
 
   for folder in &folders {

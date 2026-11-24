@@ -76,6 +76,7 @@ binaries = [
   "procedures-tool",
   "worker-ask-tool",
   "app-put-tool",
+  "skill-put-tool",
   "jobs-tool",
   "relay-tool",
   "room-grant-tool",
@@ -228,6 +229,17 @@ rm -rf tools/app_put/.placed
 mkdir -p tools/app_put/.placed
 cp bin/app-put-tool tools/app_put/tool.toml tools/app_put/app_put.json tools/app_put/.placed/
 bmo-pocket put tools/app_put/.placed --placed --service agency --allow room.tools
+'''
+
+[[deploy.step]]
+id = "place-skill-put"
+phase = "before-flip"
+command = '''
+set -eu
+rm -rf tools/skill_put/.placed
+mkdir -p tools/skill_put/.placed
+cp bin/skill-put-tool tools/skill_put/tool.toml tools/skill_put/skill_put.json tools/skill_put/.placed/
+bmo-pocket put tools/skill_put/.placed --placed --service agency --allow room.tools
 '''
 
 [[deploy.step]]
