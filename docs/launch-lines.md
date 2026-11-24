@@ -225,8 +225,8 @@
   the program comes up with no person to answer it. A line that names fewer servers than these leaves the
   supervisor with no tool of its own: a configuration that drops the tool host drops sending and memory
   with it. What is the owner's alone — approving, launching or finishing work, deploying, reading another
-  room — is held by the session's own judgement under its rules and by the owner's gate in front of the
-  actions that launch work (「The owner's gate」 below), not by a permission list. The chat stands as the
+  room — is held by the session's own judgement under its rules and the owner's room rules (「What a room's
+  words may make a supervisor do」 below), not by a permission list. The chat stands as the
   supervisor's resident program, whose line keeps its slash commands — `/compact` is one, typed into the program to fold the
   session in place, on the same prefix its turns stand on. There is no separate fold line for the chat. It
   works in a folder whose name a release does not change — the deploy tree's link on dsh, the agent's own
@@ -651,45 +651,18 @@
   allowed its servers; a supervisor is shown the chat line's shown tools (`policy/chat-line.toml`, `shown`) and
   allowed every one it is shown, with no allow list of its own.
 
-## The owner's gate
+## What a room's words may make a supervisor do
 
-A supervisor holds Bash and reads every word said in its rooms, so what a room's words may make it do is not
-left to its prompt. In front of each action that touches the machine or spends money, the code that carries
-the action out asks who sent the words the turn answers.
-
-- **The actions gated:** asking a worker through `bmo/worker_ask`, which runs a `worker` run on the words; and
-  `run_job`, the supervisor's own `agency` server launching an item's job. Each asks the room relation
-  `launch`.
-- **The turn asked about** is the one the agent's place carries now: the room it answers (`BMO_TURN_CHAT`), the
-  messages it answers (`BMO_TURN_MESSAGES`) and whether the receiver marked every new message in it the
-  owner's (`BMO_TURN_PRIVILEGED`), as the run the door put in names them.
-- **The owner's own words are never asked about.** A turn the receiver marked the owner's goes on at once; so
-  does a turn no room message opened — words the owner typed into the program, a job, a schedule — since no
-  sender stands behind it but the deployment's own.
-- **Anybody else's are checked, every message.** Each message the turn answers is handed to the account
-  service's `POST /checks/message` with the room and the relation, and the action goes on only where every one
-  is answered allowed: the platform administrator, the owner, passes every check, and anybody else passes only
-  on a grant of that relation the owner made in that room. A worker ask naming a personal app, and an app put,
-  also pass a message the account service answers was sent by the person the session acts for, since the app is
-  theirs and the chain decides whether they may make one (`docs/tools.md`, 「The worker ask」 and 「The app put」).
-- **A check that cannot be made refuses.** No account service named, one not reached, an answer that is not a
-  success, a turn that names no message: the action is refused, never let through.
-- **The refusal is a sentence.** The tool answers with a failure saying what was refused and why — whose
-  message, which relation, or why the check could not be made — and nothing is started.
-- **Where the account service is.** `WEB_ADDRESS` names its base address and `WEB_TOKEN`, or the file
-  `WEB_TOKEN_FILE` names, its token; a process whose environment names neither reads them from the web unit's
-  `env/web.env` under the data root, as the receiver's room tools do.
-- **What stands outside agency.** A deploy, `testbed/deploy`, is the testbed's hosted tool and a capability
-  `bmo use` reaches is the tool host's; each takes the same check with its own relation (`deploy` for a
-  deploy) in the unit that serves it, and agency hands it nothing it could gate there. An item the supervisor
-  files is not gated: one filed on a turn not the owner's stands a draft that an approver's approval opens
-  (`docs/api.md`, 「assignments and jobs」) — the owner's, or the agent's own where the deployment marks the
-  chat's caller an approver, given by the agent's own judgement under its instructions for routine work it
-  raised itself, and on a member's word only where a grant the owner made in that room names approving — so
-  nothing runs on a member's ask the owner has not allowed.
-- **What the gate does not close.** The agent's shell reaches agency's control port with the token file it is
-  handed, so a model turned against its rooms can still call a route itself; the gate stands in front of the
-  tools the supervisor is given to act with, not in front of the port.
+- **The tools a supervisor acts with carry no room check.** `bmo/worker_ask`, `bmo/app_put`, `bmo/skill_put` and
+  `run_job` on the supervisor's own `agency` server do what they are asked whoever sent the words the turn
+  answers; agency asks no other unit who may ask them.
+- **What a room's words may make it do is its rules' and the owner's room rules'.** The absolute rules say what is
+  the owner's alone, and the room's block names the owner's room rules in force there, the one place what a
+  group room's members are allowed stands (`docs/agent-documents.md`, 「How the documents are composed」). An
+  item the supervisor files on a turn not the owner's stands a draft that an approver's approval opens
+  (`docs/api.md`, 「assignments and jobs」).
+- **What stands outside agency.** A deploy, `testbed/deploy`, is the testbed's hosted tool and a capability `bmo
+  use` reaches is the tool host's; each is judged in the unit that serves it.
 
 ## Why a line is held steady
 

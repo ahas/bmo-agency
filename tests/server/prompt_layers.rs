@@ -20,7 +20,7 @@ use harness_machine::supervisor_prompt::{self, Composition, Layers, Roots, Super
 use policy::prompt_layers::PROMPT_LAYERS;
 use policy::supervisors::SUPERVISORS;
 use serde_json::{Value, json};
-use tool_call::room_gate::AccountService;
+use tool_call::account_service::AccountService;
 
 use crate::support::scratch::Scratch;
 

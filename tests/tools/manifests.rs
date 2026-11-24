@@ -34,16 +34,7 @@ fn every_folder_under_tools_is_a_tool_named_after_it_whose_executable_is_its_cra
 
   assert_eq!(
     folders,
-    [
-      "app_put",
-      "deepseek_top_up",
-      "jobs",
-      "procedures",
-      "relay",
-      "room_grant",
-      "skill_put",
-      "worker_ask"
-    ]
+    ["app_put", "deepseek_top_up", "jobs", "procedures", "relay", "skill_put", "worker_ask"]
   );
 
   for folder in &folders {
@@ -98,30 +89,6 @@ fn the_worker_ask_entry_is_declared_as_its_tool_answers_it() {
 
   assert_eq!(schema["required"], serde_json::json!(["words"]));
   assert!(schema["properties"].get("timeBoundSeconds").is_none(), "the ask takes no time bound");
-}
-
-#[test]
-fn the_room_grant_entry_is_declared_as_its_tool_answers_it_and_takes_no_granter() {
-  let folder = tools().join("room_grant");
-  let manifest = read(&folder.join("tool.toml"));
-  let entry = &manifest["entry"].as_array().unwrap()[0];
-
-  assert_eq!(text(entry, &["namespace"]), room_grant_tool::NAMESPACE);
-  assert_eq!(text(entry, &["name"]), room_grant_tool::NAME);
-  assert_eq!(text(entry, &["title"]), room_grant_tool::TITLE);
-  assert_eq!(text(entry, &["description"]), room_grant_tool::DESCRIPTION);
-  assert_eq!(words(&entry["capabilities"]), room_grant_tool::CAPABILITIES);
-
-  let schema: serde_json::Value =
-    serde_json::from_str(&std::fs::read_to_string(folder.join(text(entry, &["input"]))).unwrap()).unwrap();
-  let properties: Vec<&String> = schema["properties"].as_object().unwrap().keys().collect();
-
-  assert_eq!(schema["required"], serde_json::json!(["action"]));
-  assert_eq!(schema["properties"]["action"]["enum"], serde_json::json!(["list", "grant", "revoke"]));
-  assert_eq!(schema["additionalProperties"], false);
-  for typed in ["room", "chat", "granter"] {
-    assert!(!properties.iter().any(|name| *name == typed), "the {typed} is the turn's, never typed");
-  }
 }
 
 #[test]

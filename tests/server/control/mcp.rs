@@ -3,8 +3,12 @@
 
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use axum::http::StatusCode;
+use axum::routing::post;
+use axum::{Json, Router};
 use serde_json::{Value, json};
 
 use crate::support::binary;
@@ -82,8 +86,30 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_is_refused_where_the_check_cannot_be_made() {
+async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_reaches_agency_with_no_room_check() {
   let binary = binary::path("bmo-agency");
+  // A stand-in of agency's server whose `POST /jobs` refuses with words of its own, every job it was asked kept.
+  let asked = Arc::new(Mutex::new(Vec::<Value>::new()));
+  let kept = asked.clone();
+  let app = Router::new().route(
+    "/jobs",
+    post(move |Json(job): Json<Value>| {
+      let kept = kept.clone();
+
+      async move {
+        kept.lock().unwrap().push(job);
+
+        (
+          StatusCode::CONFLICT,
+          Json(json!({ "code": "stand-in", "error": "the stand-in took the job" })),
+        )
+      }
+    }),
+  );
+  let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+  let agency = format!("http://{}", listener.local_addr().unwrap());
+
+  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
   let root = tempfile::tempdir().unwrap();
   let place = root.path().join("place");
 
@@ -100,7 +126,7 @@ async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_is_refused_where_the_c
   let answered = tokio::task::spawn_blocking(move || {
     let mut child = Command::new(binary)
       .args(["mcp", "--agent", "chat-agent"])
-      .env("AGENCY_URL", "http://[::1]:1")
+      .env("AGENCY_URL", &agency)
       .env("AGENCY_CONTROL_TOKEN", "secret")
       .env("BMO_AGENT_PLACE", &place)
       .env("BMO_DATA_DIR", &data)
@@ -162,7 +188,8 @@ async fn a_chat_agent_s_run_job_on_a_turn_not_the_owner_s_is_refused_where_the_c
     .expect("the reader runs");
   let text = answer.to_string();
 
-  // Refused before agency is asked: the address it names answers nothing, and the refusal is the gate's.
-  assert!(text.contains("not-permitted"), "{text}");
-  assert!(text.contains("Running a job is refused"), "{text}");
+  // No account service is named, and none is asked: the job goes to agency, whose answer is the tool's.
+  assert!(text.contains("the stand-in took the job"), "{text}");
+  assert!(!text.contains("not-permitted"), "{text}");
+  assert_eq!(asked.lock().unwrap().len(), 1, "agency was asked the job once");
 }

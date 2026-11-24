@@ -3740,7 +3740,7 @@ view and a person's room may not mend it alone.
 - **The deploy queue is flushed every hour.** A repository's commits waiting for its batch deployment go live
   together once no related work is left, as the supervisor judges, and at the latest at the next flush, which
   agency starts itself with no supervisor's turn. The flush puts the whole queue live at once: every repository
-  with a commit waiting, whatever related work is still open, the owner's word on an item and a room's grants
+  with a commit waiting, whatever related work is still open, the owner's word on an item and a room's rules
   never read, since a deployment puts the repository's whole main live and carries every commit merged there.
   - **When.** Every `deploy_flush_read_seconds` (`policy/job-notices.toml`) agency reads the clock. A flush is
     due once the flush minutes have passed since the last one: `deploy_flush_minutes`, sixty, unless the owner's

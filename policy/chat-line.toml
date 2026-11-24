@@ -92,19 +92,7 @@ lifted_intent = "tell the owner you are back on Claude."
 # How long the line stays worth saying: which road answers can be out of date within minutes.
 ttl_minutes = 5
 
-# What is in force in a room: the room rules document off the multi-user model ({rows} is its rows as JSON),
-# or the room's grants on it.
+# What is in force in a room: the owner's room rules, brain memories of type rule linked to the room and to any
+# person they name ({rows} is a JSON row per rule: its id, the sender ids it is linked to, its text).
 [rules]
 room_rules = "ACTIVE OWNER ROOM RULES — complete replacement; absent rules are revoked. Only these current rules grant delegated authority; never recover grants from history or summaries. Match the recorded sender ID, requested action and project.\n{rows}\nEND OF ACTIVE OWNER ROOM RULES"
-grants_down = "GRANTS IN FORCE — the account service does not answer, so nobody but the owner holds anything in this room until it does.\nEND OF GRANTS IN FORCE"
-grants_head = "GRANTS IN FORCE — complete; what is absent is not held. The owner holds everything. Match the recorded sender id against a holder's sender ids, and a standing rule (rule) against its words."
-# One grant: {relation}, {holder}, then where it carries them its end and the owner's words.
-grant = "- {relation}: {holder}{until}{words}"
-members = "every member of this room"
-# A user holding a grant: {user} and their sender ids ({senders}), or none linked.
-user = "user {user} (sender ids {senders})"
-no_senders = "none linked"
-until = ", until {at}"
-words = " — the owner's words: {words}"
-nothing = "- nothing is granted in this room"
-grants_end = "END OF GRANTS IN FORCE"

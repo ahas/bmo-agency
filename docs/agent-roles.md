@@ -266,7 +266,7 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
 - **It is the person, never the person's supervisor.** What a supervisor is for — a meeting's minutes draft,
   handing tasks out, tidying a gathering, filing archive documents, raising work items — the actor asks the
   person's own supervisor for, in the person's voice, through the roads a person has to it (the private chat, a
-  call by name in a group room under the room's call grant, the side talk beside a meeting), and then waits for
+  call by name in a group room where the room's rules allow it, the side talk beside a meeting), and then waits for
   the supervisor to act; it never makes those calls itself, and a supervisor that does not act is reported as a
   fact, never covered.
 - **Its line is the worker line,** the line that reads a role's prompt into a session a caller starts.

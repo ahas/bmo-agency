@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tool_call::room_gate::AccountService;
+use tool_call::account_service::AccountService;
 
 use crate::Refusal;
 use crate::person_nodes::{Caller, acting_for};

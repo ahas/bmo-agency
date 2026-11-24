@@ -53,16 +53,6 @@ pub struct Room {
 #[serde(deny_unknown_fields)]
 pub struct Rules {
   pub room_rules: String,
-  pub grants_down: String,
-  pub grants_head: String,
-  pub grant: String,
-  pub members: String,
-  pub user: String,
-  pub no_senders: String,
-  pub until: String,
-  pub words: String,
-  pub nothing: String,
-  pub grants_end: String,
 }
 
 #[derive(Debug, Deserialize)]

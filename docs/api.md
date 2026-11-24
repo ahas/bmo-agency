@@ -2611,7 +2611,7 @@ own and returns; and once an hour GitHub's search through
 on agent management that carries a signed-in person's headers, the web's account service is asked for that
 person's console sections with `GET /users/{user}/sections` (「Who a caller acts for」 above), reached at
 `WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE` names, else from the web unit's `env/web.env`
-under the data root as the owner's gate reaches it (`docs/launch-lines.md`, 「The owner's gate」). The same account
+under the data root where the process's environment names neither. The same account
 service is asked, as a record is issued for a person's account and as a resident program's turn begins, for the
 declared kinds with `GET /chain/kinds` and for each app's two settings for that person with `GET
 /chain/kinds/{key}/resolve?person=` (`docs/tools.md`, 「The apps a person reaches」). As its server stands, and

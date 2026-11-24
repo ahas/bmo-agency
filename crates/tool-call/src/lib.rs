@@ -3,10 +3,10 @@
 //! record agency's tools read, the turn the request is made in, how agency's server is reached, what a call is
 //! answered with, and the tree the tools read agency's `prompts/` from.
 
+pub mod account_service;
 mod answer;
 mod control;
 mod handed;
-pub mod room_gate;
 mod session;
 mod tree;
 

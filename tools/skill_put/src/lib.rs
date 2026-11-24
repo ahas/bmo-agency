@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tool_call::room_gate::{self, AccountService, room_turn_of};
 use tool_call::{Answer, Asked, Control, Handed, Session};
 
 /// The entry the manifest declares.
@@ -32,31 +31,11 @@ pub struct PutInput {
   pub files: BTreeMap<String, String>,
 }
 
-/// One call against the server the record's data root describes, past the owner's gate.
+/// One call against the server the record's data root describes.
 pub async fn put(session: &Session, input: PutInput) -> Answer {
-  let accounts = AccountService::read(&session.data_root(), |name| std::env::var(name).ok());
-
-  if let Err(refused) = may_put(&accounts, session).await {
-    return Answer::failure(refused);
-  }
-
   let control = Control::read(&session.data_root(), |name| std::env::var(name).ok());
 
   put_with(&control, session, input).await
-}
-
-/// Whether the turn the call is made in may save a skill (docs/launch-lines.md, 「The owner's gate」): the owner's
-/// own turn, one whose every message's sender holds `launch` in the room, or one whose messages the person the
-/// session acts for sent, since the skill is theirs.
-pub async fn may_put(accounts: &AccountService, session: &Session) -> Result<(), String> {
-  room_gate::gate_for(
-    accounts,
-    room_turn_of(session).as_ref(),
-    room_gate::LAUNCH,
-    "Saving a personal skill",
-    session.owner_account.as_deref(),
-  )
-  .await
 }
 
 /// The same call against the server the caller names, for a test of the refusals and the round trip.

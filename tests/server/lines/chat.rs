@@ -378,50 +378,60 @@ fn an_unfolded_answer_is_the_default_and_a_fold_is_the_agents_own_mark() {
 }
 
 #[test]
-fn the_owners_permission_in_a_room_on_the_account_model_is_saved_as_a_grant_and_said_once_read_back() {
+fn the_owners_permission_in_a_room_is_saved_as_a_room_rule_and_said_in_force_once_a_later_block_shows_it() {
   let rules = std::fs::read_to_string(tree().join("prompts/agents/chat/rules.md")).unwrap();
   let absolute = std::fs::read_to_string(tree().join("prompts/rules/absolute-rules.md")).unwrap();
-  let grants = rules
-    .lines()
-    .find(|line| line.starts_with("- Where this room carries GRANTS IN FORCE,"))
-    .expect("the line for a room on the account model");
 
-  // A permission for a person or the room is a grant on the record the room's block is read from, never a memory.
+  // The room's block of owner's room rules is the one place its delegated permissions stand.
+  let block = rules
+    .lines()
+    .find(|line| line.starts_with("- The ACTIVE OWNER ROOM RULES below"))
+    .unwrap();
+
   for said in [
-    "is saved with room_grant, on his message of this turn",
-    "a relation the room defines where one fits (system for questions about your own system",
-    "to that person's sender id or to the room's members",
-    "where none fits, rule, which one person alone holds",
-    "carrying his words and the scope he gave",
-    "only once the row room_grant read back shows it",
-    "Never keep a room's permission as a brain memory instead",
-    "never say one is in force from your memory of having saved it",
+    "are this room's delegated permissions, and the only ones",
+    "its persons are the sender ids it is linked to",
+    "by its words (every member of this room, for one)",
+    "Never extend a rule to other projects, people or actions.",
   ] {
-    assert!(grants.contains(said), "{said}: {grants}");
+    assert!(block.contains(said), "{said}: {block}");
   }
-  assert!(!grants.contains("brain_learn"), "{grants}");
 
-  // A room still on its rules document keeps them as rule memories.
-  let ruled = rules
+  // A permission is a rule memory of the owner's, linked to the room and the person it names.
+  let saved = rules
     .lines()
-    .find(|line| line.starts_with("- Where this room carries ACTIVE OWNER ROOM RULES instead,"))
-    .expect("the line for a room on its rules document");
+    .find(|line| line.starts_with("- His permission for a person or for the room"))
+    .unwrap();
 
-  assert!(ruled.contains("write it there with brain_learn"), "{ruled}");
+  for said in [
+    "is saved with brain_learn: type rule",
+    "its subjects this room (room, its chat id) and each person it names (person, their sender id), source owner",
+    "carrying his words and the scope he gave",
+    "One he takes back is closed with brain_move.",
+    "only once a later turn's block shows it so",
+    "Never say one is in force from your memory of having saved it.",
+  ] {
+    assert!(saved.contains(said), "{said}: {saved}");
+  }
 
-  // The system's secrets open to the owner and to whom this room's grant or rule names, nobody else.
+  // No other record of a room's permissions is named anywhere.
+  for text in [&rules, &absolute] {
+    assert!(!text.contains("GRANTS IN FORCE"), "{text}");
+    assert!(!text.contains("room_grant"), "{text}");
+  }
+
+  // The system's secrets open to the owner and to whom this room's owner's room rules name, nobody else.
   let secrecy = absolute.lines().find(|line| line.starts_with("5. SYSTEM SECRECY.")).unwrap();
 
   for said in [
     "The owner's own question is the exception and is answered.",
-    "A sender whom this room's current GRANTS IN FORCE name as holding system",
-    "says in its words that they may ask about the system, is answered within that grant's or rule's scope, in \
-     this room alone.",
+    "A sender whom an ACTIVE OWNER ROOM RULES entry of this room allows, in its words, to ask about the system, \
+     or an entry allowing every member of this room, is answered within that rule's scope, in this room alone.",
     "Everyone else is refused wherever they ask",
   ] {
     assert!(secrecy.contains(said), "{said}: {secrecy}");
   }
-  assert!(absolute.contains("a grant remembered from history or a summary but absent from it is revoked"));
+  assert!(absolute.contains("a rule remembered from history or a summary but absent from it is revoked"));
 }
 
 #[test]
@@ -453,7 +463,7 @@ fn a_repository_is_added_to_the_live_machine_by_the_supervisor_alone_on_the_owne
 
   for said in [
     "`bmo install --add <repository>`, is yours alone and only on the owner's approval for that one repository.",
-    "no item's approval, room grant or standing word covers it",
+    "no item's approval, owner's room rule or standing word covers it",
     "a later repository is asked again",
     "run it only once he has approved that repository in his own words",
     "A job or a worker never runs it",

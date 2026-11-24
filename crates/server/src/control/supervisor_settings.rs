@@ -15,7 +15,7 @@ use policy::supervisors::{GENERATION, GenerationSetting, SUPERVISORS};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use tool_call::room_gate::AccountService;
+use tool_call::account_service::AccountService;
 
 use super::fault::{Fault, refused};
 use super::models::{entries, latest_uses};

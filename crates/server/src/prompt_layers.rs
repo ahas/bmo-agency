@@ -11,7 +11,7 @@ use harness_machine::supervisor_prompt::{Layers, Personal, organisation};
 use policy::prompt_layers::{Kind, PROMPT_LAYERS};
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
-use tool_call::room_gate::AccountService;
+use tool_call::account_service::AccountService;
 
 /// The body the account service takes a kind's declaration in.
 pub fn declaration(kind: &Kind) -> Value {

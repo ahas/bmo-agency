@@ -1,5 +1,5 @@
 //! Agency's tools (docs/tools.md): their side of the tool host's call protocol, the procedures, the
-//! worker's ask, the relay, the room grants and the DeepSeek top-up, each held to its manifest, and each
+//! worker's ask, the relay and the DeepSeek top-up, each held to its manifest, and each
 //! executable answering a request as the tool host hands it one.
 
 use std::sync::{Arc, Mutex};
@@ -15,7 +15,6 @@ mod jobs;
 mod manifests;
 mod procedures;
 mod relay;
-mod room_grant;
 mod skill_put;
 mod worker_ask;
 

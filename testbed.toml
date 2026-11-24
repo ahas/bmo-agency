@@ -79,7 +79,6 @@ binaries = [
   "skill-put-tool",
   "jobs-tool",
   "relay-tool",
-  "room-grant-tool",
   "deepseek-top-up-tool",
 ]
 
@@ -253,17 +252,19 @@ cp bin/jobs-tool tools/jobs/tool.toml tools/jobs/file_item.json tools/jobs/stop_
 bmo-pocket put tools/jobs/.placed --placed --service agency --allow jobs.file
 '''
 
-# The tool host's registry holds no tool of agency's named `delegate`, since no folder under tools/ declares one:
-# a deployment that finds one registered for agency takes it out, once the new server stands (docs/tools.md, 「A
-# tool's folder」).
+# The tool host's registry holds no tool of agency's named `delegate` or `room_grant`, since no folder under tools/
+# declares one: a deployment that finds one registered for agency takes it out, once the new server stands
+# (docs/tools.md, 「A tool's folder」).
 [[deploy.step]]
 id = "take-delegate"
 phase = "after-health"
 command = '''
 set -eu
-if bmo-pocket list | grep -q '^delegate .* for the service agency:'; then
-  bmo-pocket take delegate --service agency
-fi
+for name in delegate room_grant; do
+  if bmo-pocket list | grep -q "^$name .* for the service agency:"; then
+    bmo-pocket take "$name" --service agency
+  fi
+done
 '''
 
 [[deploy.step]]
@@ -275,17 +276,6 @@ rm -rf tools/relay/.placed
 mkdir -p tools/relay/.placed
 cp bin/relay-tool tools/relay/tool.toml tools/relay/relay.json tools/relay/chat.json tools/relay/.placed/
 bmo-pocket put tools/relay/.placed --placed --service agency --allow room.tools
-'''
-
-[[deploy.step]]
-id = "place-room-grant"
-phase = "before-flip"
-command = '''
-set -eu
-rm -rf tools/room_grant/.placed
-mkdir -p tools/room_grant/.placed
-cp bin/room-grant-tool tools/room_grant/tool.toml tools/room_grant/room_grant.json tools/room_grant/.placed/
-bmo-pocket put tools/room_grant/.placed --placed --service agency --allow room.tools
 '''
 
 [[deploy.step]]

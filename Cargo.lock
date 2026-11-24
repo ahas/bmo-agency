@@ -40,7 +40,6 @@ dependencies = [
  "relay-tool",
  "reqwest",
  "rmcp",
- "room-grant-tool",
  "schemars",
  "sea-orm",
  "sea-orm-migration",
@@ -2926,18 +2925,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "room-grant-tool"
-version = "0.1.0-rev.81"
-dependencies = [
- "chrono",
- "reqwest",
- "serde",
- "serde_json",
- "tokio",
- "tool-call",
 ]
 
 [[package]]

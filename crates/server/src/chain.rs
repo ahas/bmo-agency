@@ -10,7 +10,7 @@ use policy::organisation::ORGANISATION;
 use policy::prompt_layers::{Kind, PROMPT_LAYERS};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
-use tool_call::room_gate::AccountService;
+use tool_call::account_service::AccountService;
 
 /// Whom a kind is resolved for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

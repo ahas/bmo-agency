@@ -4,7 +4,7 @@ The tools agency itself provides to the tool host: each a folder of its own unde
 `tool.toml`, which the tool host reads as it reads any other tool's. They hand agents the documents
 agency keeps under `prompts/` — the supervisor's procedures — let a supervisor hand a small coding task
 to a run of the worker role, put the personal app such a run made for a person, let one BMO hand a line to
-another person's BMO and open a chat into that person's room, let a supervisor save what the owner allows in a room as the room's grants, and let the
+another person's BMO and open a chat into that person's room, and let the
 platform's supervisor ask for a DeepSeek top-up, and hand a supervisor whose program stands on a node its filing,
 stopping and reviewing of work. A tool that belongs to no one service is a repository of its own, not a folder
 here.
@@ -20,9 +20,9 @@ here.
   A tool with entries is then registered with `bmo-pocket put`, whose `--allow`s name exactly the
   capabilities and grants its manifest asks for, since the tool host refuses a tool asking for one no
   `--allow` names; the manifests' tests hold each step to its manifest.
-- **The registry holds no tool of agency's that no folder here declares:** a deployment takes the name
-  `delegate`, where the tool host holds it registered for agency, out with `bmo-pocket take`, once the new
-  server stands.
+- **The registry holds no tool of agency's that no folder here declares:** a deployment takes the names
+  `delegate` and `room_grant`, each where the tool host holds it registered for agency, out with `bmo-pocket
+  take`, once the new server stands.
 - **The manifest** says the tool's name, the protocol version it speaks, its build and check
   commands, its run command, and either its entries or the resources it serves, each with the
   capabilities a session must hold. It names no timeout, for the tool or an entry: a call is waited on
@@ -190,12 +190,10 @@ here.
 
 - **`tools/worker_ask`** declares `bmo/worker_ask` to a session holding `room.tools`: a supervisor hands a
   small coding task to a run of the `worker` role, with no queue item, lease or report.
-- **It asks only past the owner's gate** (`docs/launch-lines.md`, 「The owner's gate」): on a room turn not the
-  owner's, every message the turn answers must be answered allowed `launch` in the room by the account
-  service, and where it is not, or cannot be asked, the tool answers a failure saying so and starts nothing.
-  An ask naming an app passes as well for a message the account service answers was sent by the person the
-  session acts for: a person asking their own BMO for an app of their own is held by the chain's
-  `personal-apps.make` at the app's put (`docs/person-nodes.md`, 「Personal apps」), not by a grant of the owner's.
+- **It carries no room check** (`docs/launch-lines.md`, 「What a room's words may make a supervisor do」): what a
+  room's words may have the supervisor ask is the supervisor's rules' and the owner's room rules'. A person asking
+  their own BMO for an app of their own is held by the chain's `personal-apps.make` at the app's put
+  (`docs/person-nodes.md`, 「Personal apps」).
 - **Its arguments** are the words and an optional folder or app. The folder is the asking supervisor's scratch
   workspace under the data root where neither is named, made on first use; a repository's checkout may be named
   only in the owner's turn, and the run is then handed that repository's own (`docs/repositories.md`, 「What a
@@ -218,7 +216,7 @@ here.
 - **Its answer** is the run's answer text and the paths of the files the run created or changed in the
   folder, read from the run's recorded edit diffs. The run is logged like any other, so the console shows it.
 - **It refuses only what cannot be asked at all:** a folder on no machine the worker role can run on and a
-  checkout named outside the owner's turn, besides the owner's gate. A task worth keeping and reviewing is a
+  checkout named outside the owner's turn. A task worth keeping and reviewing is a
   queue item, filed with `file_item`, not asked this way.
 
 ## The app put
@@ -227,9 +225,8 @@ here.
   worker ask wrote for the person it serves, sends it back to an earlier version, or removes it
   (`docs/person-nodes.md`, 「Personal apps」).
 - **The person is the record's,** `ownerAccount` (「The owner and the runner a record names」), read afresh at every
-  call; a record naming none is refused, so no session puts an app for anyone but the person it acts for. It asks
-  only past the owner's gate, as the worker ask naming an app does: a message the person the session acts for sent
-  passes with no grant, since the app is theirs, and anybody else's needs `launch`.
+  call; a record naming none is refused, so no session puts an app for anyone but the person it acts for. Like the
+  worker ask, it carries no room check.
 - **Its arguments:** `name`, the app's; `action`, `put` where left out, `back` or `remove`; and for `back` an
   optional `version`, the newest kept older than the current where none is named.
 - **It reaches agency's server** as every tool of agency's does and asks `POST /personal-apps/{account}/{name}/put`,
@@ -241,8 +238,8 @@ here.
 
 - **`tools/skill_put`** declares `bmo/skill_put` to a session holding `room.tools`: a supervisor saves a skill of
   the person it serves, or removes one (`docs/person-nodes.md`, 「Skills at home」).
-- **The person is the record's,** `ownerAccount`, read afresh at every call, and a record naming none is refused; it
-  asks only past the owner's gate, as the app put does.
+- **The person is the record's,** `ownerAccount`, read afresh at every call, and a record naming none is refused; like
+  the app put, it carries no room check.
 - **Its arguments:** `name`, the skill's; `action`, `put` where left out, or `remove`; and for `put`, `files`, each
   file of the skill by its path, `SKILL.md` among them, as text. The whole folder is what `files` names.
 - **It reaches agency's server** and asks `PUT /personal-skills/{account}/{name}` or `DELETE
@@ -277,36 +274,6 @@ here.
 - **It reaches agency's control port as every tool of agency's does,** the address and token from its own
   environment or the server's env file under the data root, and it reaches no other unit. A call waits for the
   receiving BMO's turn to end, however long it takes: no timeout of the tool's own cuts it.
-
-## The room grants
-
-- **`tools/room_grant`** declares `bmo/room_grant` to a session holding `room.tools`: a supervisor reads, makes
-  and takes back the grants standing in the room its turn answers, on the account service (bmo-web's
-  `docs/accounts.md`, 「Grants」). They are the record the receiver composes the room's GRANTS IN FORCE from, so
-  what the owner allows a person or the room's members there is saved where every later turn reads it.
-- **The room is the turn's own,** read afresh from the record as the owner's gate reads it (`docs/launch-lines.md`,
-  「The owner's gate」): the room the turn answers, the messages it answers and whether the receiver marked every
-  one of them the owner's. A call standing in no room's turn is refused; no call names another room.
-- **Its arguments:** `action`, one of `list`, `grant` and `revoke`; for a grant or a revocation the `relation` and
-  one holder, a `sender` by the sender id the room's record shows or the room's `members`; for a grant the owner's
-  `words` beside it, which a standing rule (`rule`) must carry, and `until`, an RFC 3339 time it lapses at; and
-  the `message` it is made on. A call naming no relation, no holder or both holders, a rule with no words, a lapse
-  that does not read as a time, or words or a lapse on a revocation is refused before the service is asked.
-- **A grant is made on a message the turn answers,** so the account service judges the granter by that message's
-  sender and nobody gives what they do not hold. The message named must be one of the turn's; where none is named
-  it is the turn's one message, or its newest where the receiver marked every message the owner's, and a turn
-  answering several messages not all the owner's must name one. The tool keeps no check of its own on who may
-  grant: the service's refusal is answered as it gave it, its status, code and sentence.
-- **What was done is read back before it is answered.** A grant is answered with the account service's answer and
-  the row `GET /grants` then carries for its relation and holder; a revocation with the service's answer and the
-  room's grants as they stand after it. A grant the room's grants do not carry afterwards, a revocation that
-  took nothing back or whose grant still stands, and a change made but not read back are answered as failures
-  saying so, so nothing is said to be in force that the record does not show.
-- **`list` answers the room's grants** as the service keeps them: each its relation, its subject, its lapse and the
-  words beside it, and, for a user holding one, the sender ids linked to that user, which a holder is matched by.
-- **It reaches the account service as the owner's gate does,** at the address and with the token `WEB_ADDRESS` and
-  `WEB_TOKEN` name in its own environment or in the web unit's `env/web.env` under the record's data root, and it
-  reaches no other unit. A service not named, not reached or not in force is answered as a failure saying so.
 
 ## The DeepSeek top-up
 
