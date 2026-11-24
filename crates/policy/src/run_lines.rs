@@ -59,6 +59,50 @@ pub struct RunLine {
   /// capabilities keeps beside those the limit's capabilities hold.
   #[serde(default)]
   pub limited_keeps: Vec<String>,
+  /// What its program carries, the declaration its launch is built from.
+  #[serde(default)]
+  pub carries: Carries,
+}
+
+/// What a line's program carries (docs/launch-lines.md, 「What a line carries」): the pieces of its system prompt
+/// in order, the setting sources it reads, where its skills come from, whether it keeps its own commands and
+/// the program's own subagent types it keeps. A line that declares none carries nothing of any.
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Carries {
+  #[serde(default)]
+  pub prompt: Vec<String>,
+  #[serde(default)]
+  pub setting_sources: Vec<String>,
+  #[serde(default)]
+  pub skills: Skills,
+  #[serde(default)]
+  pub slash_commands: bool,
+  #[serde(default)]
+  pub subagents: Vec<String>,
+}
+
+/// Where a line's skills come from.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Skills {
+  /// None at all.
+  #[default]
+  None,
+  /// The plugin bundle of its run's role.
+  Role,
+}
+
+impl Carries {
+  /// The setting sources as the program's flag takes them.
+  pub fn setting_sources_word(&self) -> String {
+    self.setting_sources.join(",")
+  }
+
+  /// Whether its system prompt holds the piece named.
+  pub fn holds(&self, piece: &str) -> bool {
+    self.prompt.iter().any(|held| held == piece)
+  }
 }
 
 /// One capability a supervisor's tool limit may leave out, and what stands under it outside the tool host.
@@ -99,6 +143,13 @@ pub struct Hosted {
 pub struct RunLines(pub BTreeMap<String, RunLine>);
 
 impl RunLines {
+  /// What the line named carries; nothing for a line the policy does not name.
+  pub fn carries(&self, name: &str) -> &Carries {
+    static NOTHING: std::sync::LazyLock<Carries> = std::sync::LazyLock::new(Carries::default);
+
+    self.line(name).map_or(&NOTHING, |line| &line.carries)
+  }
+
   pub fn line(&self, name: &str) -> Option<&RunLine> {
     self.0.get(name)
   }

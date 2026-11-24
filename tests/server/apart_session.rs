@@ -1044,7 +1044,9 @@ async fn a_worker_role_s_turn_on_a_gateway_road_holds_the_worker_line_s_tools_an
     ..Apart::default()
   };
   let (args, servers) = stood_on_deepseek(&ground, &worker).await;
-  let denied = policy::run_lines::RUN_LINES.line("worker").unwrap().tools_denied.join(",");
+  // The line's denied tools and every subagent type its carries do not keep (docs/launch-lines.md, 「What a line
+  // carries」).
+  let denied = agency_server::lines::claude::line_denied("worker");
 
   assert_eq!(args.first().map(String::as_str), Some("claude"), "{args:?}");
   assert_eq!(after(&args, "--permission-mode"), Some("bypassPermissions"), "{args:?}");

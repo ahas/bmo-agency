@@ -6,6 +6,7 @@ import { enabledClaudeAccounts, ENDPOINT_FAMILIES, machineConfigDir, recordedAcc
 import { machineCatalogue } from "./provider-facts";
 import { providerDeclaration } from "./provider-declaration";
 import declaredClaudeCode from "@agency/policy/providers/claude-code.toml";
+import declaredRunLines from "@agency/policy/run-lines.toml";
 import { walkingClaudeAccount } from "./claude-dispatch";
 import { calledTool } from "./mcp-names";
 import { providerSettingsArchive } from "./provider-order";
@@ -225,6 +226,14 @@ function wholePrompt(run: HarnessRun): string[] {
   return ["--append-system-prompt-file", handedPath(run.line, extensionsOf(run).rulesPath)];
 }
 
+// The setting sources a line's program reads, as the line's carries name them (docs/launch-lines.md, 「What a line
+// carries」), joined as the program's flag takes them; none for a line that names none.
+export function settingSources(line: string): string {
+  const carried = (declaredRunLines as Record<string, { carries?: { setting_sources?: string[] } }>)[line]?.carries;
+
+  return (carried?.setting_sources ?? []).join(",");
+}
+
 function workerLine(run: HarnessRun): string[] {
   const args = programHead(run);
 
@@ -253,7 +262,7 @@ function workerLine(run: HarnessRun): string[] {
     // scope — every checkout under the home directory walks up to it — so the settings below name it
     // in their exclusions, and the rules a job needs of it are the ones appended above.
     "--setting-sources",
-    "project,local",
+    settingSources("worker"),
     // Every path this line hands over is answered for before it is written into the command: one
     // that is not there costs the run its whole start and says nothing about why (core/roots/launch-paths.ts).
     // A worker standing in its pane is handed its own settings merged with the status line and the
@@ -296,7 +305,7 @@ function chatLine(run: HarnessRun): string[] {
     "--system-prompt-file",
     run.systemPromptPath ?? "",
     "--setting-sources",
-    "",
+    settingSources(run.line),
     "--strict-mcp-config",
   );
 

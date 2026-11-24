@@ -213,8 +213,11 @@
   line's `tools_denied`): the CLI's web search and fetch, its Artifact tools, the claude.ai Docs connector,
   the tools that bring a session back after its turn has ended — `Monitor`, `ScheduleWakeup` and the
   session cron tools, since a supervisor's turns are the ones its runner puts into its program — and the
-  job plugin's own item creation. The CLI's own subagent tool stands, for reading and searching inside the
-  supervisor's turn (`docs/supervisors.md`, 「A supervisor's long work」). The program is
+  job plugin's own item creation — and the program's own tools no supervisor is asked to use: its design
+  sync, plan mode, phone notifications, remote triggers, findings report, feedback and the sends to its own
+  projects. The CLI's own subagent tool stands, for reading and searching inside the supervisor's turn
+  (`docs/supervisors.md`, 「A supervisor's long work」), with the subagent types the line's carries keep and
+  no other (「What a line carries」 below). The program is
   shown every other tool of its own, no `--tools` list
   narrows it and no allow list is written, and every call of every tool it holds goes ahead unasked, every
   server of its configuration among them, in every run of every supervisor, whoever wrote the turn's
@@ -246,7 +249,9 @@
   model run on every re-invocation until somebody stops it. The CLI's own question tool,
   `AskUserQuestion`, is disallowed as well: it stops the pane on a choice among options, a job's pane
   has nobody to pick one, and the session contract's question has no shape for that answer
-  (`docs/agent-control.md`, 「A confirmation in the middle of a turn」). A job asks its supervisor with
+  (`docs/agent-control.md`, 「A confirmation in the middle of a turn」). So are the program's own tools no job
+  is asked to use, the same the chat line denies beside its own, and every subagent type the line's carries
+  do not keep (「What a line carries」 below). A job asks its supervisor with
   `bmo job ask`, which waits on the answer the supervisor gives or the owner gives once the supervisor puts it
   to him. The claude.ai account's connectors — Gmail, Google Calendar,
   Google Drive, Claude Docs and whatever else the login has connected — are not loaded at all:
@@ -546,6 +551,46 @@
     but it is part of the command a pane's program was started with, so the change starts each
     supervisor's resident program again on `--resume` of its own session at its next turn, and a run
     of a role started after it is another command and opens its own session.
+
+## What a line carries
+
+- **Each line declares what its program carries, and its launch is built from that declaration:** the line's
+  `carries` in `policy/run-lines.toml`, beside the namespaces, capabilities, shown entries and denied tools the
+  line already declares. A role's run carries its line's declaration and its role's own prompt, provider
+  prompts, bundles and skills (`docs/agent-roles.md`, 「What a role row holds」), and nothing else.
+  - **`prompt`:** the pieces of its system prompt, in order — `harness`, the platform's opening;
+    `opening`, the platform's opening or the base prompt of the account the run goes out on;
+    `platform-rules`, `organisation`, `role`, `personal` and `persona`, the layers `docs/prompt-layers.md`
+    names, a role's provider prompt standing in its role layer; `rules`, the line's rules file;
+    `instructions`, what a session's caller hands in; `purpose`, a translation's instructions.
+  - **`setting_sources`:** the setting sources its program reads; a line naming none reads no CLAUDE.md, no
+    memory, no setting and no hook of the machine's or a checkout's.
+  - **`skills`:** `role`, the plugin bundle of its run's role, or `none`.
+  - **`slash_commands`:** whether its program keeps its own commands.
+  - **`subagents`:** the program's own subagent types it keeps. Every other type Claude Code's policy names
+    (`policy/providers/claude-code.toml`, `agent_types`) is denied by name, `Agent(<type>)`, on a line that
+    shows the program's subagent tool, so its listing names those alone.
+- **What reads it:** every launch reads the setting sources and the denied list off its line's carries; the
+  runner lines and the translate line compose their system prompt piece by piece from `prompt` and take
+  their commands flag from `slash_commands`, refusing a piece they cannot fill; the worker and chat lines
+  compose theirs in the order `prompt` states. A test per seeded role holds the launch its line composes for
+  the role to the role's declaration and its line's carries.
+- **The lines' carries:**
+
+  | Line | Prompt | Setting sources | Skills | Own commands | Subagent types |
+  |---|---|---|---|---|---|
+  | chat | harness, platform-rules, organisation, role, personal, persona | none | none | yes | `Explore`, `general-purpose` |
+  | gate | instructions | none | none | yes | none |
+  | worker | opening, organisation, role, personal, rules | project, local | role | yes | `Explore`, `general-purpose` |
+  | search, browse | harness, instructions | none | none | yes | none |
+  | plain | instructions | none | none | no | none |
+  | translate | role, purpose | none | none | no | none |
+
+- **What the program adds that no declaration removes:** its one-line identity ahead of the system prompt;
+  the environment block beside the first prompt (the folder, the platform, the model and the date); the
+  login's mail address on a subscription login; the typed line a run apart's words are pasted behind; the
+  short title request it makes of a new session; and, on a line that shows built-in tools, the tool search
+  that loads deferred tools and its deferred `EndConversation`, which a denial does not take off the list.
 
 ## What a line's program is allowed, by road
 

@@ -23,6 +23,7 @@ fn chat(dir: &Path, model: &'static str, advisor: Option<&'static str>) -> Vec<S
   std::fs::write(&system, "a supervisor").unwrap();
 
   words(&Words {
+    line: "chat",
     model,
     effort: "medium",
     advisor,

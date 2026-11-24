@@ -136,6 +136,8 @@ pub struct Launch {
   pub long_tools: Vec<String>,
   /// The plugins the program builds in, each named off in every settings file a line hands it.
   pub builtin_plugins: Vec<String>,
+  /// The program's own subagent types, each denied on a line whose carries do not keep it.
+  pub agent_types: Vec<String>,
 }
 
 /// Where under a login's configuration directory the CLI keeps its model catalogue.

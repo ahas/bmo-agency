@@ -9,7 +9,6 @@ use std::sync::LazyLock;
 
 use harness_providers::Machine;
 use policy::base_prompts::BASE_PROMPTS;
-use policy::run_lines::RUN_LINES;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
@@ -619,7 +618,7 @@ async fn run_on_line(
     mcp_config: mcp_config(ground, trees)?,
     settings: worker_dir.join("settings.json"),
     plugin_dir,
-    tools_denied: RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default(),
+    tools_denied: super::claude::line_denied(LINE),
     cwd: cwd.to_owned(),
     advisor,
   })

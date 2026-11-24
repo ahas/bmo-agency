@@ -23,6 +23,7 @@ async fn chat_agent(scratch: &Scratch, scope: &str) {
 // The line's words for a program whose files stand where it is handed them.
 fn line<'a>(dir: &'a Path, system: &'a Path) -> Words<'a> {
   Words {
+    line: "chat",
     model: "local-model@node",
     effort: "low",
     advisor: None,

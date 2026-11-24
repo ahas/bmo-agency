@@ -35,6 +35,9 @@ suffix = "-cc.json"
 # agent agency runs writes, switched off; and the skills the program bundles, which no role declares,
 # switched off (docs/launch-lines.md, 「The CLI's own skills and plugins are switched off on every line」).
 variables = { CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS = "1", CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = "0", CLAUDE_CODE_ENABLE_AWAY_SUMMARY = "0", CLAUDE_CODE_DISABLE_AUTO_MEMORY = "1", CLAUDE_CODE_DISABLE_BUNDLED_SKILLS = "1" }
+# The program's own subagent types, each denied by name as Agent(<type>) on a line whose carries do not keep it
+# (docs/launch-lines.md, 「What a line carries」).
+agent_types = ["claude", "claude-code-guide", "Explore", "general-purpose", "Plan", "statusline-setup"]
 # The plugins the program builds in that bring a run what no role declares — guides, tips, a chart server, a
 # diagram and a diff renderer, the reading of a checkout's AGENTS.md beside its CLAUDE.md, its own platform's
 # helpers — each named off under enabledPlugins in every settings file a line hands its program, so none of

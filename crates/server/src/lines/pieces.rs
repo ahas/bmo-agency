@@ -381,6 +381,7 @@ pub async fn compose(
   let line = |model: &str, effort: &str, advisor: Option<&str>, settings: &std::path::Path| {
     standing_words(
       &Words {
+        line: super::chat::LINE,
         model,
         effort,
         advisor,

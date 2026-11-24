@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use harness_providers::claude_code::ClaudeCode;
 use policy::providers::claude_code::CLAUDE_CODE;
+use policy::run_lines::RUN_LINES;
 
 use super::fault;
 use super::worker::{LINE, WorkerRun};
@@ -103,6 +104,27 @@ pub fn handed(line: &str, path: &Path) -> Result<String, Refusal> {
   )))
 }
 
+/// What a line's program is never shown (docs/launch-lines.md, 「What a line carries」): the tools of its own its
+/// line denies, and each of the program's own subagent types its carries do not keep, named as the program
+/// names a subagent type's call.
+pub fn line_denied(line: &str) -> String {
+  let kept = &RUN_LINES.carries(line).subagents;
+  let denied = RUN_LINES.line(line).map(|line| line.tools_denied.clone()).unwrap_or_default();
+
+  denied
+    .into_iter()
+    .chain(
+      CLAUDE_CODE
+        .launch
+        .agent_types
+        .iter()
+        .filter(|kind| !kept.contains(kind))
+        .map(|kind| format!("Agent({kind})")),
+    )
+    .collect::<Vec<_>>()
+    .join(",")
+}
+
 /// The worker line's words as a person starts the program: no print mode, the flags of the line in
 /// their fixed order, and the session it opens or continues last. `settings` is the settings the
 /// program is handed, its place's for a resident program.
@@ -135,7 +157,7 @@ pub fn worker_args(
 
   args.extend([
     "--setting-sources".to_owned(),
-    "project,local".to_owned(),
+    RUN_LINES.carries(LINE).setting_sources_word(),
     "--settings".to_owned(),
     handed_path(settings)?,
     // Strict, so no MCP server the account's login brings — a claude.ai connector — rides on a run beside
@@ -181,7 +203,7 @@ pub fn apart_args(run: &ApartRun, session: &str) -> Result<Vec<String>, Refusal>
 
   args.extend(["--model", run.model, "--effort", run.effort].map(str::to_owned));
   args.extend(advisor_words(run.model, run.advisor));
-  args.extend(["--setting-sources", ""].map(str::to_owned));
+  args.extend(["--setting-sources".to_owned(), RUN_LINES.carries(run.line).setting_sources_word()]);
 
   if let Some(prompt) = run.system_prompt {
     args.extend(["--system-prompt-file".to_owned(), handed(run.line, prompt)?]);

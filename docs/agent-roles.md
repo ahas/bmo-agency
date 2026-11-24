@@ -36,6 +36,10 @@ their bundles. How a role's runs are let in is `docs/role-slots.md`; how a run g
     agent」);
   - **its line,** the launch line its runs go out on — the worker line, the search line, the browse line, the
     plain line or the translate line (`docs/launch-lines.md`);
+- **A role carries its line's declaration and its own row, and nothing else:** what its line's program carries
+  — the pieces of its system prompt, its setting sources, where its skills come from, its own commands and the
+  program's subagent types it keeps (`docs/launch-lines.md`, 「What a line carries」) — filled with the role's
+  prompt, provider prompts, bundles and skills. A test per seeded role holds the launch composed for it to that.
 - **A role holds no road, no cap, no sessions setting and no compaction threshold.** Whether a run keeps its
   session and the share at which that session is folded are each its agent's (`docs/role-agents.md`, 「What an
   agent row holds」).

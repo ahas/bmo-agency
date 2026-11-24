@@ -131,9 +131,10 @@ pub async fn review_app(ground: &Ground, input: &str) -> Result<String, String> 
   road::went(ground, &resolution, Some(&taken), &[]).await;
 
   let trees = Trees::of(ground);
-  let system = role_prompt(&ground.db, &ROLES.app_review, None)
+  let role = role_prompt(&ground.db, &ROLES.app_review, None)
     .await
     .ok_or_else(|| format!("the role {} carries no prompt", ROLES.app_review))?;
+  let system = composed(&trees, Some(&role), None)?;
 
   if taken.provider == crate::control::registry::PROVIDER {
     recorded(ground, (Work::Review, "English"), &taken, &system, input).await
@@ -146,15 +147,32 @@ pub async fn review_app(ground: &Ground, input: &str) -> Result<String, String> 
   }
 }
 
-/// A translation's system prompt: the translator role's prompt, where the store's role carries one, then
-/// the purpose's instructions.
+/// A translation's system prompt: the translator role's prompt, where the store's role carries one, then the
+/// purpose's instructions, as the translate line's carries order them.
 pub fn system_prompt(trees: &Trees, role: Option<&str>, purpose: Purpose) -> Result<String, String> {
-  let instructions = purpose.instructions(trees)?;
+  composed(trees, role, Some(purpose))
+}
 
-  Ok(match role {
-    Some(role) => format!("{}\n\n{instructions}", role.trim()),
-    None => instructions,
-  })
+/// A system prompt of the translate line, its carries' pieces in order (docs/launch-lines.md, 「What a line
+/// carries」): the role's prompt where it names `role` and the role carries one, and the purpose's instructions
+/// where it names `purpose` and the work has one — a translation has, an app's review has none. A piece the line
+/// cannot fill is refused rather than left out.
+pub fn composed(trees: &Trees, role: Option<&str>, purpose: Option<Purpose>) -> Result<String, String> {
+  let mut parts = Vec::new();
+
+  for piece in &policy::run_lines::RUN_LINES.carries(LINE).prompt {
+    match piece.as_str() {
+      "role" => parts.extend(role.map(|role| role.trim().to_owned())),
+      "purpose" => {
+        if let Some(purpose) = purpose {
+          parts.push(purpose.instructions(trees)?);
+        }
+      }
+      other => return Err(format!("the translate line's system prompt holds no piece named {other}")),
+    }
+  }
+
+  Ok(parts.join("\n\n"))
 }
 
 /// What a translation is asked with: the target language's line, then the text; where the caller names
@@ -496,7 +514,7 @@ impl Attempt<String> for OnLogin<'_> {
         mcp_config: None,
         tools_shown: "",
         tools_allowed: "",
-        host_commands: false,
+        host_commands: policy::run_lines::RUN_LINES.carries(LINE).slash_commands,
         advisor: self.advisor.as_deref(),
       },
       &session,

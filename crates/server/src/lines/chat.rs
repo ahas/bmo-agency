@@ -55,10 +55,11 @@ const CLAUDE: &str = "claude-code";
 const SERVER: &str = "bmo";
 
 /// The chat line's denied list (`policy/run-lines.toml`): the one restriction on a supervisor's program, which
-/// runs in bypass-permissions mode over every other tool of its own on every road (docs/launch-lines.md,
-/// 「What a line's program is allowed, by road」).
+/// runs in bypass-permissions mode over every other tool of its own on every road, with each subagent type its
+/// carries do not keep (docs/launch-lines.md, 「What a line's program is allowed, by road」, 「What a line
+/// carries」).
 pub fn denied() -> String {
-  RUN_LINES.line(LINE).map(|line| line.tools_denied.join(",")).unwrap_or_default()
+  super::claude::line_denied(LINE)
 }
 
 /// The room's block as the caller composed it for the turn: the room it is, its text, and the mark the
@@ -998,6 +999,8 @@ pub fn gate_run(
 /// (docs/agents.md, 「Conversational agents」): the model and effort, its own composed prompt, the line's
 /// one configuration, what it holds of its own tools, and whether the program's own commands are reachable.
 pub struct Words<'a> {
+  /// The line the program goes out on, whose carries name the setting sources it reads.
+  pub line: &'a str,
   pub model: &'a str,
   pub effort: &'a str,
   /// The model the program may consult, where the run's road names one.
@@ -1039,7 +1042,12 @@ pub fn words(line: &Words<'_>) -> Result<Vec<String>, Refusal> {
   ]);
   args.extend(super::claude::advisor_words(line.model, line.advisor));
   args.extend(["--system-prompt-file".to_owned(), line.system.to_string_lossy().into_owned()]);
-  args.extend(["--setting-sources", "", "--strict-mcp-config", "--mcp-config"].map(str::to_owned));
+  args.extend([
+    "--setting-sources".to_owned(),
+    RUN_LINES.carries(line.line).setting_sources_word(),
+    "--strict-mcp-config".to_owned(),
+    "--mcp-config".to_owned(),
+  ]);
   args.push(handed(LINE, line.mcp)?);
 
   if !line.host_commands {
@@ -1098,6 +1106,7 @@ impl ChatRun {
   // fold is put into it.
   fn line(&self) -> Words<'_> {
     Words {
+      line: self.line,
       model: &self.model,
       effort: &self.effort,
       advisor: self.advisor.as_deref(),

@@ -168,6 +168,7 @@ mod personal_apps;
 mod lines {
   mod advisor;
   mod agent_plugin;
+  mod carries;
   mod chat;
   mod claude;
   mod codex;

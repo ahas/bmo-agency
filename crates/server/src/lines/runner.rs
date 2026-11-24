@@ -4,13 +4,14 @@
 //! opens on it, written where the line hands them over; the line's standing MCP configuration, written where
 //! nothing has written it; the tools it allows; the model, effort and tier the turn's mapping names and the
 //! line's agent's own thinking; and the directory it is deployed to. Each runner answers for what is its own:
-//! the tools it is allowed, its configuration, whether its prompt opens on the harness opening and whether its
-//! program keeps its own commands and skills.
+//! the tools it is allowed and its configuration. The pieces of its system prompt and whether its program keeps
+//! its own commands are the line's carries (docs/launch-lines.md, 「What a line carries」).
 
 use std::path::PathBuf;
 
 use harness_providers::claude_code::ClaudeCode;
 use policy::browser::BROWSER;
+use policy::run_lines::RUN_LINES;
 
 use super::ordered::Ordered;
 use super::token::TOKEN_VARIABLE;
@@ -35,16 +36,6 @@ pub trait Runner: Sync {
 
   /// Its standing MCP configuration, written where nothing has written it.
   fn mcp_config(&self, ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal>;
-
-  /// Whether its system prompt opens on the platform's harness opening before the instructions handed in.
-  fn opens_on_harness(&self) -> bool {
-    true
-  }
-
-  /// Whether its program keeps its own slash commands and the skills they carry.
-  fn host_commands(&self) -> bool {
-    true
-  }
 }
 
 /// The search runner: the web, and nothing else.
@@ -195,14 +186,6 @@ impl Runner for Plain {
   fn mcp_config(&self, _ground: &Ground, trees: &Trees) -> Result<PathBuf, Refusal> {
     handed_config(trees.agents.join("plain.mcp.json"), || Ok(Ordered::map::<&str>([])))
   }
-
-  fn opens_on_harness(&self) -> bool {
-    false
-  }
-
-  fn host_commands(&self) -> bool {
-    false
-  }
 }
 
 /// A private display a browse run's Chrome is shown on: its name, its authority file and the runtime
@@ -318,12 +301,9 @@ pub async fn given_run(
     }
   };
   let name = runner.name();
+  let carries = RUN_LINES.carries(name);
   let mcp_config = runner.mcp_config(ground, trees)?;
-  let text = if runner.opens_on_harness() {
-    super::harnessed(trees, instructions)?
-  } else {
-    instructions.to_owned()
-  };
+  let text = given_prompt(trees, &carries.prompt, instructions)?;
   let digest = sha2::Sha256::digest(text.as_bytes());
   let advisor = match crate::role_agents::seated_at(&ground.db, None, None).await? {
     Some(seat) => crate::role_agents::advisor_of(&ground.db, &seat).await?,
@@ -339,11 +319,27 @@ pub async fn given_run(
     system_prompt: system_prompt_file(trees, &format!("{name}-given-{named}"), &text)?,
     mcp_config,
     tools_allowed: runner.tools_allowed(),
-    host_commands: runner.host_commands(),
+    host_commands: carries.slash_commands,
     thinking: reasoning_of(ground, name).await?.thinking.unwrap_or(true),
     cwd: trees.agents.join(name),
     advisor,
   })
+}
+
+/// A runner line's system prompt, its carries' pieces in order (docs/launch-lines.md, 「What a line carries」): the
+/// platform's harness opening where it names `harness`, and the instructions handed in where it names
+/// `instructions`. A piece a runner line cannot fill is refused rather than left out.
+pub fn given_prompt(trees: &Trees, pieces: &[String], instructions: &str) -> Result<String, Refusal> {
+  let parts = pieces
+    .iter()
+    .map(|piece| match piece.as_str() {
+      "harness" => super::read_required(&trees.harness_path()),
+      "instructions" => Ok(instructions.to_owned()),
+      other => Err(fault(format!("a runner line's system prompt holds no piece named {other}"))),
+    })
+    .collect::<Result<Vec<_>, _>>()?;
+
+  Ok(parts.join("\n\n"))
 }
 
 impl RunnerRun {

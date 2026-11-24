@@ -32,10 +32,25 @@
 #   line's shown entries」).
 # variables: the deployment's variables every run of the line hands its record, each where the deployment
 #   sets it, for the placed tools that read them: a record's variable wins over the tool host's own.
+# carries: what the line's program carries, the declaration its launch is built from (docs/launch-lines.md,
+#   「What a line carries」):
+#   prompt: the pieces of its system prompt, in order — harness, the platform's opening; opening, the
+#     platform's opening or the base prompt of the account the run goes out on; platform-rules,
+#     organisation, role, personal and persona, the layers docs/prompt-layers.md names, a role's provider
+#     prompt standing in its role layer; rules, the line's rules file; instructions, what the session's caller hands in; purpose, a translation's instructions.
+#   setting_sources: the setting sources its program reads; none reads no CLAUDE.md, memory, setting or hook.
+#   skills: role, the plugin bundle of its run's role, or none.
+#   slash_commands: whether its program keeps its own commands.
+#   subagents: the program's own subagent types it keeps; every other type the provider names is denied.
 
 [chat]
 needs = []
 keeps_session = true
+carries.prompt = ["harness", "platform-rules", "organisation", "role", "personal", "persona"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = true
+carries.subagents = ["Explore", "general-purpose"]
 composes_typed_lines = true
 background_apart = true
 capabilities = ["room.tools", "gate.translate", "gate.reference", "research.ask"]
@@ -55,11 +70,15 @@ shown = [
 # filed through the agency's file_item, which reads the turn's room and whether the owner asked it
 # (docs/api.md, 「assignments and jobs」). The job plugin is started without each of its own tools named here,
 # so no program lists it. Its own subagent tool stands: a subagent reads and searches inside the
-# supervisor's turn (docs/supervisors.md, 「A supervisor's long work」).
+# supervisor's turn (docs/supervisors.md, 「A supervisor's long work」). The program's own tools no supervisor
+# is asked to use stand there too: its design sync, plan mode, phone notifications, remote triggers, findings
+# report, feedback and the sends to its own projects.
 tools_denied = [
   "WebSearch", "WebFetch", "Artifact", "ArtifactCheck", "ArtifactComments", "ArtifactData",
   "mcp__claude_ai_Claude_Docs", "Monitor", "ScheduleWakeup", "CronCreate", "CronDelete", "CronList",
   "mcp__job__job_item_create",
+  "DesignSync", "EnterPlanMode", "ExitPlanMode", "PushNotification", "RemoteTrigger", "ReportFindings",
+  "SendFeedback", "SendToProject", "SendToProjectContext",
 ]
 # The gate's address and the path of its token file, which the gate's translate tool calls it with.
 variables = ["BMO_GATE_URL", "BMO_GATE_TOKEN_FILE"]
@@ -109,21 +128,37 @@ tools = [
 [gate]
 needs = []
 keeps_session = false
+carries.prompt = ["instructions"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = true
+carries.subagents = []
 
 # A translation asked of the translator runner (docs/launch-lines.md, 「Translate runner」): no tools, no
 # session, the purpose's instructions as its system prompt.
 [translate]
 needs = []
 keeps_session = false
+carries.prompt = ["role", "purpose"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = false
+carries.subagents = []
 
 # tools_denied: what its program is never shown — the CLI's web tools, its Artifact tools, the
 #   claude.ai Docs connector, named by its server so every tool it serves is covered, the tools that
 #   bring a session back after its turn has ended, which a job, whose turn's end is its answer, has no
 #   use for, and the CLI's own question tool, whose choice among options the session contract cannot
-#   answer and a job's pane has nobody to answer; a job asks its supervisor through bmo job ask.
+#   answer and a job's pane has nobody to answer; a job asks its supervisor through bmo job ask; and the
+#   program's own tools no job is asked to use, the same the chat line names beside its own.
 [worker]
 needs = []
 keeps_session = true
+carries.prompt = ["opening", "organisation", "role", "personal", "rules"]
+carries.setting_sources = ["project", "local"]
+carries.skills = "role"
+carries.slash_commands = true
+carries.subagents = ["Explore", "general-purpose"]
 holds_stops = true
 guards_job_shell = true
 # `bmo` stands in the record alone, for the brain's lessons form `bmo use` reaches; no configuration names it.
@@ -138,6 +173,8 @@ tools_denied = [
   "WebSearch", "WebFetch", "Artifact", "ArtifactCheck", "ArtifactComments", "ArtifactData",
   "mcp__claude_ai_Claude_Docs", "Monitor", "ScheduleWakeup", "CronCreate", "CronDelete", "CronList",
   "AskUserQuestion",
+  "DesignSync", "EnterPlanMode", "ExitPlanMode", "PushNotification", "RemoteTrigger", "ReportFindings",
+  "SendFeedback", "SendToProject", "SendToProjectContext",
 ]
 
 # A run of the plain line goes out with the instructions its caller hands in as the whole of its system prompt
@@ -146,6 +183,11 @@ tools_denied = [
 [plain]
 needs = []
 keeps_session = false
+carries.prompt = ["instructions"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = false
+carries.subagents = []
 
 # A run of the search or browse line goes out with the instructions its caller hands in, its record narrowed
 # to the capabilities that caller lets it keep (docs/api.md, 「sessions」). The research namespace shows a run
@@ -157,6 +199,11 @@ keeps_session = false
 [search]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
+carries.prompt = ["harness", "instructions"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = true
+carries.subagents = []
 capabilities = ["room.chat", "room.tools"]
 namespaces = ["bmo", "web", "eye", "research"]
 shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
@@ -165,6 +212,11 @@ brain_agent = true
 [browse]
 needs = ["tool-gate", "mcp-only-tools"]
 keeps_session = false
+carries.prompt = ["harness", "instructions"]
+carries.setting_sources = []
+carries.skills = "none"
+carries.slash_commands = true
+carries.subagents = []
 capabilities = ["room.chat", "room.tools"]
 namespaces = ["bmo", "web", "eye", "research"]
 shown = ["bmo/brain_learn", "bmo/brain_similar", "research/rulebook", "web/research", "web/web_fetch", "web/web_search", "eye/see"]
