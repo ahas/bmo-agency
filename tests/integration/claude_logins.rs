@@ -439,6 +439,67 @@ async fn a_silence_the_windows_hold_is_told_once_by_the_watch_and_its_end_once()
   assert_eq!(clear_passed_rests(bench.judging(), at + 3 * HOUR).await.unwrap(), None);
 }
 
+// The administrator's end of the rest clears what was written and sets the full windows aside, so every
+// platform login answers again at once; the silence it told is answered as ended once, and an end with nothing
+// resting ends nothing.
+#[tokio::test]
+async fn the_rest_ended_by_hand_opens_every_login_and_its_end_is_answered_once() {
+  let bench = Bench::new().await;
+  let at = now();
+
+  bench.read("main", 1.0, at + HOUR, at).await;
+  rest::write_rest(bench.judging(), (at + 2 * HOUR) as f64, RestKind::Limit, "default", at)
+    .await
+    .unwrap();
+  rest::write_model_rest(bench.scratch.db(), "default", FABLE, Some(at + HOUR), at)
+    .await
+    .unwrap();
+  watch_silence(&bench.ground, at).await.unwrap();
+
+  assert!(rest::resting(bench.judging(), at).await.unwrap());
+  assert!(rest::end_rest(bench.judging(), at).await.unwrap());
+  assert!(!rest::resting(bench.judging(), at).await.unwrap());
+  assert_eq!(rest::model_rest_until(bench.judging(), "default", FABLE, at).await.unwrap(), None);
+  assert_eq!(bench.setting("rest_until:default").await, None);
+  assert_eq!(bench.walk().await, ["main", "default"]);
+  assert_eq!(clear_passed_rests(bench.judging(), at).await.unwrap(), Some(RestKind::Limit));
+  assert_eq!(clear_passed_rests(bench.judging(), at).await.unwrap(), None);
+  assert!(!rest::end_rest(bench.judging(), at).await.unwrap());
+
+  // The reader's next reading that still finds the window full closes the login again.
+  bench.read("main", 1.0, at + HOUR, at + 1).await;
+  bench.read("default", 1.0, at + HOUR, at + 1).await;
+
+  assert!(rest::resting(bench.judging(), at + 1).await.unwrap());
+}
+
+// A rest's moment reported in milliseconds is kept as the second it names, and one an older writer kept in
+// milliseconds is read so, so neither rests a login for ever.
+#[tokio::test]
+async fn a_moment_in_milliseconds_is_kept_and_read_as_its_second() {
+  let bench = Bench::new().await;
+  let at = now();
+
+  rest::write_rest(bench.judging(), ((at + HOUR) * 1000) as f64, RestKind::Limit, "main", at)
+    .await
+    .unwrap();
+
+  assert_eq!(bench.setting("rest_until:main").await, Some((at + HOUR).to_string()));
+  assert_eq!(rest_until(bench.judging(), "main").await.unwrap(), Some(at + HOUR));
+
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "settings" ("key", "value") VALUES ('rest_until:default', $1)"#,
+      vec![((at + 2 * HOUR) * 1000).to_string().into()],
+    )
+    .await;
+
+  assert_eq!(rest_until(bench.judging(), "default").await.unwrap(), Some(at + 2 * HOUR));
+  assert_eq!(rest::rest_until(bench.judging(), at).await.unwrap(), Some(at + HOUR));
+  assert_eq!(rest::seconds_of(((at + HOUR) * 1000) as f64), (at + HOUR) as f64);
+}
+
 // A silence the written rests alone hold is told by whatever wrote them, never by the watch, so one only
 // refusals hold is not told as a limit.
 #[tokio::test]

@@ -15,6 +15,7 @@ use policy::rest::REST;
 use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 use store::one;
+use store::settings::epoch_seconds;
 
 use crate::Refusal;
 use crate::control::claude_accounts::{self, Carrying, Judging, SEED_ACCOUNT, full_window_until};
@@ -44,14 +45,24 @@ async fn setting(db: &DatabaseConnection, key: &str) -> Result<Option<String>, R
 /// windows」).
 pub fn rest_until_after(usage: &SessionUsage, now: i64) -> Option<f64> {
   if usage.utilization >= FULL {
-    return Some(usage.resets_at);
+    return Some(seconds_of(usage.resets_at));
   }
 
   if usage.weekly_utilization.is_some_and(|weekly| weekly >= FULL) {
-    return Some(usage.weekly_resets_at.unwrap_or((now + REST.fallback_seconds) as f64));
+    return Some(usage.weekly_resets_at.map_or((now + REST.fallback_seconds) as f64, seconds_of));
   }
 
   None
+}
+
+/// A moment in epoch seconds, whichever unit it was reported in (docs/api.md, 「accounts, rest and usage」): one
+/// counted in milliseconds is brought to the second it names, its fraction kept.
+pub fn seconds_of(moment: f64) -> f64 {
+  if moment.abs() >= store::settings::MILLISECOND_MOMENTS as f64 {
+    moment / 1000.0
+  } else {
+    moment
+  }
 }
 
 /// A rest's moment as its value is written: the leading whole number, a sign before it taken with it.
@@ -63,9 +74,9 @@ pub fn leading_number(value: &str) -> Option<i64> {
   value[..length].parse().ok()
 }
 
-// A moment a rest is kept until, in epoch seconds.
+// A moment a rest is kept until, in epoch seconds, one kept in milliseconds read as the second it names.
 async fn moment(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refusal> {
-  Ok(setting(db, key).await?.and_then(|value| leading_number(&value)))
+  Ok(setting(db, key).await?.and_then(|value| leading_number(&value)).map(epoch_seconds))
 }
 
 /// Whether the deployment rests now, `now` in epoch seconds.
@@ -254,6 +265,65 @@ pub async fn keep_watching(ground: std::sync::Arc<Ground>) {
   .await;
 }
 
+/// The rest standing at `now` where a rest of `kind` would be written, in epoch seconds: the service's outage, or
+/// the login's own rest, its windows' among them; none where nothing stands there.
+pub async fn standing_rest(
+  judging: Judging<'_>,
+  kind: RestKind,
+  account: &str,
+  now: i64,
+) -> Result<Option<i64>, Refusal> {
+  match kind {
+    RestKind::Outage => outage_rest(judging.db, now).await,
+    RestKind::Limit | RestKind::Refused => {
+      Ok(account_rest_until(judging, account).await?.filter(|until| *until > now))
+    }
+  }
+}
+
+/// The administrator's end of the rest (docs/api.md, 「accounts, rest and usage」): the service's outage, every
+/// rest written under the platform's own logins and every model's rest on them cleared, and the full windows
+/// kept for those logins set aside until their reader reads them again. Answers whether the deployment rested
+/// before; the silence told as it began stays told, so its end is answered once to whoever clears the passed
+/// rests.
+pub async fn end_rest(judging: Judging<'_>, now: i64) -> Result<bool, Refusal> {
+  let db = judging.db;
+  let was_resting = resting(judging, now).await?;
+
+  settings::forget(db, REST_UNTIL).await?;
+  settings::forget(db, REST_KIND).await?;
+
+  for id in platform_accounts(db).await? {
+    settings::forget(db, &format!("{REST_UNTIL}:{id}")).await?;
+
+    for whose in settings::named(db, &format!("{MODEL_REST}{id}:")).await? {
+      settings::forget(db, &format!("{MODEL_REST}{id}:{whose}")).await?;
+    }
+
+    let slot = Slot {
+      mode: CLAUDE_CODE_MODE,
+      account: &id,
+    };
+    let reading = judging.windows.read(slot).await?;
+
+    if reading.windows.iter().any(|kept| kept.window.is_full()) {
+      let seen_at = reading.windows.iter().map(|kept| kept.seen_at).max().unwrap_or(now);
+      let open: Vec<_> = reading
+        .windows
+        .into_iter()
+        .filter(|kept| !kept.window.is_full())
+        .map(|kept| kept.window)
+        .collect();
+
+      judging.windows.replace(slot, &open, seen_at).await?;
+    }
+  }
+
+  println!("the rest was ended by hand");
+
+  Ok(was_resting)
+}
+
 /// What a rest is: one login's limit, one login's refusal of a run, or the service's own outage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RestKind {
@@ -320,6 +390,7 @@ pub async fn write_rest(
   now: i64,
 ) -> Result<bool, Refusal> {
   let db = judging.db;
+  let until = seconds_of(until);
   let was_resting = resting(judging, now).await?;
 
   match kind {
@@ -395,6 +466,7 @@ pub async fn write_model_rest(
   until: Option<i64>,
   now: i64,
 ) -> Result<(), Refusal> {
+  let until = until.map(epoch_seconds);
   let rest = ModelRest {
     account: account.to_owned(),
     model: model.to_owned(),
@@ -441,7 +513,7 @@ async fn model_rest_closes(judging: Judging<'_>, kept: &str, now: i64) -> Result
     return Ok(None);
   };
 
-  if let Some(until) = rest.until {
+  if let Some(until) = rest.until.map(epoch_seconds) {
     return Ok((until > now).then_some(until));
   }
 

@@ -259,6 +259,43 @@ async fn a_running_server_answers_the_calls_a_room_holder_makes_beside_its_turns
     0
   );
 
+  // An outage written with its end in milliseconds is kept and answered in seconds, as what stands; a second
+  // one while it goes on writes nothing and answers the first.
+  let soon =
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64 + 3600;
+  let written = patch(port, token, "/rest", json!({ "until": soon * 1000, "kind": "outage" })).await;
+
+  assert_eq!(
+    written,
+    (
+      200,
+      json!({
+        "resting": true, "until": soon, "kind": "outage", "accountId": null, "written": true, "silenced": true,
+      })
+    )
+  );
+  assert_eq!(
+    patch(port, token, "/rest", json!({ "until": soon + 60, "kind": "outage" })).await.1,
+    json!({ "resting": true, "until": soon, "kind": "outage", "accountId": null, "written": false, "silenced": false })
+  );
+  assert_eq!(
+    get(port, token, "/rest").await,
+    (200, json!({ "resting": true, "until": soon, "kind": "outage" }))
+  );
+
+  // Ended by hand: nothing rests after it, and the end of the silence it told is answered once.
+  assert_eq!(
+    delete(port, token, "/rest").await,
+    (200, json!({ "resting": false, "until": null, "kind": null, "ended": true }))
+  );
+  assert_eq!(patch(port, token, "/rest", json!({ "clearPassed": true })).await.1["kind"], "outage");
+  assert_eq!(patch(port, token, "/rest", json!({ "clearPassed": true })).await.1["kind"], Value::Null);
+  assert_eq!(
+    delete(port, token, "/rest").await,
+    (200, json!({ "resting": false, "until": null, "kind": null, "ended": false }))
+  );
+  assert_eq!(get(port, token, "/rest/passed").await.0, 404);
+
   // A run of the ledger, opened and closed in the shapes the job unit sends and read as the room holder reads
   // it; a run with no row is nothing held, and a static path beside the id's is still its own route.
   let (status, opened) = post(

@@ -251,7 +251,8 @@ seeds. The other crates and the server reach the store only through it.
   - the machine's room: its seven limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
-  - the rest: `rest_until`, `rest_until:*`, `rest_kind`; and one model's rest on one login,
+  - the rest: `rest_until`, `rest_until:*`, each a moment in epoch seconds, `rest_kind`, and `rest_told`, the
+    kind of the silence told as it began, kept until its end is answered; and one model's rest on one login,
     `model_rest:<account>:<model>`, as JSON: its `until` in epoch seconds, none where it waits for the
     login's next reading, and the moment it was `written` (`docs/cache-fallback.md`, 「The account
     judgement」);

@@ -20,6 +20,16 @@ pub fn leading_integer(text: &str) -> Option<i64> {
   text[..text.len() - digits.len() + length].parse().ok()
 }
 
+/// The first moment, counted in seconds, past every date a deployment meets: a moment at or past it is read as
+/// counted in milliseconds.
+pub const MILLISECOND_MOMENTS: i64 = 100_000_000_000;
+
+/// A moment in epoch seconds, whichever unit it was written in: one at or past `MILLISECOND_MOMENTS` is taken as
+/// milliseconds and brought to the second it names.
+pub fn epoch_seconds(moment: i64) -> i64 {
+  if moment.abs() >= MILLISECOND_MOMENTS { moment.div_euclid(1000) } else { moment }
+}
+
 /// The user who administers the platform, where the settings name one.
 pub async fn administrator(store: &mut AnyConnection) -> Result<Option<i64>, sqlx::Error> {
   let named = sqlx::query("SELECT value FROM settings WHERE key = $1")

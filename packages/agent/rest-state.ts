@@ -1,4 +1,5 @@
 import declaredRest from "@agency/policy/rest.toml";
+import declaredClaudeCode from "@agency/policy/providers/claude-code.toml";
 
 import { enabledClaudeAccounts, recordedAccount, SEED_ACCOUNT_ID } from "./claude-account";
 
@@ -42,6 +43,16 @@ export async function restKind(archive: Archive, now: number = Date.now()): Prom
   return await outageRest(archive, now) !== null ? "outage" : "limit";
 }
 
+// The first moment, counted in seconds, past every date a deployment meets: a moment at or past it was written
+// in milliseconds, as agency's Rust side reads one (docs/api.md, 「accounts, rest and usage」).
+const MILLISECOND_MOMENTS = 100_000_000_000;
+
+/** A moment in epoch seconds, whichever unit it was written in: one counted in milliseconds is brought to the
+ * second it names. */
+export function epochSeconds(moment: number): number {
+  return Math.abs(moment) >= MILLISECOND_MOMENTS ? Math.floor(moment / 1000) : moment;
+}
+
 async function storedMoment(archive: Archive, key: string): Promise<number | null> {
   const value = await archive.settings().getSetting(key);
 
@@ -51,7 +62,42 @@ async function storedMoment(archive: Archive, key: string): Promise<number | nul
 
   const parsed = Number.parseInt(value, 10);
 
-  return Number.isNaN(parsed) ? null : parsed;
+  return Number.isNaN(parsed) ? null : epochSeconds(parsed);
+}
+
+// The provider the Claude logins' windows are kept under, and how long a reading of them stands: the reader's
+// passes times the passes a reading outlives (docs/usage-windows.md, 「The Claude account reader」).
+const CLAUDE_CODE_MODE = "claude-code";
+const readingStandsSeconds = declaredClaudeCode.usage.pass_seconds * declaredClaudeCode.usage.fresh_passes;
+// The used fraction at which a window is full.
+const FULL = 1;
+
+/**
+ * The moment the latest of a login's windows read full resets, where one is and has not reset by `now`, in epoch
+ * seconds: the account judgement's reading of the windows, as the Rust side makes it. A full window that names
+ * its reset closes the login until then however old its reading; one that names none closes it only while its
+ * reading stands — younger than the reader's span and later than the login's unread mark — for the policy's
+ * fallback after it was seen.
+ */
+export async function fullWindowUntil(archive: Archive, account: string, now: number = Date.now()): Promise<number | null> {
+  const nowSeconds = Math.floor(now / 1000);
+  const unread = await storedMoment(archive, `usage_windows_unread:${account}`);
+  let until: number | null = null;
+
+  for (const window of await archive.usage().usageWindows(CLAUDE_CODE_MODE, account)) {
+    if (window.utilization < FULL) {
+      continue;
+    }
+
+    const stands = window.seenAt >= nowSeconds - readingStandsSeconds && (unread === null || window.seenAt > unread);
+    const reset = window.resetsAt !== null ? epochSeconds(window.resetsAt) : stands ? window.seenAt + declaredRest.fallback_seconds : null;
+
+    if (reset !== null && reset > nowSeconds) {
+      until = until === null ? reset : Math.max(until, reset);
+    }
+  }
+
+  return until;
 }
 
 function standing(until: number | null, now: number): number | null {
@@ -64,11 +110,24 @@ export async function outageRest(archive: Archive, now: number = Date.now()): Pr
 }
 
 /**
- * How long one account's own limit rest stands, or nothing. A rest written with no login named is
- * this machine's own login's, which is the account that stands for it, so that account reads its
- * own key and the unnamed one alike.
+ * How long one account answers nothing for its limit, or nothing: the later of the rest written under
+ * it and a window of its own read full (`fullWindowUntil`), as the one account judgement reads it on
+ * the Rust side. A rest written with no login named is this machine's own login's, which is the account
+ * that stands for it, so that account reads its own key and the unnamed one alike.
  */
-export async function accountRestUntil(archive: Archive, account: string): Promise<number | null> {
+export async function accountRestUntil(archive: Archive, account: string, now: number = Date.now()): Promise<number | null> {
+  const own = await writtenRestUntil(archive, account);
+  const windowed = await fullWindowUntil(archive, account, now);
+
+  if (own === null || windowed === null) {
+    return own ?? windowed;
+  }
+
+  return Math.max(own, windowed);
+}
+
+// The rest written under one account, or under no login where it is this machine's own.
+async function writtenRestUntil(archive: Archive, account: string): Promise<number | null> {
   const own = await storedMoment(archive, accountRestKey(account));
 
   if (own !== null) {
@@ -84,14 +143,14 @@ export async function accountRestUntil(archive: Archive, account: string): Promi
 
 /** Whether this account will answer nothing until its own window resets. */
 export async function isAccountResting(archive: Archive, account: string, now: number = Date.now()): Promise<boolean> {
-  return standing(await accountRestUntil(archive, account), now) !== null;
+  return standing(await accountRestUntil(archive, account, now), now) !== null;
 }
 
 /** Every login the Claude road walks, with the rest it holds. */
-export async function accountRests(archive: Archive): Promise<{ account: string; until: number | null }[]> {
+export async function accountRests(archive: Archive, now: number = Date.now()): Promise<{ account: string; until: number | null }[]> {
   return mapInOrder((await enabledClaudeAccounts(archive)), async (account) => ({
     account: account.id,
-    until: await accountRestUntil(archive, account.id),
+    until: await accountRestUntil(archive, account.id, now),
   }));
 }
 
@@ -107,7 +166,7 @@ export async function restUntil(archive: Archive, now: number = Date.now()): Pro
     return outage;
   }
 
-  const rests = (await accountRests(archive)).map((one) => standing(one.until, now));
+  const rests = (await accountRests(archive, now)).map((one) => standing(one.until, now));
 
   if (rests.length === 0 || rests.some((until) => until === null)) {
     return null;
@@ -121,7 +180,7 @@ export async function isResting(archive: Archive, now: number = Date.now()): Pro
 }
 
 export function restUntilFor(settings: Pick<RestSettings, "restFallbackMs">, resetsAt: number | null): number {
-  return resetsAt ?? Math.floor((Date.now() + settings.restFallbackMs) / 1000);
+  return resetsAt === null ? Math.floor((Date.now() + settings.restFallbackMs) / 1000) : epochSeconds(resetsAt);
 }
 
 /**
@@ -141,6 +200,7 @@ export async function writeRest(
   kind: RestKind = "limit",
   account: string = recordedAccount(null),
 ): Promise<boolean> {
+  until = epochSeconds(until);
   const wasResting = await isResting(archive);
 
   if (kind === "outage") {

@@ -146,8 +146,6 @@ credential_kind = "--kind is one of: {kinds}."
 account_add = "usage: bmo-agency agent --account-add <name> --path <dir|file> [--kind directory|token|endpoint] [--endpoint <url>] [--key-file <path>] [--models opus=<id>,sonnet=<id>,haiku=<id>] [--base-prompt <name|none>]"
 account_set = "usage: bmo-agency agent --account-set <account> [--name <name>] [--path <dir|file>] [--kind directory|token|endpoint] [--endpoint <url>] [--key-file <path>] [--models opus=<id>,sonnet=<id>,haiku=<id>] [--base-prompt <name|none>]"
 models_shape = "--models is opus, sonnet or haiku each paired with the endpoint's model id, as --models opus=<id>,sonnet=<id>,haiku=<id>."
-# A worker {worker} the owner did not add, set to rest or woken.
-not_restable = "{worker} is not a worker that can rest or wake: only a worker the owner added rests, and neither the built-in worker nor a support worker does."
 no_worker = "There is no worker named {worker}."
 # A repository named {name} that the store does not hold.
 no_repository = "There is no repository named {name}."

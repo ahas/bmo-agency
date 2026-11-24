@@ -585,7 +585,10 @@ When a demotion first catches — when a healthy session first drops — two thi
   it as waiting for a person; a balance never read closes nothing.
 - **A window read full closes its login** whether or not any run has met the refusal yet. The windows are
   read on a clock from the account's own login, so a login spent elsewhere is closed by the reading, and
-  a rest removed by hand does not reopen a login whose window is still full.
+  a rest removed by hand does not reopen a login whose window is still full. The administrator's end of the
+  deployment's rest (`docs/api.md`, 「accounts, rest and usage」) is the one exception: it sets the full windows
+  kept for the platform's own logins aside with their rests, so they answer again at once, and the reader's
+  next reading of each login closes it again where its window is still full.
 - **A full window that names its reset closes its login until that reset, however old its reading,**
   since nothing but a newer reading can say it came back early: a newer reading that finds it short of
   full opens the login at once, and the reset opens it on time. A login spent until a day later

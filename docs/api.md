@@ -1288,6 +1288,7 @@ notice that holds nothing is withdrawn.
 | PATCH | `/accounts/{accountId}` | Record an account's usage and its rest. |
 | GET | `/rest` | Whether the deployment rests, until when, of what kind. |
 | PATCH | `/rest` | Set the rest, or clear a rest that has passed. |
+| DELETE | `/rest` | End the rest by hand. |
 | GET | `/usage` | Usage by model, checkout, repository, holder, room, round, account or supply source over a span, with session contexts. |
 | GET | `/personal-supply` | A person's own gateway keys, or each person's roads for the administrator. |
 | POST | `/personal-supply` | Add a key of the signed-in person's for a gateway road. |
@@ -1336,10 +1337,26 @@ read full — until the soonest of them reopens. A person's or an organisation's
 rest nor lifts it. `GET /rest` answers `resting`, `until` in epoch seconds and `kind`, `outage` where the
 service's own rest stands and `limit` otherwise, both null where it does not rest. `PATCH /rest` with `until`
 in epoch seconds, `kind` (`limit` or `outage`) and `account` writes a rest as a run's failure would, and
-answers `silenced`, whether it was the rest that silenced the deployment. `PATCH /rest` with `clearPassed`
-clears every rest whose moment has passed and answers `kind`, the kind of the silence that has just ended,
-once: the silence told as it began where one was, else one the passed rests held; null while the deployment
-still rests or where no silence ended.
+answers what then stands: `resting`, whether the deployment rests now; `until`, the moment the rest it wrote
+or found stands until, `kind` and `accountId`, the login it stands under, null for the outage; `written`,
+false where a rest already standing there was left as it stood; and `silenced`, whether it was the rest that
+silenced the deployment. `PATCH /rest` with `clearPassed` clears every rest whose moment has passed and
+answers `kind`, the kind of the silence that has just ended, once: the silence told as it began where one was,
+else one the passed rests held; null while the deployment still rests or where no silence ended.
+
+A moment is kept in epoch seconds, wherever it comes from: one written in milliseconds — a figure past the
+seconds of any date the deployment can meet — is read and kept as the second it names, so a reset reported in
+milliseconds never rests a login for ever. That holds for a rest written through either route, for a usage
+report's reset moments and for a rest already kept.
+
+`DELETE /rest` is the administrator's end of the rest, for a quota the owner knows has come back before the
+moment kept for it: it clears the service's outage, every rest written under the platform's own logins, a
+limit's or a refusal's, and every model's rest on them, and sets aside the full windows kept for those logins
+until their reader reads them again (`docs/cache-fallback.md`, 「The account judgement」). It answers
+`ended`, whether the deployment rested before it, with `resting`, `until` and `kind` as the deployment stands
+after it: a login whose next reading finds its window still full closes again, and the silence it makes is
+told again as any silence is. The end is answered once to whoever clears the passed rests, as a rest that
+passed on its own is.
 
 The silence is published once as it begins, as `rest.changed` (「Events」) with `account`, the login whose
 limit closed it or null, `kind`, `until` and `notice`, the rest policy's words: by whatever writes the limit's

@@ -1149,7 +1149,8 @@ export interface paths {
         get: operations["getRest"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** End the rest by hand. */
+        delete: operations["endRest"];
         options?: never;
         head?: never;
         /** Set the rest, or clear a rest that has passed. */
@@ -4361,16 +4362,23 @@ export interface components {
              */
             keys: number;
         };
-        /** @description Rest: */
+        /** @description Rest: the deployment's rest as it stands, or as a write or an end of it left it. */
         Rest: {
             resting: boolean;
             /**
              * Format: int64
-             * @description epoch milliseconds
+             * @description epoch seconds
              */
             until: number | null;
             kind: string | null;
-            accountId: string | null;
+            /** @description The login a written rest stands under, null for the service's outage. */
+            accountId?: string | null;
+            /** @description Whether a write wrote its rest, false where one already standing there was left as it stood. */
+            written?: boolean | null;
+            /** @description Whether a write's rest was the one that silenced the deployment. */
+            silenced?: boolean | null;
+            /** @description Whether the deployment rested before an end by hand. */
+            ended?: boolean | null;
         };
         /** @description The body that writes a rest down. */
         RestAsk: {
@@ -9382,6 +9390,27 @@ export interface operations {
         };
     };
     getRest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Rest"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+        };
+    };
+    endRest: {
         parameters: {
             query?: never;
             header?: never;

@@ -1416,15 +1416,26 @@ pub struct Account {
   pub lendable: bool,
 }
 
-/// Rest:
+/// Rest: the deployment's rest as it stands, or as a write or an end of it left it.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Rest {
   pub resting: bool,
-  /// epoch milliseconds
+  /// epoch seconds
   pub until: Option<i64>,
   pub kind: Option<String>,
+  /// The login a written rest stands under, null for the service's outage.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
   pub account_id: Option<String>,
+  /// Whether a write wrote its rest, false where one already standing there was left as it stood.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub written: Option<bool>,
+  /// Whether a write's rest was the one that silenced the deployment.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub silenced: Option<bool>,
+  /// Whether the deployment rested before an end by hand.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub ended: Option<bool>,
 }
 
 /// SupervisorRoad: a supervisor's one road, and whether a turn would go out on it now.
@@ -1577,7 +1588,7 @@ pub struct Worker {
   pub builtin: bool,
   pub node_name: Option<String>,
   pub role: Option<String>,
-  /// resting, working while a job of its is starting or running, or idle
+  /// working while a job of its is starting or running, or idle
   pub state: String,
   /// The job it is working on, where it is working.
   #[serde(default)]
@@ -1586,8 +1597,6 @@ pub struct Worker {
   #[serde(default)]
   pub item_id: Option<i64>,
   pub sampling: Value,
-  /// epoch milliseconds
-  pub resting_since: Option<i64>,
   pub session_id: Option<String>,
   pub run_count: i64,
   /// epoch milliseconds

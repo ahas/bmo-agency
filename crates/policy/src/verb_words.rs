@@ -163,7 +163,6 @@ pub struct AgentsWords {
   pub account_add: String,
   pub account_set: String,
   pub models_shape: String,
-  pub not_restable: String,
   pub no_worker: String,
   pub no_repository: String,
   pub support_count: String,

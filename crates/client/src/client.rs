@@ -800,6 +800,11 @@ impl AgencyClient {
     Self::answered(self.request(Method::PATCH, &["rest"]).json(body)).await
   }
 
+  /// `DELETE /rest`: End the rest by hand.
+  pub async fn end_rest(&self) -> Answer<Rest> {
+    Self::answered(self.request(Method::DELETE, &["rest"])).await
+  }
+
   /// `GET /usage`: Usage by model, agent, user or room over a span, with session contexts.
   pub async fn get_usage(&self, query: &GetUsageQuery) -> Answer<Usage> {
     Self::answered(self.request(Method::GET, &["usage"]).query(query)).await

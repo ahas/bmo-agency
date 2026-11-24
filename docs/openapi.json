@@ -4681,6 +4681,31 @@
             }
           }
         }
+      },
+      "delete": {
+        "operationId": "endRest",
+        "tags": [
+          "rest"
+        ],
+        "summary": "End the rest by hand.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Rest"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        },
+        "x-codes": [
+          "unauthorized"
+        ]
       }
     },
     "/usage": {
@@ -15450,7 +15475,7 @@
               "null"
             ],
             "format": "int64",
-            "description": "epoch milliseconds"
+            "description": "epoch seconds"
           },
           "kind": {
             "type": [
@@ -15462,16 +15487,37 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "The login a written rest stands under, null for the service's outage."
+          },
+          "written": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether a write wrote its rest, false where one already standing there was left as it stood."
+          },
+          "silenced": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether a write's rest was the one that silenced the deployment."
+          },
+          "ended": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Whether the deployment rested before an end by hand."
           }
         },
         "required": [
           "resting",
           "until",
-          "kind",
-          "accountId"
+          "kind"
         ],
-        "description": "Rest:"
+        "description": "Rest: the deployment's rest as it stands, or as a write or an end of it left it."
       },
       "RestAsk": {
         "type": "object",

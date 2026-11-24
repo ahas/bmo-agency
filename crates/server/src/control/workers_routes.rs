@@ -28,7 +28,10 @@ use crate::queue::routes::{
 };
 use crate::queue::stops::{StoppedRun, clear_job_stop, job_stop_reason, mark_job_stopped};
 use crate::queue::workers::Worker;
-use crate::rest::{RestKind, clear_passed_rests, rest_kind, rest_until, tell_silence, write_rest};
+use crate::rest::{
+  RestKind, clear_passed_rests, end_rest, rest_kind, rest_until, seconds_of, standing_rest, tell_silence,
+  write_rest,
+};
 
 fn bad(error: impl Into<String>) -> Refused {
   Refused::new(StatusCode::BAD_REQUEST, error)
@@ -335,6 +338,7 @@ impl Route for RestWrite {
     let until = body
       .get("until")
       .and_then(Value::as_f64)
+      .map(seconds_of)
       .ok_or_else(|| bad("until (seconds) is required"))?;
     let kind = match body.get("kind").and_then(Value::as_str) {
       Some("limit") => RestKind::Limit,
@@ -342,20 +346,30 @@ impl Route for RestWrite {
       _ => return Err(bad("kind is limit or outage")),
     };
     let account = body.get("account").and_then(Value::as_str).unwrap_or_default();
-    let silenced = write_rest(Judging::of(call.ground()), until, kind, account, now_ms() / 1000).await?;
+    let judging = Judging::of(call.ground());
+    let now = now_ms() / 1000;
+    let standing = standing_rest(judging, kind, account, now).await?;
+    let silenced = write_rest(judging, until, kind, account, now).await?;
+    let kept = standing_rest(judging, kind, account, now).await?;
 
     if silenced {
-      tell_silence(call.ground(), kind, Some(account).filter(|named| !named.is_empty()), until as i64)
-        .await?;
+      tell_silence(
+        call.ground(),
+        kind,
+        Some(account).filter(|named| !named.is_empty()),
+        kept.unwrap_or(until as i64),
+      )
+      .await?;
     }
 
     Ok(answer(
       StatusCode::OK,
       json!({
-        "resting": true,
-        "until": until as i64,
-        "kind": body.get("kind").cloned().unwrap_or(Value::Null),
-        "accountId": body.get("account").cloned().unwrap_or(Value::Null),
+        "resting": rest_until(judging, now).await?.is_some(),
+        "until": kept,
+        "kind": kind.word(),
+        "accountId": (kind != RestKind::Outage).then_some(account),
+        "written": standing.is_none(),
         "silenced": silenced,
       }),
     ))
@@ -363,6 +377,33 @@ impl Route for RestWrite {
 }
 
 crate::moved!(RestWrite);
+
+/// The administrator's end of the rest: every written rest of the platform's own logins, the outage and the
+/// models' rests cleared and the full windows set aside, answered with the rest as it stands after.
+pub struct RestEnd;
+
+impl Route for RestEnd {
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/rest";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let judging = Judging::of(call.ground());
+    let now = now_ms() / 1000;
+    let ended = end_rest(judging, now).await?;
+    let until = rest_until(judging, now).await?;
+    let kind = match until {
+      Some(_) => Some(rest_kind(call.store(), now).await?),
+      None => None,
+    };
+
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "resting": until.is_some(), "until": until, "kind": kind, "ended": ended }),
+    ))
+  }
+}
+
+crate::moved!(RestEnd);
 
 /// Usage by model, checkout, repository, holder, room or round over a span, with session contexts.
 pub struct UsageRoute;
@@ -791,18 +832,4 @@ async fn by_runs(
     })
     .collect::<Result<_, sea_orm::DbErr>>()
     .map_err(Refused::from)
-}
-
-/// Why the rest that has just passed silenced the deployment, the passed rests cleared as they are read.
-pub struct RestPassed;
-
-impl Route for RestPassed {
-  const METHOD: Method = Method::GET;
-  const PATH: &'static str = "/rest/passed";
-
-  async fn answer(&self, call: Call) -> Result<Response, Refused> {
-    let kind = clear_passed_rests(Judging::of(call.ground()), now_ms() / 1000).await?;
-
-    Ok(answer(StatusCode::OK, json!({ "kind": kind.map(RestKind::word) })))
-  }
 }

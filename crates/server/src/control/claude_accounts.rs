@@ -637,9 +637,15 @@ pub async fn login_homes(db: &DatabaseConnection, machine: &Machine) -> Result<V
   Ok(homes)
 }
 
-/// A moment a setting holds, read as the whole number it was written as.
+/// A moment a setting holds in epoch seconds, read as the whole number it was written as, one written in
+/// milliseconds read as the second it names.
 async fn moment(db: &DatabaseConnection, key: &str) -> Result<Option<i64>, Refused> {
-  Ok(setting(db, key).await?.and_then(|value| leading_integer(&value)))
+  Ok(
+    setting(db, key)
+      .await?
+      .and_then(|value| leading_integer(&value))
+      .map(store::settings::epoch_seconds),
+  )
 }
 
 pub use store::settings::leading_integer;

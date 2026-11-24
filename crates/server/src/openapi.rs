@@ -1777,6 +1777,17 @@ pub const OPERATIONS: &[Operation] = &[
     codes: &[],
   },
   Operation {
+    method: "DELETE",
+    path: "/rest",
+    id: "endRest",
+    tag: "rest",
+    summary: "End the rest by hand.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("Rest"), false)],
+    codes: &[],
+  },
+  Operation {
     method: "GET",
     path: "/usage",
     id: "getUsage",
