@@ -602,6 +602,22 @@ fn a_result_for_a_person_is_in_the_asker_s_language_and_what_agents_read_of_each
   assert!(prompt("agents/pieces/handoff.md").contains("Write it in English"));
 }
 
+// A room's session handed over consolidates its brain in the handoff turn before it writes its note, bounded as
+// at a fold and leaving the fold's report to the receiver (docs/supervisors.md, 「Its limit」).
+#[test]
+fn a_room_session_handed_over_consolidates_its_brain_before_its_note() {
+  let handoff = std::fs::read_to_string(tree().join("prompts/agents/pieces/handoff.md")).unwrap();
+  let at = |words: &str| handoff.find(words).unwrap_or_else(|| panic!("{words:?} is missing: {handoff}"));
+
+  assert!(at("brain_unconsolidated") < at("brain_learn"), "{handoff}");
+  assert!(at("brain_learn") < at("brain_consolidated"), "{handoff}");
+  assert!(at("brain_consolidated") < at("Then write that note"), "{handoff}");
+  at("never all of them");
+  at("as its grounds");
+  at("Do not call brain_fold");
+  assert!(!handoff.contains("Use no tool for it."), "{handoff}");
+}
+
 // A chat with no folder of its own works in the deploy tree's link, whose path stays the same across
 // releases, so the resident program's record of its session is taken up again after a restart rather
 // than a fresh session opened under a new release path (docs/sessions.md, 「A restart hands the session

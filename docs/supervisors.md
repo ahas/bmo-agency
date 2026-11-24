@@ -394,6 +394,14 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
     `prompts/agents/pieces/handoff.md`, sent as an ordinary turn on the very run the room's turns go out
     as, so the engine reads only the instruction past what it already holds and the session writes the
     note with the whole conversation in front of it;
+  - the session consolidates its brain first, in the same turn and with its brain tools: the first of its
+    unconsolidated episodes the brain answers, as many as the turn can afford and never all, each draft that
+    passes the review written with the episodes it rests on as its grounds and every episode read marked
+    consolidated, the consolidation the receiver asks of a session before a fold (the receiver's
+    `docs/unified-bmo.md`, 「The brain's consolidation」). It calls no `brain_fold`: the receiver reports the
+    fold to the brain as it releases the generation that ended. Only then does it write the note, which is the
+    turn's answer, so every handover of a room's session — its mark, its documents, its road or a reset —
+    lets no session go with its episodes unread;
   - nothing of it goes into the room and no word of the room is taken by it: it is no round of the
     room's, its usage is the supervisor's, its log is a run of its own, `handoff:<room>:<time>`, and the
     instruction and the note are kept as the last turn of the generation they close;
