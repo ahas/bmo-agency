@@ -249,9 +249,9 @@ sessions reach it as `my/<entry>` from their next turn.
 | `take` | `tool` | `{"t": "taken"}` | takes the tool's pointer and every version away |
 | `file` | `tool`, `version`, `path` | `{"t": "file", "bytes"}` | answers one file of a version's `screen/` folder by its path below it, its bytes in base64 |
 
-  A `said` line carries each line a build writes on its errors before the answer, and a `refused` line, why the
-  runner did nothing, as on a call's passage. `files` is the version's description by path: its manifest and the
-  schemas and manuals the manifest names, as text.
+  A `said` line carries each line a build, or an MCP server's listing, writes on its errors before the answer, its
+  secrets masked, and a `refused` line, why the runner did nothing, as on a call's passage. `files` is the version's
+  description by path: its manifest and the schemas and manuals the manifest names, as text.
 - **A place builds confined, as a call runs:** the app's folder read alone at `/src`, where the build starts, and the
   new version's folder written at `/out`, named by `BMO_TOOL_OUT`, with the machine's own `/usr`, no network and a
   clean environment, by `sh` running the manifest's `build`; the manifest and the files it names are copied beside

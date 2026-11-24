@@ -49,6 +49,12 @@ enum Verb {
     #[arg(last = true, required = true)]
     run: Vec<String>,
   },
+  /// Inside an MCP server's confinement, in its version's folder: the call on standard input made of the server,
+  /// or with `--list` its tools listed (docs/person-nodes.md, 「MCP servers」).
+  Mcp {
+    #[arg(long)]
+    list: bool,
+  },
   /// The far end, on the node: watch, send, write and signal over standard input and output.
   Serve {
     /// The workplace's root on the node.
@@ -120,6 +126,7 @@ async fn main() -> ExitCode {
       ExitCode::SUCCESS
     }
     Verb::Forward { listen, to, run } => node_link::proxy::forward(&listen, &to, &run).await,
+    Verb::Mcp { list } => node_link::mcp::adapt(list).await,
     Verb::Serve {
       root,
       bridge,

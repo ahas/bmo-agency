@@ -34,9 +34,12 @@ hyper-util.workspace = true
 # The jake hub asked to let go of the listens it keeps for a person's PC.
 reqwest.workspace = true
 libc.workspace = true
+# An MCP server's version spoken to as a client inside its confinement (docs/person-nodes.md, 「MCP servers」).
+rmcp = { workspace = true, features = ["client", "transport-child-process", "transport-streamable-http-client-reqwest"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tokio.workspace = true
-# An app's manifest read as the runner places it (docs/person-nodes.md, 「Personal apps」).
-toml.workspace = true
+# An app's manifest read as the runner places it (docs/person-nodes.md, 「Personal apps」), and an MCP server's
+# manifest written as its listing makes it (「MCP servers」).
+toml = { workspace = true, features = ["display"] }

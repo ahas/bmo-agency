@@ -7,6 +7,7 @@
 //! answered by one line.
 
 use std::collections::BTreeMap;
+use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -16,6 +17,7 @@ use serde_json::json;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
+use crate::mcp::{MCP_FILE, MCP_TOOLS, McpFile};
 use crate::runner::{Answered, Kept, Runner, apps_dir, machine_words, plain_name, program_stands};
 
 /// The manifest's file in an app's folder and in each version.
@@ -173,6 +175,12 @@ const SCREEN_MODULE: &str = "module.js";
 pub enum Asked {
   Place {
     tool: String,
+    /// For an MCP server's folder, the addresses its listing may reach.
+    #[serde(default)]
+    network: Vec<String>,
+    /// For an MCP server's folder, the secrets its listing is handed, each file's bytes in base64 by its name.
+    #[serde(default)]
+    secrets: BTreeMap<String, String>,
   },
   Describe {
     tool: String,
@@ -526,32 +534,74 @@ impl Drop for Staged {
   }
 }
 
+// What a place reads an app's folder by: its manifest, or an MCP server's `mcp.toml` the manifest is made for.
+enum Shape {
+  App(Manifest),
+  Mcp(McpFile),
+}
+
+// What a place carries for an MCP server's listing: the addresses it may reach, and the secrets it is handed.
+type Carried<'a> = (&'a [String], &'a BTreeMap<String, String>);
+
 // The app's folder placed as a new version: built confined where its manifest names a build, copied whole
-// otherwise; each line the build writes on its errors said as it comes. The caller going away ends the build.
+// otherwise; each line the build writes on its errors said as it comes. The caller going away ends the build. An
+// MCP server's folder is placed as an app's, then its tools listed and its manifest made of them; where it asks for
+// what the place does not carry, nothing is placed and what it asks for is answered.
 async fn place(
   runner: &Runner,
   owned: &Owned,
   tool: &str,
+  carried: Carried<'_>,
   input: &mut (impl AsyncRead + Unpin),
   said: &mut (impl AsyncWrite + Unpin),
 ) -> Answered {
   let source = owned.apps.join(tool);
-  let manifest = match Manifest::read(&source) {
-    Ok(manifest) => manifest,
+  let shape = if source.join(MCP_FILE).is_file() {
+    McpFile::read(&source).map(Shape::Mcp)
+  } else {
+    Manifest::read(&source).map(Shape::App)
+  };
+  let shape = match shape {
+    Ok(shape) => shape,
     Err(why) => {
       return Answered::Refused {
         why: format!("the app {tool}: {why}"),
       };
     }
   };
+  let (named, build, files, screen) = match &shape {
+    Shape::App(manifest) => (
+      &manifest.tool.name,
+      manifest.tool.build.as_deref(),
+      manifest.named_files(),
+      manifest.screen.is_some(),
+    ),
+    Shape::Mcp(file) => (&file.server.name, file.server.build.as_deref(), vec![MCP_FILE.to_owned()], false),
+  };
 
-  if manifest.tool.name != tool {
-    return Answered::Refused {
-      why: format!(
-        "the app {tool}'s manifest names the tool {}, not its folder's name",
-        manifest.tool.name
-      ),
+  if named != tool {
+    let why = match &shape {
+      Shape::App(_) => format!("the app {tool}'s manifest names the tool {named}, not its folder's name"),
+      Shape::Mcp(_) => {
+        format!("the app {tool}'s {MCP_FILE} names the server {named}, not its folder's name")
+      }
     };
+
+    return Answered::Refused { why };
+  }
+
+  if let Shape::Mcp(file) = &shape {
+    let asks = file.asks();
+    let (network, secrets) = carried;
+
+    if asks.network.iter().any(|address| !network.contains(address))
+      || asks.secrets.iter().any(|secret| !secrets.contains_key(secret))
+    {
+      return Answered::Wants {
+        network: asks.network,
+        secrets: asks.secrets,
+      };
+    }
   }
 
   let version = fresh();
@@ -564,7 +614,7 @@ async fn place(
     };
   }
 
-  match manifest.tool.build.as_deref().filter(|build| !build.trim().is_empty()) {
+  match build.filter(|build| !build.trim().is_empty()) {
     Some(build) => {
       if !program_stands(&runner.bwrap) {
         return Answered::Refused {
@@ -631,7 +681,7 @@ async fn place(
         };
       }
 
-      for file in manifest.named_files() {
+      for file in files {
         if !inside(&file) {
           return Answered::Refused {
             why: format!("its manifest names {file}, which is not inside its folder"),
@@ -664,11 +714,17 @@ async fn place(
     }
   }
 
-  if manifest.screen.is_some()
-    && let Err(why) = write_index(&staged)
-  {
+  if screen && let Err(why) = write_index(&staged) {
     return Answered::Refused {
       why: format!("the app {tool}'s placed version: {why}"),
+    };
+  }
+
+  if let Shape::Mcp(file) = &shape
+    && let Err(why) = listed_into(runner, owned, tool, &staged, file, carried, input, said).await
+  {
+    return Answered::Refused {
+      why: format!("the MCP server {tool}: {why}"),
     };
   }
 
@@ -697,6 +753,112 @@ async fn place(
 
   staging.0 = None;
   Answered::Placed { version, files }
+}
+
+// An MCP server's staged version given its manifest: its tools listed by the runner's own binary run confined as a
+// call runs, `node-link mcp --list`, reaching the addresses and handed the secrets the place carries, each line it
+// writes on its errors said masked as it comes; then the manifest made of them, its schemas and the entries' server
+// tools written into the version. A listing that fails or lists nothing is refused, as is the caller going away.
+#[allow(clippy::too_many_arguments)]
+async fn listed_into(
+  runner: &Runner,
+  owned: &Owned,
+  tool: &str,
+  staged: &Path,
+  file: &McpFile,
+  (network, secrets): Carried<'_>,
+  input: &mut (impl AsyncRead + Unpin),
+  said: &mut (impl AsyncWrite + Unpin),
+) -> Result<(), String> {
+  if !program_stands(&runner.bwrap) {
+    return Err(format!(
+      "bubblewrap ({}) is not on this machine, and an MCP server is listed confined or not at all",
+      runner.bwrap
+    ));
+  }
+
+  let data = crate::runner::data_dir(&runner.root, &owned.owner, tool);
+
+  std::fs::DirBuilder::new()
+    .recursive(true)
+    .mode(0o700)
+    .create(&data)
+    .map_err(|why| format!("{}: {why}", data.display()))?;
+
+  let run = [crate::runner::OWN_BINARY_AT, "mcp", "--list"].map(str::to_owned);
+  let mut launched = crate::runner::launch(runner, staged, &data, &run, network, secrets, Stdio::null())?;
+  let masks = launched.masks.clone();
+  let mut child = launched.take_child();
+  let mut errors = child.stderr.take().map(|stderr| BufReader::new(stderr).lines());
+  let reading = child.stdout.take().map(|mut stdout| {
+    tokio::spawn(async move {
+      let mut out = Vec::new();
+      let _ = stdout.read_to_end(&mut out).await;
+      out
+    })
+  });
+  let mut last = Vec::new();
+  let mut rest = Vec::new();
+  let gone = input.read_to_end(&mut rest);
+
+  tokio::pin!(gone);
+
+  loop {
+    tokio::select! {
+      line = next_line(&mut errors) => match line {
+        Some(line) => {
+          let line = crate::runner::masked(&masks, line);
+          let _ = said.write_all(Answered::Said { line: line.clone() }.line().as_bytes()).await;
+
+          last.push(line);
+
+          if last.len() > 5 {
+            last.remove(0);
+          }
+        }
+        None => break,
+      },
+      _ = &mut gone => {
+        let _ = child.start_kill();
+        let _ = child.wait().await;
+
+        return Err("the caller went away before its tools were listed".to_owned());
+      }
+    }
+  }
+
+  let out = match reading {
+    Some(reading) => reading.await.unwrap_or_default(),
+    None => Vec::new(),
+  };
+  let ended = child.wait().await.ok();
+
+  launched.end();
+
+  if !ended.is_some_and(|status| status.success()) {
+    return Err(format!("its tools could not be listed: {}", last.join("\n")));
+  }
+
+  let out = crate::runner::masked(&masks, String::from_utf8_lossy(&out).into_owned());
+  let listing: crate::mcp::Listing =
+    serde_json::from_str(out.trim()).map_err(|why| format!("its listing does not read: {why}"))?;
+  let made = crate::mcp::made(file, &listing.tools)?;
+  let names = serde_json::to_string_pretty(&made.names)
+    .map_err(|why| format!("its {MCP_TOOLS} could not be written: {why}"))?;
+
+  for (path, text) in std::iter::once((MANIFEST.to_owned(), made.manifest))
+    .chain(made.schemas)
+    .chain(std::iter::once((MCP_TOOLS.to_owned(), names)))
+  {
+    let to = staged.join(&path);
+
+    to.parent()
+      .map_or(Ok(()), std::fs::create_dir_all)
+      .and_then(|()| std::fs::write(&to, text))
+      .map_err(|why| format!("{path} could not be written: {why}"))?;
+  }
+
+  Ok(())
 }
 
 // The tool's pointer moved onto a version standing, written whole; then every version but it and the newest kept
@@ -917,7 +1079,7 @@ pub async fn keep(
     Ok(line) => {
       let owned = Owned::of(&runner, &line.owner);
       let named = match &line.asked {
-        Asked::Place { tool }
+        Asked::Place { tool, .. }
         | Asked::Take { tool }
         | Asked::Adopt { tool }
         | Asked::Receive { tool, .. } => vec![("tool", tool)],
@@ -935,7 +1097,11 @@ pub async fn keep(
           why: format!("{name:?} is no {what}'s name"),
         },
         None => match &line.asked {
-          Asked::Place { tool } => place(&runner, &owned, tool, &mut input, &mut output).await,
+          Asked::Place {
+            tool,
+            network,
+            secrets,
+          } => place(&runner, &owned, tool, (network, secrets), &mut input, &mut output).await,
           Asked::Describe { tool, version } => match description(&owned.versions(tool).join(version)) {
             Ok(files) => Answered::Described {
               version: version.clone(),

@@ -32,6 +32,7 @@ hyper-util = { version = "0.1.21", features = ["client", "client-legacy", "clien
 indexmap = { version = "2.14.2", features = ["serde"] }
 libc = "0.2.177"
 reqwest = { version = "0.13.5", features = ["json", "query", "stream"] }
+rmcp = { version = "3.5.0", default-features = false, features = ["server", "transport-io"] }
 sea-orm = { version = "1.1.17", default-features = false, features = ["macros", "runtime-tokio-rustls", "sqlx-postgres"] }
 sea-orm-migration = { version = "1.1.17", default-features = false, features = ["runtime-tokio-rustls", "sqlx-postgres"] }
 serde = { version = "1.0.219", features = ["derive"] }

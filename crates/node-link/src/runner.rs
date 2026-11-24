@@ -36,9 +36,10 @@ pub const BWRAP_VARIABLE: &str = "NODE_LINK_BWRAP";
 const TOOL_AT: &str = "/tool";
 const DATA_AT: &str = "/data";
 
-/// Where a confined tool reaching the network finds the runner's own binary, which forwards its loopback to the
-/// proxy, and the proxy's socket.
-const FORWARDER_AT: &str = "/.bmo/node-link";
+/// Where a confined run finds the runner's own binary — which forwards its loopback to the proxy where it reaches the
+/// network, and which speaks MCP for an MCP server's version (docs/person-nodes.md, 「MCP servers」) — and the proxy's
+/// socket.
+pub const OWN_BINARY_AT: &str = "/.bmo/node-link";
 const PROXY_AT: &str = "/.bmo/proxy.sock";
 
 /// Where a confined tool finds the secrets its call carries, one file a secret by its name, and the variable naming
@@ -96,6 +97,12 @@ pub enum Answered {
   End { code: Option<i32>, out: String },
   /// Why the runner did not run the tool, or did not do what it was asked.
   Refused { why: String },
+  /// An MCP server's version placed nothing, since it asks for addresses or secrets the place does not carry: every
+  /// address and every secret's name it asks for.
+  Wants {
+    network: Vec<String>,
+    secrets: Vec<String>,
+  },
   /// An app placed as a new version, pointed at by nothing yet, and its description by path.
   Placed {
     version: String,
@@ -210,12 +217,14 @@ pub fn confined(version: &Path, data: &Path, run: &[String]) -> Vec<String> {
   words
 }
 
-/// What one call's confinement adds to [`confined`]: the proxy's socket and the runner's own binary, which forwards
-/// the confinement's loopback to it, where the call names addresses; and each secret the call carries, read from the
+/// What one call's confinement adds to [`confined`]: the runner's own binary, read alone at `/.bmo/node-link`, where
+/// the call reaches the network or its run words open on it; the proxy's socket, which the binary forwards the
+/// confinement's loopback to, where the call names addresses; and each secret the call carries, read from the
 /// descriptor given, by its name.
 #[derive(Debug, Default)]
 pub struct Opened {
-  pub proxy: Option<(PathBuf, PathBuf)>,
+  pub binary: Option<PathBuf>,
+  pub proxy: Option<PathBuf>,
   pub secrets: Vec<(String, i32)>,
 }
 
@@ -228,8 +237,13 @@ pub fn confined_call(version: &Path, data: &Path, run: &[String], opened: &Opene
   let command_at = words.iter().position(|word| word == "--").unwrap_or(words.len());
   let mut added: Vec<String> = Vec::new();
 
-  if let Some((binary, socket)) = &opened.proxy {
-    added.extend(["--ro-bind".into(), binary.to_string_lossy().into_owned(), FORWARDER_AT.into()]);
+  if let Some(binary) = &opened.binary {
+    added.extend(["--ro-bind".into(), binary.to_string_lossy().into_owned(), OWN_BINARY_AT.into()]);
+  }
+
+  let forwarded = opened.binary.is_some() && opened.proxy.is_some();
+
+  if let Some(socket) = opened.proxy.as_ref().filter(|_| forwarded) {
     added.extend(["--bind".into(), socket.to_string_lossy().into_owned(), PROXY_AT.into()]);
 
     for certificates in CERTIFICATES {
@@ -256,10 +270,10 @@ pub fn confined_call(version: &Path, data: &Path, run: &[String], opened: &Opene
 
   words.extend(added);
 
-  if opened.proxy.is_some() {
+  if forwarded {
     words.push("--".into());
     words.extend([
-      FORWARDER_AT.to_owned(),
+      OWN_BINARY_AT.to_owned(),
       "forward".to_owned(),
       "--listen".to_owned(),
       crate::proxy::LISTEN_AT.to_owned(),
@@ -418,82 +432,16 @@ pub async fn run(
       return;
     }
   };
-  let handed = match handed_secrets(&asked.secrets) {
-    Ok(handed) => handed,
-    Err(why) => {
-      let _ = output.write_all(Answered::Refused { why }.line().as_bytes()).await;
-      return;
-    }
-  };
-  let masks = std::sync::Arc::new(masks(&handed));
-  // The call's proxy, served while the tool runs and taken away with its folder as the call ends.
-  let mut proxy = None;
-  let mut opened = Opened::default();
-
-  if !asked.network.is_empty() {
-    match own_binary().and_then(|binary| Ok((binary, serve_proxy(&runner, &asked.network)?))) {
-      Ok((binary, (folder, serving))) => {
-        opened.proxy = Some((binary, folder.socket()));
-        proxy = Some((folder, serving));
-      }
+  let mut launched =
+    match launch(&runner, &version, &data, &asked.run, &asked.network, &asked.secrets, Stdio::piped()) {
+      Ok(launched) => launched,
       Err(why) => {
         let _ = output.write_all(Answered::Refused { why }.line().as_bytes()).await;
         return;
       }
-    }
-  }
-
-  let readers = match secret_pipes(&handed) {
-    Ok(readers) => readers,
-    Err(why) => {
-      let _ = output.write_all(Answered::Refused { why }.line().as_bytes()).await;
-      return;
-    }
-  };
-
-  opened.secrets = readers.iter().map(|(name, reader)| (name.clone(), reader.as_raw_fd())).collect();
-
-  let inherited: Vec<i32> = opened.secrets.iter().map(|(_, descriptor)| *descriptor).collect();
-  let mut command = tokio::process::Command::new(&runner.bwrap);
-
-  command
-    .args(confined_call(&version, &data, &asked.run, &opened))
-    .env_clear()
-    .stdin(Stdio::piped())
-    .stdout(Stdio::piped())
-    .stderr(Stdio::piped())
-    .kill_on_drop(true);
-
-  // SAFETY: between the fork and the exec only `fcntl` runs, on descriptors this process holds open, so bubblewrap
-  // inherits the secrets' reading ends and nothing else of this process's.
-  unsafe {
-    command.pre_exec(move || {
-      for descriptor in &inherited {
-        if libc::fcntl(*descriptor, libc::F_SETFD, 0) == -1 {
-          return Err(std::io::Error::last_os_error());
-        }
-      }
-
-      Ok(())
-    });
-  }
-
-  let spawned = command.spawn();
-
-  // This process's own reading ends go: bubblewrap holds its copies, and reads each to its end as it starts.
-  drop(readers);
-
-  let mut child = match spawned {
-    Ok(child) => child,
-    Err(why) => {
-      let refused = Answered::Refused {
-        why: format!("bubblewrap ({}) could not be started: {why}", runner.bwrap),
-      };
-
-      let _ = output.write_all(refused.line().as_bytes()).await;
-      return;
-    }
-  };
+    };
+  let masks = launched.masks.clone();
+  let mut child = launched.take_child();
   let call = serde_json::to_vec(&asked.call).unwrap_or_default();
 
   if let Some(mut stdin) = child.stdin.take() {
@@ -542,14 +490,6 @@ pub async fn run(
 
   // The call's proxy and its folder go as the tool ends, before the answer, so nothing of the call is left on the PC
   // when its caller, answered, closes the passage and the runner with it.
-  let mut proxy = proxy;
-  let mut ended_call = move || {
-    if let Some((folder, serving)) = proxy.take() {
-      serving.abort();
-      drop(folder);
-    }
-  };
-
   tokio::select! {
     out = reading => {
       let ended = child.wait().await.ok();
@@ -558,7 +498,7 @@ pub async fn run(
         let _ = said.await;
       }
 
-      ended_call();
+      launched.end();
 
       let _ = lines.send(Answered::End {
         code: ended.and_then(|status| status.code()),
@@ -568,12 +508,114 @@ pub async fn run(
     () = gone => {
       let _ = child.start_kill();
       let _ = child.wait().await;
-      ended_call();
+      launched.end();
     }
   }
 
   drop(lines);
   let _ = writer.await;
+}
+
+/// One confined run started: bubblewrap's process until it is taken, the call's proxy served while it runs, and what
+/// is masked in what it writes, each with its secret's name.
+pub struct Launched {
+  child: Option<tokio::process::Child>,
+  proxy: Option<(crate::proxy::CallFolder, tokio::task::JoinHandle<()>)>,
+  pub masks: std::sync::Arc<Vec<(String, String)>>,
+}
+
+impl Launched {
+  /// Bubblewrap's process, its standard input, output and errors piped.
+  pub fn take_child(&mut self) -> tokio::process::Child {
+    self.child.take().expect("a launched run's process is taken once")
+  }
+
+  /// The run's proxy and its folder taken away.
+  pub fn end(&mut self) {
+    if let Some((folder, serving)) = self.proxy.take() {
+      serving.abort();
+      drop(folder);
+    }
+  }
+}
+
+impl Drop for Launched {
+  fn drop(&mut self) {
+    self.end();
+  }
+}
+
+/// `run` started confined in the version folder, writing the data folder: reaching the addresses `network` lists
+/// through a proxy of its own, handed the secrets `secrets` carries, each by its name and its bytes in base64, and
+/// the runner's own binary bound where it reaches the network or its run words open on it. Bubblewrap's standard
+/// output and errors are piped, its input `input`; it is killed as it is dropped.
+pub fn launch(
+  runner: &Runner,
+  version: &Path,
+  data: &Path,
+  run: &[String],
+  network: &[String],
+  secrets: &BTreeMap<String, String>,
+  input: Stdio,
+) -> Result<Launched, String> {
+  let handed = handed_secrets(secrets)?;
+  let masks = std::sync::Arc::new(masks(&handed));
+  let mut opened = Opened::default();
+  let mut proxy = None;
+
+  if !network.is_empty() || run.first().is_some_and(|first| first == OWN_BINARY_AT) {
+    opened.binary = Some(own_binary()?);
+  }
+
+  if !network.is_empty() {
+    let (folder, serving) = serve_proxy(runner, network)?;
+
+    opened.proxy = Some(folder.socket());
+    proxy = Some((folder, serving));
+  }
+
+  let readers = secret_pipes(&handed)?;
+
+  opened.secrets = readers.iter().map(|(name, reader)| (name.clone(), reader.as_raw_fd())).collect();
+
+  let inherited: Vec<i32> = opened.secrets.iter().map(|(_, descriptor)| *descriptor).collect();
+  let mut command = tokio::process::Command::new(&runner.bwrap);
+
+  command
+    .args(confined_call(version, data, run, &opened))
+    .env_clear()
+    .stdin(input)
+    .stdout(Stdio::piped())
+    .stderr(Stdio::piped())
+    .kill_on_drop(true);
+
+  // SAFETY: between the fork and the exec only `fcntl` runs, on descriptors this process holds open, so bubblewrap
+  // inherits the secrets' reading ends and nothing else of this process's.
+  unsafe {
+    command.pre_exec(move || {
+      for descriptor in &inherited {
+        if libc::fcntl(*descriptor, libc::F_SETFD, 0) == -1 {
+          return Err(std::io::Error::last_os_error());
+        }
+      }
+
+      Ok(())
+    });
+  }
+
+  let spawned = command.spawn();
+
+  // This process's own reading ends go: bubblewrap holds its copies, and reads each to its end as it starts.
+  drop(readers);
+
+  let child =
+    spawned.map_err(|why| format!("bubblewrap ({}) could not be started: {why}", runner.bwrap))?;
+
+  Ok(Launched {
+    child: Some(child),
+    proxy,
+    masks,
+  })
 }
 
 // The secrets a call carries, each decoded, by its name; or why not, naming the secret and never what it holds.
@@ -622,8 +664,8 @@ fn masks(handed: &BTreeMap<String, Vec<u8>>) -> Vec<(String, String)> {
   masks
 }
 
-// A line the tool wrote with every secret's value in it masked.
-fn masked(masks: &[(String, String)], mut text: String) -> String {
+/// A line the tool wrote with every secret's value in it masked.
+pub fn masked(masks: &[(String, String)], mut text: String) -> String {
   for (value, mask) in masks {
     if text.contains(value.as_str()) {
       text = text.replace(value.as_str(), mask);

@@ -597,14 +597,15 @@ fn a_call_reaches_its_listed_names_alone_and_reads_its_secrets_for_the_call() {
   assert_eq!(fs::read_dir(&scratch).unwrap().count(), 0);
 }
 
-// "a call's confinement binds its proxy and the forwarder where it names addresses, and each secret from its own
-// descriptor, read alone"
+// "a call's confinement binds its proxy and the forwarder where it names addresses, the runner's own binary where its
+// run words open on it, and each secret from its own descriptor, read alone"
 #[test]
 fn a_call_s_confinement_carries_its_proxy_and_secrets() {
   let version = Path::new("/r/owners/a1/tools/probe/v1");
   let data = Path::new("/r/owners/a1/data/probe");
   let opened = node_link::runner::Opened {
-    proxy: Some(("/proc/7/exe".into(), "/tmp/bmo-call-1/proxy.sock".into())),
+    binary: Some("/proc/7/exe".into()),
+    proxy: Some("/tmp/bmo-call-1/proxy.sock".into()),
     secrets: vec![("team-key".to_owned(), 9)],
   };
   let words =
@@ -626,6 +627,18 @@ fn a_call_s_confinement_carries_its_proxy_and_secrets() {
   let plain = node_link::runner::confined_call(version, data, &["true".into()], &Default::default());
 
   assert_eq!(plain, node_link::runner::confined(version, data, &["true".into()]));
+
+  // A run opening on the runner's own binary, as an MCP server's does, has it bound with no proxy.
+  let own = node_link::runner::Opened {
+    binary: Some("/proc/7/exe".into()),
+    ..Default::default()
+  };
+  let mcp = ["/.bmo/node-link".to_owned(), "mcp".to_owned()];
+  let joined = node_link::runner::confined_call(version, data, &mcp, &own).join(" ");
+
+  assert!(joined.contains("--ro-bind /proc/7/exe /.bmo/node-link"), "{joined}");
+  assert!(!joined.contains("proxy"), "{joined}");
+  assert!(joined.ends_with("-- /.bmo/node-link mcp"), "{joined}");
 }
 
 // "an address a manifest lists is a name, a domain's subdomains or either on a port; an address written whole, a

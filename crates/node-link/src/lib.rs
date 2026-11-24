@@ -8,6 +8,7 @@ pub mod frame;
 pub mod home;
 pub mod hub;
 pub mod keeping;
+pub mod mcp;
 pub mod proxy;
 pub mod rewrite;
 pub mod runner;
