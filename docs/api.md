@@ -1651,7 +1651,8 @@ where the shell stands in an agent's program, else the owner.
 - **A caller naming a person with `Owner-Key` acts on that person's account alone;** another account in the path is
   403 `forbidden`. A caller of the deployment's own names the account, as the console does for the person signed in
   and agency's app put does for the account its record names.
-- **The listing** answers `items`, one per app: `name`, `version`, `putAt` in epoch milliseconds, `entries`, each
+- **The listing** answers `items`, one per app: `name`; `kind`, `mcp` for an MCP server (`docs/person-nodes.md`, 「MCP
+  servers」) and `app` for every other; `version`, `putAt` in epoch milliseconds, `entries`, each
   `{name, title, description}` by its full name, `permissions`, `{network, secrets}`, and `kept`, the versions its
   PC keeps older than the current, newest first, null where the PC was not reached; and `reached`, whether it was.
 - **The screen session** is issued at the tool host for the account and nothing else (`docs/person-nodes.md`,

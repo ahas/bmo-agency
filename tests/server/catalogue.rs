@@ -963,6 +963,11 @@ async fn an_mcp_server_is_put_under_its_own_key_shared_and_installed_carrying_it
   assert_eq!(places.last().unwrap()["network"], json!(["mcp.example.com"]));
   assert_eq!(home_pointer(&stood, MAKER, "tracker").unwrap()["app"], "own-17-tracker");
 
+  // The maker's listing of their personal apps names it an MCP server.
+  let listed = personal_apps::list(ground, &MAKER.to_string()).await.unwrap();
+
+  assert_eq!(listed["items"][0]["kind"], "mcp", "{listed}");
+
   // Shared as an app is, its kind read off its source, and shown with how it is reached.
   let maker = reader(&stood, MAKER).await;
   let shared = catalogue::share(ground, &maker, "tracker", &[], (None, None)).await.unwrap();

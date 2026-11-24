@@ -708,6 +708,12 @@ pub async fn remove(ground: &Ground, account: &str, name: &str) -> Result<Outcom
 /// null where the PC was not reached; and whether it was.
 pub async fn list(ground: &Ground, account: &str) -> Result<Value, Fault> {
   let tools = listed_tools(ground, account).await?;
+  let servers: std::collections::BTreeSet<String> = crate::attachments::mcp_items(ground, account, false)
+    .await
+    .unwrap_or_default()
+    .into_iter()
+    .map(|item| item.name)
+    .collect();
   let kept = match runner(ground, account).await {
     Ok(runner) => {
       tokio::time::timeout(LISTING_WAIT, ask(&runner, &json!({ "owner": account, "versions": {} })))
@@ -726,8 +732,11 @@ pub async fn list(ground: &Ground, account: &str) -> Result<Value, Fault> {
         .as_ref()
         .map(|kept| kept[tool["name"].as_str().unwrap_or_default()]["kept"].clone());
 
+      let name = tool["name"].as_str().unwrap_or_default();
+
       json!({
         "name": tool["name"],
+        "kind": if servers.contains(name) { "mcp" } else { "app" },
         "version": tool["version"],
         "putAt": tool["putAt"],
         "entries": tool["entries"],

@@ -19980,6 +19980,10 @@
           "name": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "description": "`mcp` for an MCP server, `app` for every other."
+          },
           "version": {
             "type": "string"
           },
@@ -20008,6 +20012,7 @@
         },
         "required": [
           "name",
+          "kind",
           "version",
           "putAt",
           "entries",

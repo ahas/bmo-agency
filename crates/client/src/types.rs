@@ -3990,6 +3990,8 @@ pub struct PersonalAppPermissions {
 #[serde(rename_all = "camelCase")]
 pub struct PersonalApp {
   pub name: String,
+  /// `mcp` for an MCP server, `app` for every other.
+  pub kind: String,
   pub version: String,
   pub put_at: i64,
   pub entries: Vec<PersonalAppEntry>,

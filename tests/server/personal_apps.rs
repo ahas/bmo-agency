@@ -197,6 +197,7 @@ async fn an_app_is_put_updated_sent_back_listed_and_removed_on_both_sides() {
 
   assert_eq!(listed["reached"], true, "{listed}");
   assert_eq!(listed["items"][0]["name"], "weekly");
+  assert_eq!(listed["items"][0]["kind"], "app");
   assert_eq!(listed["items"][0]["version"], newer);
   assert_eq!(listed["items"][0]["kept"], json!([version]));
   assert_eq!(listed["items"][0]["entries"][0]["description"], "Sums up the week, shorter.");

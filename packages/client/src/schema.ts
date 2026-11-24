@@ -5858,6 +5858,8 @@ export interface components {
          */
         PersonalApp: {
             name: string;
+            /** @description `mcp` for an MCP server, `app` for every other. */
+            kind: string;
             version: string;
             /** Format: int64 */
             putAt: number;
