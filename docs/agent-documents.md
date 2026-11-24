@@ -86,6 +86,13 @@ composed into a system prompt, and what the supervisor's own prompt is made of.
   agency's own agents' prompts for inspection, and for each runner the directory it runs in, which sits
   outside the repository on purpose so that neither a project instruction file up the tree nor the
   repository's git status can enter a runner's prefix.
+- **The tree is laid anew whole, and nothing a standing program reads is lost with it.** What the entry
+  writes is built beside the tree and put in its place in one rename. Into the new tree go, beside what the
+  entry writes itself, the system prompt files a launch wrote within the last day, and every file under the
+  tree that a place's program names — its commands' words and the files it needs (`docs/agent-control.md`,
+  「One standing pane per supervisor」) — whatever its age: a supervisor's MCP configuration and its system
+  prompt are written by its turns, not by the entry, and a program standing in a place starts again on
+  them whenever it dies, however long ago its last turn was.
 
 ## A supervisor of the window shape
 

@@ -48,6 +48,86 @@ fn only_a_live_process_of_the_record_is_told_alive() {
   assert_eq!(alive_in(dir.path()), vec![Identity { pid: own, birth }]);
 }
 
+// A place under the far end's data root with a program written, and what its running record names.
+fn place_with_program(
+  places: &std::path::Path,
+  name: &str,
+  running: Option<serde_json::Value>,
+) -> std::path::PathBuf {
+  let dir = places.join(name);
+
+  fs::create_dir_all(&dir).expect("place");
+  fs::write(dir.join("program.json"), "{}").expect("program");
+
+  if let Some(running) = running {
+    fs::write(dir.join("running.json"), running.to_string()).expect("running");
+  }
+
+  dir
+}
+
+fn place_pull(places: &std::path::Path, name: &str) -> Pull {
+  Pull {
+    remote: places.join(name).to_string_lossy().into(),
+    files: vec![PLACE_RECORD.to_owned(), "start-failed.json".to_owned()],
+    tree: false,
+    append: false,
+    alive: true,
+  }
+}
+
+// "a place no node's latest watch list names has its program let go and its process ended; a node heard from before
+// keeps its own places"
+#[test]
+fn a_place_no_node_s_watch_list_names_is_let_go_and_another_node_s_are_kept() {
+  let dir = tempfile::tempdir().expect("dir");
+  let places = dir.path();
+  let mut sleeper = std::process::Command::new("sleep").arg("60").spawn().expect("sleep");
+  let pid = sleeper.id() as i32;
+  let birth = process_birth(pid).expect("birth");
+  let own = place_with_program(places, "u7", None);
+  let other = place_with_program(places, "u60", None);
+  let stale = place_with_program(places, "u12", Some(serde_json::json!({ "pid": pid, "birth": birth })));
+  let mirror = Mirror::default();
+
+  // Only the pull of a place's running record names a place; a transcript pull names none.
+  let transcripts = Pull {
+    remote: dir.path().join("projects").to_string_lossy().into(),
+    files: vec![],
+    tree: true,
+    append: true,
+    alive: false,
+  };
+  let named = places_named(&[place_pull(places, "u60"), transcripts]);
+
+  assert_eq!(named, ["u60".to_owned()].into());
+
+  // The first node to speak keeps its place; every other place with a program is let go, its process ended.
+  let mut let_go = mirror.keep_places("jake-wsl", named, places);
+
+  let_go.sort();
+  assert_eq!(let_go, vec!["u12".to_owned(), "u7".to_owned()]);
+  assert!(other.join("program.json").exists());
+  assert!(!own.join("program.json").exists());
+  assert!(!stale.join("program.json").exists());
+  assert!(
+    sleeper.wait().is_ok_and(|status| !status.success()),
+    "the stale place's process was not ended"
+  );
+
+  // A program written again for a place another node names stays, and the first node's place stays beside it.
+  fs::write(own.join("program.json"), "{}").expect("program again");
+
+  assert!(mirror.keep_places("u4", ["u7".to_owned()].into(), places).is_empty());
+  assert!(own.join("program.json").exists() && other.join("program.json").exists());
+
+  // A node's list naming none of its places any more lets them go.
+  assert_eq!(
+    mirror.keep_places("u4", std::collections::BTreeSet::new(), places),
+    vec!["u7".to_owned()]
+  );
+}
+
 // "a newer mirror session of a node ends the node's one before it, and is ended in turn by the next; another node's
 // stands beside them"
 #[test]

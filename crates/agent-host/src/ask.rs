@@ -18,7 +18,8 @@ use crate::disk::{now_ms, private_dir_below, private_file, publish, read_json};
 use crate::identity::ProcessIdentity;
 use crate::layout::{Layout, name_component};
 use crate::place::{
-  Place, RunningProgram, StartFailure, in_a_loop, next_start, recent_starts, restart_delay,
+  FILES_WAIT_MS, Place, ResidentProgram, RunningProgram, StartFailure, in_a_loop, next_start,
+  recent_starts, restart_delay,
 };
 use crate::signals::signal_process;
 
@@ -180,9 +181,12 @@ impl Asks {
   }
 
   // How long the agent's written program has stood with no live head holding it, or none where no
-  // program is written, one is held or it rests. The agent is named as its place's directory is.
+  // program is written, one is held, it rests or it waits for its files. The agent is named as its place's
+  // directory is.
   fn unheld_for(&mut self, agent: &str, place: &Place, now: u64) -> Option<Duration> {
-    if place.program().is_none() || place.resting() || place.held_elsewhere(None, now) {
+    let waiting = place.program().is_some_and(|program| files_gone(agent, place, &program, now));
+
+    if waiting || place.program().is_none() || place.resting() || place.held_elsewhere(None, now) {
       self.unheld_since.remove(agent);
       return None;
     }
@@ -226,7 +230,8 @@ impl Asks {
     let now = now_ms();
     let place = Place::of(&self.data_root, agent);
     let unheld = self.unheld_for(&name_component(agent), &place, now);
-    let held = place.program().is_some() && unheld.is_none() && !place.resting();
+    let waiting = place.program().is_some_and(|program| !program.missing().is_empty());
+    let held = place.program().is_some() && unheld.is_none() && !place.resting() && !waiting;
 
     // A head opened for a host beside a pane holding the program is a display left over: the pane
     // is the program's, and this one lets go.
@@ -414,6 +419,35 @@ impl Asks {
       }
     }
   }
+}
+
+/// Whether a file the program needs is gone, which keeps it from starting: no head becomes it and no view gives
+/// way to it, so a program whose configuration was taken costs nothing, and it starts by itself once the file is
+/// back. Once the program has stood written past the wait for its files with one still gone, the place records
+/// why it does not start, for the turn waiting on it (docs/agent-control.md, 「One standing pane per supervisor」).
+fn files_gone(agent: &str, place: &Place, program: &ResidentProgram, now: u64) -> bool {
+  let missing = program.missing();
+  let Some(first) = missing.first() else {
+    return false;
+  };
+
+  if place.program_written_at().is_some_and(|at| now.saturating_sub(at) >= FILES_WAIT_MS) {
+    let reason = format!("{}: a file its command names is not there", first.display());
+
+    if !place.failure_holds(&program.identity, &reason) {
+      eprintln!("agent-host: {agent}'s program is not started: {reason}");
+
+      if let Err(why) = place.record_failure(&StartFailure {
+        identity: &program.identity,
+        at: now,
+        reason: &reason,
+      }) {
+        eprintln!("agent-host: {agent}'s unstarted program could not be recorded: {why}");
+      }
+    }
+  }
+
+  true
 }
 
 /// One connection answered: a request line in, an answer line out. Its asker's line is waited for until it

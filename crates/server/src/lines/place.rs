@@ -509,6 +509,22 @@ pub fn resident_of(
   }
 }
 
+/// The files a program's commands name that it cannot start without: every word of either command that is the
+/// absolute path of a file standing as the program is written. The agent host starts the program only while each
+/// is there (docs/agent-control.md, 「One standing pane per supervisor」).
+pub fn needed_files(program: &Program) -> Vec<PathBuf> {
+  let mut needed: Vec<PathBuf> = std::iter::once(&program.command)
+    .chain(program.restart.as_ref())
+    .flat_map(|command| command.args.iter())
+    .map(PathBuf::from)
+    .filter(|path| path.is_absolute() && path.is_file())
+    .collect();
+
+  needed.sort();
+  needed.dedup();
+  needed
+}
+
 /// A place: where it is, and the machine whose processes it names.
 pub struct Place {
   pub path: PathBuf,
@@ -635,7 +651,12 @@ impl Place {
       carry(&mut command.env);
     }
 
-    let mut bytes = serde_json::to_vec(&program).map_err(|why| fault(why.to_string()))?;
+    let mut written = serde_json::to_value(&program).map_err(|why| fault(why.to_string()))?;
+
+    written["needs"] =
+      serde_json::to_value(needed_files(&program)).map_err(|why| fault(why.to_string()))?;
+
+    let mut bytes = serde_json::to_vec(&written).map_err(|why| fault(why.to_string()))?;
 
     bytes.push(b'\n');
     agent_host::disk::publish_bytes(&self.program_file(), &bytes)

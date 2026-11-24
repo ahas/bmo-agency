@@ -526,6 +526,63 @@ fn a_program_in_a_loop_rests_with_the_view_until_its_place_changes() {
 }
 
 #[test]
+fn a_program_whose_needed_file_is_gone_starts_nothing_says_why_and_starts_once_the_file_is_back() {
+  let root = Root::new();
+  let said = root.data.path().join("started");
+  let config = root.data.path().join("chat.mcp.json");
+
+  root.giving_way();
+  root.program(
+    "chat",
+    &format!("touch {}; sleep 30", said.display()),
+    json!({ "needs": [config.clone()] }),
+  );
+
+  // Freshly written, the program waits for its file: the head follows the view, nothing is started, and no
+  // failure is said yet, since a node's link may still be bringing the file.
+  let follower = root.spawn("chat", "p1", &[]);
+
+  assert!(within(3_000, || cmdline(follower.pid()).starts_with("tail -n 200 -F ")));
+  assert!(root.read("chat", "running.json").is_null());
+  assert!(root.read("chat", "start-failed.json").is_null());
+
+  // Written long enough ago, the place says which file keeps it from starting, and the view still stands.
+  let program = root.place("chat").join("program.json");
+
+  fs::File::options()
+    .write(true)
+    .open(&program)
+    .unwrap()
+    .set_modified(SystemTime::now() - Duration::from_secs(60))
+    .unwrap();
+  assert!(matches!(root.ask("chat", std::process::id() as i32), Answer::View { .. }));
+
+  let failed = root.read("chat", "start-failed.json");
+
+  assert_eq!(failed["identity"], "one");
+  assert_eq!(failed["reason"], format!("{}: a file its command names is not there", config.display()));
+  thread::sleep(Duration::from_millis(1_000));
+  assert!(
+    cmdline(follower.pid()).starts_with("tail -n 200 -F "),
+    "the view gave way to a program with no file"
+  );
+  assert!(!said.exists());
+
+  // The file back, the view gives way and a head starts the program.
+  let mut follower = follower;
+
+  fs::write(&config, "{}").unwrap();
+  assert!(
+    follower.ended(6_000).is_some(),
+    "the follower stood in the way of a program whose file is back"
+  );
+
+  let _head = root.spawn("chat", "p1", &[]);
+
+  assert!(within(4_000, || said.exists()));
+}
+
+#[test]
 fn a_program_held_elsewhere_gets_the_view_and_the_view_gives_way_once_it_is_not() {
   let root = Root::new();
   let holder = Holder::new();

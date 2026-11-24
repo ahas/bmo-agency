@@ -151,6 +151,13 @@ side of a remote agent, the rotation, and what a dropped node does.
 - **The far end makes sure of what stands on the node** whether a link holds it or not: the agent host
   of the node's data root, which the heads there ask, and the herdr session, each started apart from
   the connection where it does not stand.
+- **The far end keeps only the places a link names.** Each watch list names the places of its node, by the
+  running record it pulls of each. The far end keeps the latest list of every node a session spoke for, for as
+  long as it stands, and a place under the node's data root that none of them names has its program file
+  removed and the program its running record names ended: its head is answered the view, and nothing starts it
+  again. So a place whose account moved to another node, was unbound, or whose node's agent went away on a
+  machine another node's link now holds stands no program there, and nothing of it starts in a loop. The near
+  end forgets what it sent of a place its spec no longer names, so a place named again is sent whole again.
 - **The mirror keeps one direction per file:**
   - from here to the node: an agent place's program, its settings, its run and the handed mark, with
     this machine's data root, deploy tree, prompt tree and home rewritten to the node's, and the folder of

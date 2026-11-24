@@ -736,6 +736,10 @@ impl Pushing {
 
     wanted.extend(self.followers.iter().map(|path| (path.clone(), true)));
 
+    // A file no longer pushed is forgotten as sent: the far end lets go of a place its watch list no longer names,
+    // so a place named again is sent whole again.
+    self.sent.retain(|path, _| wanted.iter().any(|(one, _)| one == path));
+
     for (path, rewrite) in wanted {
       let remote = spec.to_node(&path.to_string_lossy());
 

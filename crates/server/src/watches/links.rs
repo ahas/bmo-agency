@@ -30,7 +30,7 @@ use crate::peers::node::{HubReach, NodeService};
 const PUSHED_PLACE_FILES: [&str; 4] = ["program.json", "settings.json", "run.json", "handed"];
 
 /// What a place's running record and start failure are pulled as.
-const PULLED_PLACE_FILES: [&str; 2] = ["running.json", "start-failed.json"];
+const PULLED_PLACE_FILES: [&str; 2] = [node_link::serve::PLACE_RECORD, "start-failed.json"];
 
 /// The variables a program on a node is started with, of those this machine's launch gave it: among them the
 /// console's public address and a supervisor's owner account, which its secret requests are written with, and a
@@ -1030,6 +1030,23 @@ pub fn mark_place_node(place: &Path, node: Option<&str>) -> Result<(), String> {
   }
 }
 
+// A place about to be marked for another node, or for this machine, whose mark names a node now: its program let go
+// first, while the mark still sends the end through that node's link, so nothing of it stands on the node it left.
+// The next turn or standing pass writes the program again where the place now stands; a turn going in the place
+// keeps its program, and the node it left takes it away once its link names the place no more (docs/person-nodes.md,
+// 「Which node is a person's」).
+async fn moved_off(roots: &Roots, agent: &str) {
+  let place = crate::lines::place::Place::of(&roots.data, agent);
+  let turn_going = crate::door::place_run::read_run(&place.path).is_some_and(|run| run.ended_at.is_none());
+
+  if let Some(left) = place.node()
+    && !turn_going
+    && place.release().await.is_some()
+  {
+    println!("{agent}: its place leaves {left}, so its program there is let go");
+  }
+}
+
 /// Every link brought to what the store says: a spec written and its unit standing for every ready
 /// workplace, the unit stopped for every other, and each worker's place marked with the node it stands
 /// on, or unmarked where it came back.
@@ -1046,6 +1063,7 @@ pub async fn settle(
     let place = roots.place(&agent);
 
     if place_node(&place) != node {
+      moved_off(roots, &agent).await;
       mark_place_node(&place, node.as_deref())?;
     }
   }
@@ -1055,6 +1073,8 @@ pub async fn settle(
     let place = roots.place(&agent);
 
     if place_node(&place) != node {
+      moved_off(roots, &agent).await;
+
       let folder = harness_machine::supervisor_prompt::homes(&roots.data).join(&agent);
 
       mark_place_on(&place, node.as_deref(), &folder.display().to_string())?;

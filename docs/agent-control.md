@@ -82,7 +82,8 @@ The owner's words:
   told.** Only the line knows the agent's command — its model, its prompt file, its session — so the
   launcher writes the program into the agent's place before a turn: the command to start it on, the
   command to start it again on, which resumes the session the first one opened, the record whose
-  existence says that session is open, and its identity.
+  existence says that session is open, its identity, and the files it needs — every word of either
+  command that is the absolute path of a file standing as the program is written.
   - **The head is `pane-head`,** a Rust program of a few megabytes. Each time the pane's loop starts it,
     it asks the agent host of its data root what this pane is to become, handing the agent's name, its
     pane and its own process.
@@ -97,6 +98,14 @@ The owner's words:
   - **Where no program is written, or a live head already holds it,** the agent host answers the view:
     the head replaces itself with a follower of the agent's view file, which the host writes
     (「The host」).
+  - **A program whose files are gone is not started.** The agent host starts a program only while every
+    file it needs is there. With one gone — a configuration taken from under it, a file a node's link has
+    not brought yet — every head is answered the view, the place does not read as unheld, so no view
+    gives way to it, and nothing of the program starts: no loop, and no cost to the machine. Once the
+    program has stood written for thirty seconds with a file still gone, the place records a failed start
+    naming the file, which the turn waiting on it reads, once per program and reason. The program starts
+    by itself once the file is back — a turn writing its configuration again, the link bringing it — as
+    the view then gives way.
   - **A program could not be started** — the executable is not on the path — and the head tells the
     agent host why before it ends, which records it in the place as a failed start the turn waiting on
     it reads; the try counts as a start, so the restart bound holds a program that cannot come up.

@@ -3,7 +3,7 @@
 //! sends, tells which processes of a place are alive, carries a signal to one, and reads the node's
 //! load and memory. It ends with the session.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, PermissionsExt, symlink};
@@ -250,14 +250,20 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
       let listener = tokio::net::TcpListener::bind(address.as_str()).await?;
       let mirror = Arc::new(Mirror::default());
       let tools = Arc::new(options.root.join("data").join(crate::runner::PERSONAL_TOOLS));
+      let places = Arc::new(places_of(&options.root));
       loop {
         let (socket, _) = listener.accept().await?;
-        tokio::spawn(connection(socket, carrier.clone(), mirror.clone(), tools.clone()));
+        tokio::spawn(connection(socket, carrier.clone(), mirror.clone(), tools.clone(), places.clone()));
       }
     }
     _ => {
       // Over standard input and output one near end stands for the whole of the far end's life.
       let (_standing, superseded) = oneshot::channel();
+      let keeping = Keeping {
+        mirror: Arc::new(Mirror::default()),
+        node: String::new(),
+        places: places_of(&options.root),
+      };
 
       session(
         BufReader::new(tokio::io::stdin()),
@@ -265,6 +271,7 @@ pub async fn serve(options: Serve) -> std::io::Result<()> {
         Greeting::Owed,
         None,
         superseded,
+        keeping,
       )
       .await
     }
@@ -300,6 +307,7 @@ async fn connection(
   carrier: Arc<Carrier>,
   mirror: Arc<Mirror>,
   tools: Arc<PathBuf>,
+  places: Arc<PathBuf>,
 ) {
   let (reader, mut writer) = socket.into_split();
 
@@ -330,8 +338,13 @@ async fn connection(
       };
       let superseded = mirror.newest(&node);
       let _turn = mirror.turn(&node).lock_owned().await;
+      let keeping = Keeping {
+        mirror: mirror.clone(),
+        node,
+        places: places.as_ref().clone(),
+      };
 
-      session(reader, writer, Greeting::Said(first), Some(carrier), superseded).await;
+      session(reader, writer, Greeting::Said(first), Some(carrier), superseded, keeping).await;
     }
   }
 }
@@ -444,6 +457,55 @@ pub async fn run_tool(
 #[derive(Default)]
 pub struct Mirror {
   nodes: Mutex<HashMap<String, Turns>>,
+  /// The places each node's latest watch list names, by their folder's name, kept for the far end's life.
+  placed: Mutex<HashMap<String, BTreeSet<String>>>,
+}
+
+/// The file a place's running record stands in, which every watch list pulls of each place it names.
+pub const PLACE_RECORD: &str = "running.json";
+
+/// The places a watch list names, by their folder's name: each pull that watches a place's running record.
+pub fn places_named(pulls: &[Pull]) -> BTreeSet<String> {
+  pulls
+    .iter()
+    .filter(|pull| pull.files.iter().any(|file| file == PLACE_RECORD))
+    .filter_map(|pull| Path::new(&pull.remote).file_name().map(|name| name.to_string_lossy().into_owned()))
+    .collect()
+}
+
+/// Every place under `places` that `kept` does not name let go (docs/work-nodes.md, 「The link」): its program file
+/// removed, so its head is answered the view and nothing starts it again, and the program its running record names
+/// ended where it is still that process. Answers the places let go.
+pub fn let_go_unnamed(places: &Path, kept: &BTreeSet<String>) -> Vec<String> {
+  let Ok(entries) = fs::read_dir(places) else { return Vec::new() };
+  let mut let_go = Vec::new();
+
+  for entry in entries.flatten() {
+    let name = entry.file_name().to_string_lossy().into_owned();
+    let dir = entry.path();
+
+    if kept.contains(&name) || fs::remove_file(dir.join("program.json")).is_err() {
+      continue;
+    }
+
+    let running = fs::read_to_string(dir.join(PLACE_RECORD))
+      .ok()
+      .and_then(|text| serde_json::from_str::<Running>(&text).ok());
+
+    if let Some(running) = running
+      && running.pid > 1
+      && running
+        .birth
+        .is_some_and(|birth| process_birth(running.pid).as_deref() == Some(birth.as_str()))
+    {
+      // SAFETY: a signal to the process the record names, checked a moment ago to be that process.
+      unsafe { libc::kill(running.pid, libc::SIGTERM) };
+    }
+
+    let_go.push(name);
+  }
+
+  let_go
 }
 
 /// One node's mirror sessions.
@@ -477,6 +539,20 @@ impl Mirror {
   fn nodes(&self) -> std::sync::MutexGuard<'_, HashMap<String, Turns>> {
     self.nodes.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
   }
+
+  /// The places a node's newest watch list names, kept as that node's, and every place under `places` that no
+  /// node's latest list names let go. A node heard from earlier keeps its places for as long as the far end stands,
+  /// so a node whose link dropped loses nothing to another's list. Answers the places let go.
+  pub fn keep_places(&self, node: &str, named: BTreeSet<String>, places: &Path) -> Vec<String> {
+    let kept: BTreeSet<String> = {
+      let mut placed = self.placed.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+      placed.insert(node.to_owned(), named);
+      placed.values().flatten().cloned().collect()
+    };
+
+    let_go_unnamed(places, &kept)
+  }
 }
 
 // Whether a session still owes its greeting, or said it already and read the near end's first frame.
@@ -493,6 +569,7 @@ async fn session(
   greeting: Greeting,
   carrier: Option<Arc<Carrier>>,
   mut superseded: oneshot::Receiver<()>,
+  keeping: Keeping,
 ) {
   let (send, mut sending) = mpsc::unbounded_channel::<Frame>();
   let (files, mut files_sending) = mpsc::channel::<Frame>(FILES_AHEAD);
@@ -562,7 +639,7 @@ async fn session(
       continue;
     }
 
-    if let Err(said) = take(frame, &asked) {
+    if let Err(said) = take(frame, &asked, &keeping) {
       let _ = send.send(Frame::Trouble { said });
     }
   }
@@ -639,9 +716,28 @@ impl Asked {
   }
 }
 
-fn take(frame: Frame, asked: &Mutex<Asked>) -> Result<(), String> {
+// Where a session keeps the places its node's watch lists name: the far end's sessions, the node it speaks for, and
+// the folder the places stand in under the workplace's data root.
+struct Keeping {
+  mirror: Arc<Mirror>,
+  node: String,
+  places: PathBuf,
+}
+
+/// The folder the places of a workplace stand in, under its data root.
+pub fn places_of(root: &Path) -> PathBuf {
+  root.join("data").join("agent-places")
+}
+
+fn take(frame: Frame, asked: &Mutex<Asked>, keeping: &Keeping) -> Result<(), String> {
   match frame {
     Frame::Watch { pulls, held, list } => {
+      // A place no node's watch list names any more stands nothing on this node: an account moved to another node,
+      // or a node whose agent went away on a machine another node's link now holds.
+      for place in keeping.mirror.keep_places(&keeping.node, places_named(&pulls), &keeping.places) {
+        eprintln!("node-link: {place} is placed here by no node's link any more, so its program is let go");
+      }
+
       *asked.lock().map_err(|_| "the watch list is poisoned".to_owned())? = Asked { pulls, held, list };
       Ok(())
     }

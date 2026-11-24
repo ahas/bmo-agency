@@ -49,6 +49,13 @@ desktop coding agent whose models and tools are served from elsewhere.
   - while it waits the node is kept beside its kept record, so a restart neither waits on it nor loses it silently: the
     deployment's quiet does not count it, and the next server ends it failed with why (`docs/sessions.md`, 「A
     restart hands the session over」).
+- **An account whose record moves leaves nothing standing where it was.** When a supervisor's place is marked for
+  another node, or for this machine, its program is let go first while the old mark still sends the end through
+  the old node's link, and the next turn or standing pass writes it again where the place now stands; a turn going
+  in the place keeps its program. The old node's far end, as its link next names its places, lets go of every place
+  no link names any more (`docs/work-nodes.md`, 「The link」), so a node whose link was down at the move, or whose
+  agent went away for good on a PC another node's link holds, stands nothing of the account once a link speaks to
+  its far end again.
 - **A waiting turn is placed by the record standing now:** before each ask it reads its placement again, so a
   record taken away or set to another node while it waits places it on the node the account's present record
   gives, the isolation node where none stands, and it waits on that node instead, or starts at once where that

@@ -343,6 +343,52 @@ async fn a_program_written_into_its_place_carries_the_token_it_was_handed() {
   );
 }
 
+// "a program file names the files its commands need, which the agent host waits for before it starts it"
+#[tokio::test]
+async fn a_program_written_into_its_place_names_the_files_its_commands_need() {
+  let data = tempfile::tempdir().unwrap();
+  let place = Place::of(data.path(), "agent-b");
+  let config = data.path().join("chat.agent-b.mcp.json");
+  let prompt = data.path().join("prompt.md");
+  let gone = data.path().join("gone.json");
+
+  std::fs::write(&config, "{}").unwrap();
+  std::fs::write(&prompt, "you are").unwrap();
+
+  let command = |more: &[&Path]| ResidentCommand {
+    args: ["claude", "--mcp-config", &config.to_string_lossy(), "--add-dir"]
+      .into_iter()
+      .map(str::to_owned)
+      .chain([data.path().to_string_lossy().into_owned(), "relative.json".to_owned()])
+      .chain(more.iter().map(|path| path.to_string_lossy().into_owned()))
+      .collect(),
+    cwd: data.path().to_path_buf(),
+    env: BTreeMap::new(),
+    login_file: None,
+  };
+  let program = Program {
+    identity: "one".to_owned(),
+    command: command(&[&gone]),
+    restart: Some(command(&[&prompt])),
+    opened: None,
+  };
+
+  // A folder, a relative word and a path to nothing are needed by nobody; each file of either command once.
+  assert_eq!(needed_files(&program), vec![config.clone(), prompt.clone()]);
+
+  place.replace(&program).await.unwrap();
+
+  let written: Value =
+    serde_json::from_str(&std::fs::read_to_string(place.path.join("program.json")).unwrap()).unwrap();
+
+  assert_eq!(written["needs"], json!([config, prompt]));
+  assert_eq!(
+    place.program().unwrap(),
+    program,
+    "the files it needs are read back as the same program"
+  );
+}
+
 // "a place standing on a node has its status line and hooks answered at home, through the node's link"
 #[test]
 fn a_place_standing_on_a_node_has_its_status_line_and_hooks_answered_at_home() {

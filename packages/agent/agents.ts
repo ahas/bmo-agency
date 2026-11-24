@@ -3,7 +3,7 @@ import { TOOL_HOST_AUTHORIZATION, toolHostUrl } from "./tool-host";
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
-import { agentsRoot, assetRoot } from "@agency/support/roots";
+import { agentsRoot, assetRoot, dataRoot } from "@agency/support/roots";
 import declaredBrowser from "@agency/policy/browser.toml";
 import promptLayers from "@agency/policy/prompt-layers.toml";
 import { systemPromptFile } from "./prompt-files";
@@ -272,6 +272,45 @@ export function carryPrompts(from: string, into: string, now = Date.now()): void
   }
 }
 
+// A program standing in a place reads the files its command names for as long as it stands, and starts again on
+// them whenever it dies, however long ago a launch wrote them: a supervisor's MCP configuration and system prompt
+// are written by its turns, not by this deployment. So every file under the tree that a place's program names —
+// its commands' words and the files it says it needs — is carried into the rebuilt tree whatever its age, where
+// the deployment wrote no file of that path itself. A tree rebuilt from under a standing program would leave it
+// naming a file that is gone (docs/agent-documents.md, 「How the documents are composed」).
+export function carryNamed(root: string, into: string, places: string): void {
+  if (!existsSync(places)) {
+    return;
+  }
+
+  for (const place of readdirSync(places)) {
+    let program: { command?: { args?: unknown }; restart?: { args?: unknown } | null; needs?: unknown };
+
+    try {
+      program = JSON.parse(readFileSync(join(places, place, "program.json"), "utf8"));
+    } catch {
+      continue;
+    }
+
+    const words = [program.command?.args, program.restart?.args, program.needs].flatMap((list) => (Array.isArray(list) ? list : []));
+
+    for (const word of words) {
+      if (typeof word !== "string" || !word.startsWith(`${root}/`)) {
+        continue;
+      }
+
+      const carried = join(into, relative(root, word));
+
+      if (existsSync(carried) || !existsSync(word) || !statSync(word).isFile()) {
+        continue;
+      }
+
+      mkdirSync(dirname(carried), { recursive: true });
+      cpSync(word, carried, { preserveTimestamps: true });
+    }
+  }
+}
+
 // What one agent document could not be composed into, and what stands in its place.
 export interface AgentFault {
   // Where the document belongs inside the deployed tree.
@@ -373,6 +412,7 @@ export async function deployAgents(): Promise<AgentDeployment> {
   await compose(join(building, "worker", "trailer.md"), async () => workerTrailer());
 
   carryPrompts(join(root, "prompts"), join(building, "prompts"));
+  carryNamed(root, building, join(dataRoot(), "agent-places"));
 
   const previous = `${root}.previous`;
 

@@ -40,6 +40,17 @@ pub struct ResidentProgram {
   /// The record whose existence says that session is open.
   #[serde(default)]
   pub opened: Option<PathBuf>,
+  /// The files its commands name that it cannot start without, as the launcher found them when it wrote the
+  /// program (docs/agent-control.md, 「One standing pane per supervisor」).
+  #[serde(default)]
+  pub needs: Vec<PathBuf>,
+}
+
+impl ResidentProgram {
+  /// The files the program needs that are not there.
+  pub fn missing(&self) -> Vec<&Path> {
+    self.needs.iter().map(PathBuf::as_path).filter(|path| !path.is_file()).collect()
+  }
 }
 
 /// The program standing in the place: which identity, its process, the head that became it, and how
@@ -94,6 +105,9 @@ const FIRST_WAIT_MS: u64 = 2_000;
 const LONGEST_WAIT_MS: u64 = 30_000;
 /// The starts within the remembered window that make a program one in a loop.
 pub const LOOPING_STARTS: usize = 6;
+/// How long a program written into its place waits for a file it needs before the place records that it does
+/// not start: long enough for a node's link to bring the files a program names after the program itself.
+pub const FILES_WAIT_MS: u64 = 30_000;
 
 /// The starts of the program `identity` names still remembered at `now`. A start on another program than
 /// the one that ran last is a command written in its place, not the same program starting again, so its
@@ -166,6 +180,23 @@ impl Place {
 
   pub fn record_failure(&self, failure: &StartFailure) -> std::io::Result<()> {
     publish(&self.0.join("start-failed.json"), failure)
+  }
+
+  /// Whether the place's start failure already says `reason` of the program `identity` names.
+  pub fn failure_holds(&self, identity: &str, reason: &str) -> bool {
+    read_json::<serde_json::Value>(&self.0.join("start-failed.json")).is_some_and(|failed| {
+      failed["identity"].as_str() == Some(identity) && failed["reason"].as_str() == Some(reason)
+    })
+  }
+
+  /// When the program file was last written, in milliseconds since the epoch.
+  pub fn program_written_at(&self) -> Option<u64> {
+    let modified = std::fs::metadata(self.0.join("program.json")).ok()?.modified().ok()?;
+
+    modified
+      .duration_since(std::time::UNIX_EPOCH)
+      .ok()
+      .map(|since| since.as_millis() as u64)
   }
 
   /// Whether a live head other than `me` holds the program: running it, or waiting out its bound
