@@ -735,7 +735,13 @@ fn the_role_says_nothing_the_opening_says_and_nothing_no_longer_true() {
     }
   }
   assert!(!CHAT_LINE.persona.header.contains("at the top of this prompt"));
-  assert!(capabilities.contains("SENDING TOOLS ON THIS ROAD"), "{capabilities}");
+
+  // The capability document keeps its sections as headings of their own, and names no sending list: the tool
+  // shows the sending entries in every room, and the road judges each send itself.
+  for kept in ["CAPABILITY replyTo:", "CAPABILITY foldable:"] {
+    assert!(capabilities.contains(kept), "{kept}: {capabilities}");
+  }
+  assert!(!capabilities.contains("SENDING TOOLS"), "{capabilities}");
 
   // Each of the three kinds of turn says what it asks and what ends it.
   let turn = section(&system, "THE TURN AND THE ROOM");
