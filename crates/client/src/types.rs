@@ -4443,12 +4443,14 @@ pub struct ClaudeLoginStart {
   pub name: Option<String>,
 }
 
-/// A sign-in under way: its identifier and the address the owner approves it at.
+/// A sign-in under way: its identifier, the address the owner approves it at, and the name of the account it signs
+/// in, the one agency gave a new login whose start named none.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ClaudeLoginStarted {
   pub login: String,
   pub url: String,
+  pub name: String,
 }
 
 /// The code the sign-in page showed, handed to the sign-in.

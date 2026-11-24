@@ -3645,7 +3645,7 @@
             "$ref": "#/components/responses/NotADirectory"
           },
           "409": {
-            "$ref": "#/components/responses/NodeNotAttached"
+            "$ref": "#/components/responses/NameTaken"
           }
         },
         "x-codes": [
@@ -3653,6 +3653,8 @@
           "not-found",
           "not-a-directory",
           "directory-taken",
+          "name-taken",
+          "no-link",
           "node-not-attached"
         ],
         "requestBody": {
@@ -15027,13 +15029,17 @@
           },
           "url": {
             "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         },
         "required": [
           "login",
-          "url"
+          "url",
+          "name"
         ],
-        "description": "A sign-in under way: its identifier and the address the owner approves it at."
+        "description": "A sign-in under way: its identifier, the address the owner approves it at, and the name of the account it signs\nin, the one agency gave a new login whose start named none."
       },
       "ClaudeLoginStart": {
         "type": "object",
@@ -22437,6 +22443,16 @@
       },
       "NoJob": {
         "description": "no-job",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoLink": {
+        "description": "no-link",
         "content": {
           "application/json": {
             "schema": {

@@ -2,12 +2,14 @@
 //! console」): the sign-in's address read out of what the CLI prints, its hyperlink escapes and all; a refusal
 //! said in the CLI's last words with the code taken out; and a new account's directory named by its name. A
 //! person's sign-in on their node, as far as it is read without a node: the pane it runs in, the address read off
-//! a screen that wrapped it, and the CLI's words after the code judging whether the login took.
+//! a screen that wrapped it, and the CLI's words after the code judging whether the login took. A person's new
+//! login named past every account's names, and a name another account holds refused under its field.
 
 use std::path::Path;
 
 use agency_server::control::claude_logins::{
-  NodeOutcome, last_words, new_home, node_launch, node_outcome, said_since, sign_in_address,
+  NodeOutcome, last_words, name_refusal, new_home, next_login_name, node_launch, node_outcome, said_since,
+  sign_in_address,
 };
 use policy::control_words::CONTROL_WORDS;
 
@@ -80,4 +82,29 @@ fn the_login_is_judged_by_the_cli_s_words_after_the_code() {
   );
   assert_eq!(node_outcome("abc\nOAuth error: invalid code"), NodeOutcome::Refused);
   assert_eq!(node_outcome("abc\n"), NodeOutcome::Pending);
+}
+
+#[test]
+fn a_new_login_is_named_past_every_account_s_numbered_name() {
+  assert_eq!(next_login_name(&[]), "claude-01");
+  // The owner's own `claude-01` and `claude-02` stand beside a person who holds none of their own.
+  assert_eq!(next_login_name(&["claude-01", "claude-02"]), "claude-03");
+  assert_eq!(
+    next_login_name(&["main", "claude-9", "claude-x", "claude-", " claude-11 "]),
+    "claude-12"
+  );
+}
+
+#[test]
+fn a_name_another_account_holds_is_refused_under_the_name_field() {
+  let taken = name_refusal("claude-01", &["claude-01"]).expect("a name held is refused");
+  assert_eq!(
+    (taken.status.as_u16(), taken.code(), taken.field.as_deref()),
+    (409, "name-taken".to_owned(), Some("name"))
+  );
+
+  let long = name_refusal(&"x".repeat(500), &["claude-01"]).expect("a name too long is refused");
+  assert_eq!((long.status.as_u16(), long.field.as_deref()), (400, Some("name")));
+
+  assert!(name_refusal("claude-02", &["claude-01"]).is_none());
 }

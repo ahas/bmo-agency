@@ -260,9 +260,17 @@ async fn a_person_s_sign_in_is_refused_while_their_node_is_not_attached() {
   // A person names a new account alone, never another's.
   assert_eq!(refusal(started(json!({ "account": "eight" })).await.unwrap()).await.0, 400);
 
-  // Their isolation node's link was never heard here.
+  // A name another account holds, the platform's here, is refused under its field, though the person sees none
+  // of the platform's accounts.
+  let taken = started(json!({ "name": "main" })).await.unwrap();
+  assert_eq!(taken.status().as_u16(), 409);
+  let taken: Value = taken.json().await.unwrap();
+  assert_eq!((taken["code"].as_str(), taken["field"].as_str()), (Some("name-taken"), Some("name")));
+
+  // Their isolation node's link was never heard here, whether they name the login or agency names it.
   assert_eq!(
     refusal(started(json!({ "name": "mine" })).await.unwrap()).await,
     (409, "node-not-attached".to_owned())
   );
+  assert_eq!(refusal(started(json!({})).await.unwrap()).await, (409, "node-not-attached".to_owned()));
 }

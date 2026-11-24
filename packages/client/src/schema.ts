@@ -4053,10 +4053,14 @@ export interface components {
              */
             registration?: string | null;
         };
-        /** @description A sign-in under way: its identifier and the address the owner approves it at. */
+        /**
+         * @description A sign-in under way: its identifier, the address the owner approves it at, and the name of the account it signs
+         *     in, the one agency gave a new login whose start named none.
+         */
         ClaudeLoginStarted: {
             login: string;
             url: string;
+            name: string;
         };
         /**
          * @description A Claude account's sign-in started from the console: a directory account there by its id, or a new account by
@@ -6888,6 +6892,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-link */
+        NoLink: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-login-open */
         NoLoginOpen: {
             headers: {
@@ -9273,7 +9286,7 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["NodeNotAttached"];
+            409: components["responses"]["NameTaken"];
             422: components["responses"]["NotADirectory"];
         };
     };

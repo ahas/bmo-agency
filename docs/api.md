@@ -1218,10 +1218,10 @@ Code road is a list of accounts」); no road and no route action is any part of 
 
 A sign-in (`docs/cache-fallback.md`, 「Signing an account in from the console」) starts with `account`, a
 directory account's id, or `name`, a new account's name, and answers 201 with `login`, the sign-in's identifier,
-and `url`, the address the owner approves it at. It is refused 400 where it names neither or both, 404 where the
-account is none, 422 `not-a-directory` for an account that keeps no login of its own, 409 `directory-taken` where
-a new account's directory already holds anything, and 422 with what the CLI said where the CLI gave no address
-within the bound. The code takes `code`, a non-empty string, and answers 200 as the fallback's change does,
+`url`, the address the owner approves it at, and `name`, the name of the account it signs in. It is refused 400
+where it names neither or both, 404 where the account is none, 422 `not-a-directory` for an account that keeps no
+login of its own, 409 `directory-taken` where a new account's directory already holds anything, and 422 `no-link`
+with what the CLI said where the CLI gave no address within the bound. The code takes `code`, a non-empty string, and answers 200 as the fallback's change does,
 `{ok, accounts}`; a sign-in that is none, or has ended, is 404 `no-sign-in`, and a code the CLI did not take is
 422 `sign-in-refused`, saying what the CLI said with the code taken out, and ends the sign-in. Giving it up
 answers 204, and 404 `no-sign-in` for one that is none.
@@ -1470,7 +1470,10 @@ many it turned off. A person's own call is refused 403 `forbidden`.
 
 **A person's sign-in** (`POST /claude-logins` from a person's call) starts on the person's node, named by its
 record (「person-nodes」): a person with no node record is signed in on their isolation node, and one whose node
-is not attached now is refused 409 `node-not-attached`. It takes `name` alone, never `account` of another's. A
+is not attached now is refused 409 `node-not-attached`. It takes `name` alone, never `account` of another's, and
+may name none: agency then names the account `claude-NN`, one past the highest number any account's name holds,
+since account names are one namespace across every owner and a person sees only their own. A name another
+account already holds is refused 409 `name-taken`, and one that cannot be a name 400, each with `field` `name`. A
 person's login that stands on a node is signed in again there alone: the owner's sign-in naming it by `account`
 is refused 422 `not-a-directory`, as an account that keeps no login here is.
 

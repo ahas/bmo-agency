@@ -1398,7 +1398,14 @@ pub const OPERATIONS: &[Operation] = &[
     params: &[],
     body: Some("ClaudeLoginStart"),
     answers: &[(201, Some("ClaudeLoginStarted"), false)],
-    codes: &["not-found", "not-a-directory", "directory-taken", "node-not-attached"],
+    codes: &[
+      "not-found",
+      "not-a-directory",
+      "directory-taken",
+      "name-taken",
+      "no-link",
+      "node-not-attached",
+    ],
   },
   Operation {
     method: "POST",

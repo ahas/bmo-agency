@@ -41,14 +41,21 @@ const CARRIED_LOGINS: [&str; 4] = [
 /// What a sign-in is for: an account there, signed in again in its own directory, or one added once its
 /// directory holds a login.
 enum Target {
-  Again { home: PathBuf },
+  Again { name: String, home: PathBuf },
   New { name: String, home: PathBuf },
 }
 
 impl Target {
   fn home(&self) -> &Path {
     match self {
-      Self::Again { home } | Self::New { home, .. } => home,
+      Self::Again { home, .. } | Self::New { home, .. } => home,
+    }
+  }
+
+  /// The name of the account it signs in.
+  fn name(&self) -> &str {
+    match self {
+      Self::Again { name, .. } | Self::New { name, .. } => name,
     }
   }
 
@@ -214,15 +221,52 @@ async fn take(login: &str, acting: Acting) -> Result<Held, Refused> {
   }
 }
 
-// A sign-in held under a new identifier, answered as the start answers it.
-async fn hold(sign_in: Held, address: String) -> Response {
+// A sign-in held under a new identifier, answered as the start answers it: the identifier, the address and the
+// name of the account it signs in.
+async fn hold(sign_in: Held, address: String, name: &str) -> Response {
   let login = uuid::Uuid::new_v4().to_string();
   let mut held = SIGN_INS.lock().await;
 
   sweep(&mut held);
   held.insert(login.clone(), sign_in);
 
-  answer(StatusCode::CREATED, json!({ "login": login, "url": address }))
+  answer(StatusCode::CREATED, json!({ "login": login, "url": address, "name": name }))
+}
+
+/// The name a new login takes where its start names none: `claude-NN`, one past the highest number among the
+/// names given, which are every account's, whoever owns it.
+pub fn next_login_name(names: &[&str]) -> String {
+  let highest = names
+    .iter()
+    .filter_map(|name| name.trim().strip_prefix("claude-"))
+    .filter(|number| !number.is_empty() && number.bytes().all(|digit| digit.is_ascii_digit()))
+    .filter_map(|number| number.parse::<u64>().ok())
+    .max()
+    .unwrap_or(0);
+
+  format!("claude-{:02}", highest + 1)
+}
+
+/// Why a new login cannot take `name` beside the names every account holds, said under the `name` field: 409
+/// `name-taken` for a name another account holds, 400 for one that is no name.
+pub fn name_refusal(name: &str, names: &[&str]) -> Option<Refused> {
+  let fault = changes::name_fault(name, names)?;
+  let refused = if names.contains(&name.trim()) {
+    Refused::new(StatusCode::CONFLICT, fault).with_code("name-taken")
+  } else {
+    Refused::failed(fault)
+  };
+
+  Some(refused.with_field("name"))
+}
+
+// The refusal of a sign-in whose CLI gave no address within the bound, saying what it said.
+fn no_link(said: &str) -> Refused {
+  Refused::new(
+    StatusCode::UNPROCESSABLE_ENTITY,
+    fill_marks(&words().no_link, &[("said", &last_words(said, None))]),
+  )
+  .with_code("no-link")
 }
 
 fn text<'a>(body: &'a Value, field: &str) -> Option<&'a str> {
@@ -240,9 +284,10 @@ async fn target_of(db: &DatabaseConnection, data_root: &Path, body: &Value) -> R
       })?;
       match &account.credential {
         // A person's login stands on their node, where alone it is signed in again.
-        Credential::Directory { home } if account.node.is_none() => {
-          Ok(Target::Again { home: home.clone() })
-        }
+        Credential::Directory { home } if account.node.is_none() => Ok(Target::Again {
+          name: account.name.clone(),
+          home: home.clone(),
+        }),
         _ => Err(
           Refused::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -332,14 +377,12 @@ impl Route for StartClaudeLogin {
       if ended || Instant::now() >= bound {
         drop(cli);
         target.abandon();
-        return Err(Refused::new(
-          StatusCode::UNPROCESSABLE_ENTITY,
-          fill_marks(&words().no_link, &[("said", &last_words(&heard, None))]),
-        ));
+        return Err(no_link(&heard));
       }
       tokio::time::sleep(Duration::from_millis(200)).await;
     };
 
+    let name = target.name().to_owned();
     let sign_in = SignIn {
       cli,
       input,
@@ -348,7 +391,7 @@ impl Route for StartClaudeLogin {
       started: Instant::now(),
     };
 
-    Ok(hold(Held::Here(sign_in), address).await)
+    Ok(hold(Held::Here(sign_in), address, &name).await)
   }
 }
 
@@ -651,25 +694,26 @@ async fn person_workplace(
   Ok((node, crate::watches::links::node_path(&root, Some(&home)), home))
 }
 
-// A person's sign-in started on their node: a new account by name alone, its directory under the node's data
-// root, the address read off the pane the CLI runs in.
+// A person's sign-in started on their node: a new account alone, by the name the start gives or the next free one
+// agency names, its directory under the node's data root, the address read off the pane the CLI runs in.
 async fn start_on_node(
   ground: &crate::places::Ground,
   user: i64,
   body: &Value,
 ) -> Result<Response, Refused> {
-  let (None, Some(name)) = (text(body, "account"), text(body, "name")) else {
+  if text(body, "account").is_some() {
     return Err(Refused::new(StatusCode::BAD_REQUEST, words().name_only.clone()));
-  };
+  }
   let held = accounts(&ground.db).await?;
   let names: Vec<&str> = held.iter().map(|one| one.name.as_str()).collect();
+  let name = text(body, "name").map_or_else(|| next_login_name(&names), str::to_owned);
 
-  if let Some(fault) = changes::name_fault(name, &names) {
-    return Err(Refused::failed(fault).with_field("name"));
+  if let Some(refused) = name_refusal(&name, &names) {
+    return Err(refused);
   }
 
   let (node, node_root, node_home) = person_workplace(ground, user).await?;
-  let home = new_home(&Path::new(&node_root).join("data"), name).to_string_lossy().into_owned();
+  let home = new_home(&Path::new(&node_root).join("data"), &name).to_string_lossy().into_owned();
   let lang = ground.vars().get("LANG").cloned().unwrap_or_else(|| "C.UTF-8".to_owned());
   let launch = node_launch(&node_root, &node_home, &home, &lang);
   let herdr = herdr::Herdr::there(ground.roots.data.join("nodes").join(&node).join("herdr.sock"))
@@ -687,24 +731,22 @@ async fn start_on_node(
     if Instant::now() >= bound {
       pane.close().await;
 
-      return Err(Refused::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        fill_marks(&words().no_link, &[("said", &last_words(&screen, None))]),
-      ));
+      return Err(no_link(&screen));
     }
 
     tokio::time::sleep(Duration::from_millis(500)).await;
   };
+  let answer_name = name.clone();
   let sign_in = NodeSignIn {
     pane,
     user,
     node,
-    name: name.to_owned(),
+    name,
     home,
     started: Instant::now(),
   };
 
-  Ok(hold(Held::OnNode(sign_in), address).await)
+  Ok(hold(Held::OnNode(sign_in), address, &answer_name).await)
 }
 
 // The code typed into a person's sign-in on their node, the pane read until the CLI says the login took or

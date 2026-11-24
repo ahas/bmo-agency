@@ -70,6 +70,9 @@ platform pays for takes it.
   at the policy's bound otherwise.
 - **Its credentials file stands on the node, not here,** so a login of a person's found waiting for them is
   opened again by their next sign-in, not by a file this machine reads.
+- **A person's new login is named by agency** where the start names none: `claude-NN`, one past the highest
+  number among every account's names, the platform's and other people's among them, which the person cannot see.
+  A name the person gives that another account holds is refused 409 `name-taken`.
 - **A person with no node attached cannot sign in yet:** the start is refused 409 `node-not-attached`.
 
 ## The sources a run walks
