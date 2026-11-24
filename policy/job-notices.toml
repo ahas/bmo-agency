@@ -41,6 +41,21 @@ deploy_flush_read_seconds = 60
 deploy_flush_why = "Hourly flush of the deploy queue, carrying {items}"
 deploy_flush_item = "#{item}"
 deploy_live_order = "The hourly flush of the deploy queue put {repository} live at commit {commit} (unit {unit}). The waiting items it carries: {items}\nTake each item's pair for this repository off and close every item whose every commit is now live, as the todo procedure's batch that goes live says."
+# Commits waiting for their repositories' batch deployments that are not going live (docs/agent-control.md, 「The
+# deploy queue is flushed every hour」): a repository no deployment of this machine puts live, told at once; and a
+# commit still waiting `deploy_stale_minutes` after the first flush read it waiting, told once. `{repository}`,
+# `{why}`, one of the `deploy_why_*` words, `{hours}`, how long the longest of them has waited, and `{items}`, each
+# waiting item as `deploy_stalled_item` gives it with `{item}`, `{title}` and `{commit}`, joined by a semicolon.
+deploy_undeployable_order = "Commits wait for {repository}'s batch deployment, and no deployment of this machine puts {repository} live: {why}. The waiting items: {items}\nNothing goes live until a deployment of {repository} is declared or it is put live another way; tell the owner, and close each item once its commit is live."
+deploy_stale_minutes = 360
+deploy_stale_order = "Commits have waited {hours} hours for {repository}'s batch deployment and are still not live: {why}. The waiting items: {items}\nFind what holds {repository} back and mend it, or tell the owner."
+deploy_stalled_item = "#{item} ({title}) at {commit}"
+deploy_why_no_checkout = "agency holds no checkout of it on this machine"
+deploy_why_no_root = "the testbed declaration in its checkout names no [deploy] root, and the testbed refused its deployment: {said}"
+deploy_why_main_unread = "its main could not be read: {said}"
+deploy_why_failed_at = "its last deployment, {unit}, ended {outcome} at main's commit {commit}, and main waits for a mend: {reason}"
+deploy_why_refused = "the testbed refused the deployment the flush asked: {said}"
+deploy_why_asked = "every flush asks its deployment, and none has put the commit live yet"
 # A deployment that ended without going live (docs/agent-control.md, 「A deployment that did not go live is
 # told」): `{repository}`, `{commit}`, `{unit}`, `{outcome}`, `{stage}`, `{reason}`, `{items}`, the waiting items
 # it carries in the room, each as `deploy_failed_item` gives it with `{item}` and `{title}`, else

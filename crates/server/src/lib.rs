@@ -128,6 +128,7 @@ pub mod watches {
   pub mod closes;
   pub mod deploy_failures;
   pub mod deploy_flush;
+  pub mod deploy_stalls;
   pub mod job_events;
   pub mod links;
   pub mod machine;

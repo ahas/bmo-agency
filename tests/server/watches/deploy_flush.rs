@@ -1,8 +1,9 @@
 //! The deploy queue flushed every hour (docs/agent-control.md, 「The deploy queue is flushed every hour」), read on a
 //! clock the test sets: nothing started before the flush minutes have passed since the last flush, and then every
 //! repository with a commit waiting put live at its main's commit, related work still open or not; the owner's row
-//! setting the minutes; a commit its repository's deployment holds waiting no more; and a main its last run failed
-//! at left for its mend.
+//! setting the minutes; a commit its repository's deployment holds waiting no more; a main its last run failed
+//! at left for its mend; a repository nothing here deploys told once for each set of its waiting commits; and a
+//! commit waiting past the stale minutes told once, with why it is not going live.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -275,4 +276,160 @@ async fn a_live_commit_waits_no_more_and_a_main_its_last_run_failed_at_waits_for
     )],
     "a main moved past the failure is flushed"
   );
+}
+
+/// The instructions told under `kind` so far, oldest first.
+fn told_of(peers: &crate::support::peers::Peers, kind: &str) -> Vec<Value> {
+  peers
+    .lock()
+    .unwrap()
+    .instructed()
+    .into_iter()
+    .filter(|told| told["kind"] == kind)
+    .collect()
+}
+
+fn order(told: &Value) -> &str {
+  told["said"]["order"].as_str().unwrap()
+}
+
+// "A flush that finds commits waiting for a repository no deployment of this machine puts live tells the orderer of
+// each waiting item at once ... told once for each set of waiting commits of the repository"
+#[tokio::test]
+async fn a_repository_nothing_here_deploys_is_told_once_for_each_set_of_its_waiting_commits() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let site = tempfile::tempdir().unwrap();
+  let checkouts: BTreeMap<String, PathBuf> = [("site".to_owned(), site.path().to_path_buf())].into();
+  // The site's checkout declares no deploy root, and the testbed refuses its deployment.
+  let deployments = StandIn {
+    mains: [(site.path().to_path_buf(), "site-main".to_owned())].into(),
+    refusing: vec![site.path().to_path_buf()],
+    ..StandIn::default()
+  };
+  let home = Path::new("/nonexistent");
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    held.items.insert(81, waiting(81, "site", "aaaa1111"));
+    held.items.insert(82, waiting(82, "lost", "bbbb2222"));
+  }
+
+  settings::set(db, LAST_KEY, &T0.to_string()).await.unwrap();
+  flush(db, &vars, &checkouts, home, T0 + interval(), &deployments).await.unwrap();
+
+  let site_told = told_of(&peers, "deploy-undeployable:site");
+  let lost_told = told_of(&peers, "deploy-undeployable:lost");
+
+  assert_eq!(site_told.len(), 1, "{site_told:#?}");
+  assert_eq!(site_told[0]["room"], json!(-700));
+  assert_eq!(site_told[0]["events"], json!(["deploy-undeployable:#81"]));
+  assert!(order(&site_told[0]).contains("names no [deploy] root"), "{}", order(&site_told[0]));
+  assert!(order(&site_told[0]).contains("#81 (item 81) at aaaa1111"), "{}", order(&site_told[0]));
+  assert_eq!(lost_told.len(), 1, "{lost_told:#?}");
+  assert!(
+    order(&lost_told[0]).contains(&JOB_NOTICES.deploy_why_no_checkout),
+    "{}",
+    order(&lost_told[0])
+  );
+
+  flush(db, &vars, &checkouts, home, T0 + 2 * interval(), &deployments).await.unwrap();
+  assert_eq!(
+    told_of(&peers, "deploy-undeployable:site").len(),
+    1,
+    "the same commits are told no more"
+  );
+
+  peers.lock().unwrap().items.insert(83, waiting(83, "site", "cccc3333"));
+  flush(db, &vars, &checkouts, home, T0 + 3 * interval(), &deployments).await.unwrap();
+
+  let site_told = told_of(&peers, "deploy-undeployable:site");
+
+  assert_eq!(site_told.len(), 2, "another commit waiting tells again: {site_told:#?}");
+  assert_eq!(site_told[1]["events"], json!(["deploy-undeployable:#81", "deploy-undeployable:#83"]));
+  assert_eq!(told_of(&peers, "deploy-undeployable:lost").len(), 1);
+}
+
+// "A flush that finds it still waiting `deploy_stale_minutes` ... after that moment tells the orderer of its item
+// once for that item and commit ... naming ... why it is not going live as that flush read it"
+#[tokio::test]
+async fn a_commit_still_waiting_past_the_stale_minutes_is_told_once_with_why_it_is_not_going_live() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let (peers, vars) = stand().await;
+  let place = tempfile::tempdir().unwrap();
+  let root = tempfile::tempdir().unwrap();
+  let (first, second) = checkout(place.path(), root.path());
+  let checkouts: BTreeMap<String, PathBuf> = [("web".to_owned(), place.path().to_path_buf())].into();
+  let deployments = StandIn {
+    mains: [(place.path().to_path_buf(), second.clone())].into(),
+    ..StandIn::default()
+  };
+  let home = Path::new("/nonexistent");
+  let stale = JOB_NOTICES.deploy_stale_minutes * MINUTE;
+
+  std::fs::write(root.path().join("deployed.json"), json!({ "commit": first }).to_string()).unwrap();
+  peers.lock().unwrap().items.insert(81, waiting(81, "web", &second));
+  settings::set(db, LAST_KEY, &T0.to_string()).await.unwrap();
+
+  // The first flush reads it waiting at T0 + interval; it is told once the stale minutes have passed since.
+  let mut at = T0;
+
+  while at < T0 + interval() + stale - interval() {
+    at += interval();
+    flush(db, &vars, &checkouts, home, at, &deployments).await.unwrap();
+  }
+
+  assert!(
+    told_of(&peers, "deploy-stale:web").is_empty(),
+    "a moment short of the bound tells nothing"
+  );
+
+  at += interval();
+  flush(db, &vars, &checkouts, home, at, &deployments).await.unwrap();
+
+  let told = told_of(&peers, "deploy-stale:web");
+  let hours = (JOB_NOTICES.deploy_stale_minutes / 60).to_string();
+
+  assert_eq!(told.len(), 1, "{told:#?}");
+  assert_eq!(told[0]["events"], json!(["deploy-stale:#81"]));
+  assert!(order(&told[0]).contains(&format!("{hours} hours")), "{}", order(&told[0]));
+  assert!(order(&told[0]).contains(&JOB_NOTICES.deploy_why_asked), "{}", order(&told[0]));
+  assert!(
+    order(&told[0]).contains(&format!("#81 (item 81) at {}", &second[..12])),
+    "{}",
+    order(&told[0])
+  );
+  assert!(
+    told_of(&peers, "deploy-undeployable:web").is_empty(),
+    "a repository that deploys is no such one"
+  );
+
+  at += interval();
+  flush(db, &vars, &checkouts, home, at, &deployments).await.unwrap();
+  assert_eq!(told_of(&peers, "deploy-stale:web").len(), 1, "told once for the item and commit");
+
+  // Another item whose commit has waited as long behind a failed run is told with that run's reason.
+  peers.lock().unwrap().items.insert(82, waiting(82, "web", &second));
+  std::fs::write(
+    root.path().join("deploy-progress.json"),
+    json!({ "unit": "bmo-deploy-3", "commit": second, "refused": false,
+      "ending": { "outcome": "failed", "why": "the suite failed" } })
+    .to_string(),
+  )
+  .unwrap();
+
+  for _ in 0..=JOB_NOTICES.deploy_stale_minutes / JOB_NOTICES.deploy_flush_minutes {
+    at += interval();
+    flush(db, &vars, &checkouts, home, at, &deployments).await.unwrap();
+  }
+
+  let told = told_of(&peers, "deploy-stale:web");
+
+  assert_eq!(told.len(), 2, "{told:#?}");
+  assert_eq!(told[1]["events"], json!(["deploy-stale:#82"]), "the item told before is not told again");
+  assert!(order(&told[1]).contains("bmo-deploy-3, ended failed"), "{}", order(&told[1]));
+  assert!(order(&told[1]).contains("the suite failed"), "{}", order(&told[1]));
 }

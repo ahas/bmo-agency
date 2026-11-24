@@ -3767,13 +3767,13 @@ view and a person's room may not mend it alone.
     deployment of that commit already stands for the repository, waiting or under way, the verb starts none and
     names that one, so a flush never stacks a second deployment of a commit (the testbed's `docs/deploy.md`, 「The
     deployment line」). A
-    repository with no checkout on this machine is left to its supervisor. A repository whose last run, as its
+    repository with no checkout on this machine is left to its supervisor, told as one nothing deploys (below). A repository whose last run, as its
     progress record names it, was of that very commit and ended without going live is not started again: main
     waits for the mend the failure's notice sends back, and the first flush after main moves starts it. The
     testbed refuses the same commit by its own record, its newest ended deployment having failed in its gate while
     main still stands on it, whatever run wrote the progress record last. A refusal, or a main that cannot be read,
-    is written to agency's log and nothing else: no deployment stands for it, so the deployment watch has no run to
-    tell, and the next flush asks again, the other repositories of the same flush started all the same.
+    is written to agency's log, and told only as a repository nothing deploys or a commit that waits too long
+    (below): no deployment stands for it, so the deployment watch has no run to tell, and the next flush asks again, the other repositories of the same flush started all the same.
   - **What comes of it.** The deployment watch tells a flushed deployment's outcome
     (「A deployment that did not go live is told」): one that failed as any failure, and one that went live, judged
     by its progress record, where the deployment record under its root names the run's commit with a reason
@@ -3786,6 +3786,24 @@ view and a person's room may not mend it alone.
   - **The early road stays.** The supervisor still puts a repository live before the flush once no related work
     is left. Two deployments of one repository never run side by side, and one that finds its commit already
     live when its turn comes ends there, so the flush and the supervisor never put one commit live twice.
+  - **A repository nothing deploys is told.** A flush that finds commits waiting for a repository no deployment of
+    this machine puts live tells the orderer of each waiting item at once: one instruction a room, naming the
+    repository, why nothing deploys it and the items with their commits. Nothing deploys it where agency holds
+    no checkout of it here, or where the testbed declaration in its checkout names no `[deploy] root` and the
+    testbed refused the deployment the flush asked, since the testbed deploys nothing a commit's declaration
+    does not place. It is told once for each set of waiting commits of the repository, so a later flush that
+    finds the same commits tells nothing more, and one that finds another commit waiting tells again. The
+    set told stands in the settings row `deploy_stalls` (`docs/store.md`).
+  - **A commit that waits too long is told.** Each commit waiting for its repository's batch deployment is timed
+    from the first flush that reads it waiting, the moment kept in `deploy_stalls`, so the time reads at most
+    one flush's minutes short. A flush that finds it still waiting `deploy_stale_minutes`
+    (`policy/job-notices.toml`, six hours) after that moment tells the orderer of its item once for that item
+    and commit, one instruction a room for the items the flush finds so, naming each item, the repository, the
+    commit, how long it has waited and why it is not going live as that flush read it: agency holds no checkout
+    of it here, its declaration places no deployment, its main could not be read, its last deployment failed at
+    main's commit and main waits for a mend (that run's unit, outcome and reason), the testbed refused the
+    deployment the flush asked (its words), or the flush asks its deployment and none has put the commit live
+    yet. A commit that no longer waits leaves the row, and one that waits again is timed afresh.
 - **A deployment that did not go live is told.** A deployment is told whoever started it: the supervisor's
   own deploy tool, a script, the console or a shell. A supervisor's own call answers it as well, but that
   answer is lost where the call ends first, as a call whose session ended does, while the deployment goes on.

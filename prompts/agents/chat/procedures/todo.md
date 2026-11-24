@@ -319,7 +319,8 @@ and the agency's own:
   set another, have passed since the last flush, agency puts every repository with a commit waiting live at
   its main's commit, related work still open or not, with no turn of yours: you never deploy for the flush and
   never wait for it. A repository you put live before it is not waiting by then. Its outcome comes to you as
-  `deploy-live` or `deploy-failed`.
+  `deploy-live` or `deploy-failed`, and commits it cannot put live as `deploy-undeployable` or, once they have
+  waited hours, `deploy-stale`.
 - **A batch that goes live closes each item it carried whose every commit is live.** For each item that
   waited on that repository, take its pair off: `job_item_update` with that repository's
   `close-phase:<repository>` and `close-commit:<repository>` null in `labels`. An item that still carries
@@ -507,6 +508,17 @@ and the agency's own:
   deploy call already told you this deployment's outcome and you acted on it, nothing more is owed. One that
   carries no item of yours, told in the owner's private room, is said to him in one line with the
   repository, the commit and why.
+- **`deploy-undeployable`:** commits wait for a repository that no deployment of this machine puts live: its
+  repository, why nothing deploys it (agency holds no checkout of it here, or its declaration places no
+  deployment) and the waiting items with their commits. Nothing you do on the queue puts them live: say it to
+  the owner in one line with the repository, why and the items, since only he declares its deployment or puts it
+  live another way, and close each item once its commit is live. It is told once for each set of waiting
+  commits.
+- **`deploy-stale`:** commits have waited hours for their repository's batch deployment and are still not live:
+  the repository, how long, why as agency's flush last read it, and the waiting items with their commits. A
+  failed deployment holding main back is mended as 「A batch that fails is never left」 says; a refusal, a main
+  that cannot be read or a deployment that never puts the commit live is said to the owner in one line with the
+  repository, why and the items. It is told once for each item and commit.
 
 ## Never launch the same item twice
 

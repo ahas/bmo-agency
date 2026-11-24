@@ -65,6 +65,29 @@ pub struct JobNotices {
   pub deploy_flush_item: String,
   /// A flushed deployment that went live: `{repository}`, `{commit}`, `{unit}` and `{items}`.
   pub deploy_live_order: String,
+  /// Commits waiting for a repository no deployment of this machine puts live: `{repository}`, `{why}` and
+  /// `{items}`, each as `deploy_stalled_item` gives it.
+  pub deploy_undeployable_order: String,
+  /// How many minutes a commit may wait for its repository's batch deployment before it is told as waiting too
+  /// long.
+  pub deploy_stale_minutes: i64,
+  /// Commits waiting too long: `{repository}`, `{why}`, `{hours}` and `{items}`, each as `deploy_stalled_item`
+  /// gives it.
+  pub deploy_stale_order: String,
+  /// One waiting item, as a stalled notice lists it: `{item}`, `{title}` and `{commit}`.
+  pub deploy_stalled_item: String,
+  /// Why a waiting commit is not going live: agency holds no checkout of its repository here.
+  pub deploy_why_no_checkout: String,
+  /// Its repository's declaration places no deployment: `{said}`, the testbed's refusal.
+  pub deploy_why_no_root: String,
+  /// Its repository's main could not be read: `{said}`.
+  pub deploy_why_main_unread: String,
+  /// Its repository's last run failed at main's commit: `{commit}`, `{unit}`, `{outcome}` and `{reason}`.
+  pub deploy_why_failed_at: String,
+  /// The testbed refused the deployment the flush asked: `{said}`.
+  pub deploy_why_refused: String,
+  /// The flush asks its deployment, and none has put the commit live yet.
+  pub deploy_why_asked: String,
   /// A run's question: `{question}`, `{item}`, `{text}` and `{choices}`.
   pub question_order: String,
   /// A job's question the job service put to the owner once the supervisor's minute on it passed: the same marks.

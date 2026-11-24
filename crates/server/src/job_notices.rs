@@ -337,6 +337,29 @@ pub fn deploy_live(
   })
 }
 
+/// Commits waiting for `repository`'s batch deployment that are not going live (docs/agent-control.md, 「The deploy
+/// queue is flushed every hour」), for the orderer in `room` of the waiting `items`: an order under the sort `job` of
+/// the kind `event` for the repository, an event for each item, its summary `summary`.
+pub fn deploy_stalled(
+  event: &str,
+  repository: &str,
+  summary: &str,
+  order: &str,
+  items: &[i64],
+  room: Option<i64>,
+) -> Value {
+  json!({
+    "room": room,
+    "said": { "order": order },
+    "agentName": Value::Null,
+    "sort": "job",
+    "kind": format!("{event}:{repository}"),
+    "summary": summary,
+    "events": items.iter().map(|item| format!("{event}:#{item}")).collect::<Vec<_>>(),
+    "run": Value::Null,
+  })
+}
+
 /// A run's question, for the orderer to put to the owner.
 pub fn question(question: &Value, orderer: &Orderer) -> Value {
   question_told(question, orderer, &JOB_NOTICES.question_order)

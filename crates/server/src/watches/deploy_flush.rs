@@ -1,7 +1,8 @@
 //! The deploy queue flushed every hour (docs/agent-control.md, 「The deploy queue is flushed every hour」): the clock
 //! read every minute, and once the flush minutes have passed since the last flush, every repository of this
 //! machine with a commit waiting for its batch deployment put live at its main's commit, related work still open or
-//! not. The deployments' outcomes are the deployment watch's to tell.
+//! not. The deployments' outcomes are the deployment watch's to tell; the commits that are not going live, a
+//! repository nothing deploys and a commit waiting too long, are told by the flush itself (`deploy_stalls`).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -14,6 +15,7 @@ use serde_json::Value;
 use crate::queue::orderer::JobService;
 use crate::queue::settings;
 use crate::watches::closes;
+use crate::watches::deploy_stalls::{self, Stall, Wait};
 use crate::watches::machine_turn::{deploy_root, live, read_json};
 
 /// The settings row the moment of the last flush stands in, in epoch milliseconds.
@@ -109,19 +111,19 @@ fn repository_of(close: &closes::Close, item: &Value) -> Option<String> {
   close.repository.clone().or_else(|| item["assigneeName"].as_str().map(str::to_owned))
 }
 
-// The items whose commits wait for each repository among `items`, those live as `checkouts` read them left out,
-// each item once, lowest first.
+// The commits waiting for each repository among `items`, those live as `checkouts` read them left out, each item
+// and commit once, lowest item first.
 async fn waiting(
   items: Vec<Value>,
   checkouts: &BTreeMap<String, PathBuf>,
   home: &Path,
-) -> BTreeMap<String, Vec<i64>> {
-  let mut waiting: BTreeMap<String, Vec<i64>> = BTreeMap::new();
+) -> BTreeMap<String, Vec<Wait>> {
+  let mut waiting: BTreeMap<String, Vec<Wait>> = BTreeMap::new();
 
   for item in items {
-    let Some(id) = item["id"].as_i64() else { continue };
-
-    if matches!(item["state"].as_str(), Some("done" | "dropped" | "merged")) {
+    if item["id"].as_i64().is_none()
+      || matches!(item["state"].as_str(), Some("done" | "dropped" | "merged"))
+    {
       continue;
     }
 
@@ -136,31 +138,47 @@ async fn waiting(
         continue;
       }
 
-      let ids = waiting.entry(repository).or_default();
+      let waits = waiting.entry(repository).or_default();
 
-      if !ids.contains(&id) {
-        ids.push(id);
+      if !waits.iter().any(|wait| wait.item["id"] == item["id"] && wait.commit == commit) {
+        waits.push(Wait {
+          item: item.clone(),
+          commit: commit.to_owned(),
+        });
       }
     }
   }
 
-  for ids in waiting.values_mut() {
-    ids.sort_unstable();
+  for waits in waiting.values_mut() {
+    waits.sort_by(|one, other| (one.id(), &one.commit).cmp(&(other.id(), &other.commit)));
   }
 
   waiting
 }
 
-// Whether the last run of the repository in `checkout` was of `commit` and ended without going live: main has
-// not moved past what broke it, so a deployment of it would fail again.
-fn failed_at(checkout: &Path, home: &Path, commit: &str) -> bool {
-  let Some(record) = deploy_root(checkout, home).and_then(|root| read_json(&root.join(PROGRESS))) else {
-    return false;
-  };
+// The progress record of the last run of the repository in `checkout` where that run was of `commit` and ended
+// without going live: main has not moved past what broke it, so a deployment of it would fail again.
+fn failed_at(checkout: &Path, home: &Path, commit: &str) -> Option<Value> {
+  let record = deploy_root(checkout, home).and_then(|root| read_json(&root.join(PROGRESS)))?;
   let outcome = record["ending"]["outcome"].as_str();
   let of_it = record["commit"].as_str().is_some_and(|run| !run.is_empty() && commit.starts_with(run));
 
-  of_it && outcome.is_some_and(|outcome| outcome != "live") && record["refused"] != true
+  (of_it && outcome.is_some_and(|outcome| outcome != "live") && record["refused"] != true).then_some(record)
+}
+
+// Why the failed run `record` holds main back, in the words a stalled commit's notice gives.
+fn failed_why(record: &Value, commit: &str) -> String {
+  let text = |value: &Value| value.as_str().map(str::to_owned).unwrap_or_default();
+
+  fill_marks(
+    &JOB_NOTICES.deploy_why_failed_at,
+    &[
+      ("commit", commit.get(..12).unwrap_or(commit)),
+      ("unit", &text(&record["unit"])),
+      ("outcome", &text(&record["ending"]["outcome"])),
+      ("reason", record["ending"]["why"].as_str().unwrap_or(&JOB_NOTICES.deploy_no_reason)),
+    ],
+  )
 }
 
 // The flush minutes as milliseconds: the owner's own row, else the policy's.
@@ -184,8 +202,9 @@ pub async fn minutes(db: &DatabaseConnection) -> Result<i64, String> {
 /// One read of the clock at `now`: where no flush was kept, `now` kept as the last and nothing started; where the
 /// flush minutes have passed since the last, the items under a close read, `now` kept as the last, and a deployment
 /// of main's commit started through `deployments` for every repository with a commit waiting, unless main's commit
-/// is the one its last run failed at. Nothing where the deployment names no job service. `checkouts` names the
-/// checkout each repository is read and deployed in; a repository with none here is left to its supervisor.
+/// is the one its last run failed at; then the waiting commits that are not going live told (`deploy_stalls`).
+/// Nothing where the deployment names no job service. `checkouts` names the checkout each repository is read and
+/// deployed in; a repository with none here is left to its supervisor, told as one nothing deploys.
 pub async fn flush(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -209,37 +228,74 @@ pub async fn flush(
   }
 
   let waiting = waiting(closes::items(&service).await?, checkouts, home).await;
+  let mut stalls: BTreeMap<String, Stall> = BTreeMap::new();
 
   settings::set(db, LAST_KEY, &now.to_string()).await.map_err(|why| why.detail)?;
 
-  for (repository, items) in waiting {
-    let Some(checkout) = checkouts.get(&repository) else {
-      eprintln!("deploy flush: {repository} has no checkout on this machine, so it is not flushed");
-      continue;
-    };
-    let commit = match deployments.main_commit(checkout).await {
-      Ok(commit) => commit,
-      Err(why) => {
-        eprintln!("deploy flush: {repository}'s main was not read: {why}");
-        continue;
-      }
-    };
+  for (repository, waits) in &waiting {
+    let stall = flushed_one(repository, waits, checkouts, home, deployments).await;
 
-    if failed_at(checkout, home, &commit) {
-      eprintln!(
-        "deploy flush: {repository}'s main is the commit its last run failed at, so it waits for a mend"
-      );
-      continue;
-    }
+    stalls.insert(repository.clone(), stall);
+  }
 
-    match deployments.start(checkout, &commit, &why(&items)).await {
-      // The verb says whether it started a deployment or names one of the commit already standing.
-      Ok(said) => println!("deploy flush: {repository} at {commit} asked: {said}"),
-      Err(why) => eprintln!("deploy flush: {repository} at {commit} was not started: {why}"),
-    }
+  if let Err(why) = deploy_stalls::told(db, vars, &service, &waiting, &stalls, now).await {
+    eprintln!("deploy flush: the waiting commits were not read against the last flush: {why}");
   }
 
   Ok(())
+}
+
+// One repository's waiting commits flushed: a deployment of main's commit started in its checkout, unless main's
+// commit is the one its last run failed at; and why its commits are not going live, as this flush reads it.
+async fn flushed_one(
+  repository: &str,
+  waits: &[Wait],
+  checkouts: &BTreeMap<String, PathBuf>,
+  home: &Path,
+  deployments: &impl Deployments,
+) -> Stall {
+  let stall = |why: String, undeployable: bool| Stall { why, undeployable };
+  let Some(checkout) = checkouts.get(repository) else {
+    eprintln!("deploy flush: {repository} has no checkout on this machine, so it is not flushed");
+    return stall(JOB_NOTICES.deploy_why_no_checkout.clone(), true);
+  };
+  let commit = match deployments.main_commit(checkout).await {
+    Ok(commit) => commit,
+    Err(why) => {
+      eprintln!("deploy flush: {repository}'s main was not read: {why}");
+      return stall(fill_marks(&JOB_NOTICES.deploy_why_main_unread, &[("said", &why)]), false);
+    }
+  };
+
+  if let Some(record) = failed_at(checkout, home, &commit) {
+    eprintln!(
+      "deploy flush: {repository}'s main is the commit its last run failed at, so it waits for a mend"
+    );
+    return stall(failed_why(&record, &commit), false);
+  }
+
+  // The waits stand lowest item first, so an item's waits stand together.
+  let mut items: Vec<i64> = waits.iter().map(Wait::id).collect();
+
+  items.dedup();
+
+  match deployments.start(checkout, &commit, &why(&items)).await {
+    // The verb says whether it started a deployment or names one of the commit already standing.
+    Ok(said) => {
+      println!("deploy flush: {repository} at {commit} asked: {said}");
+      stall(JOB_NOTICES.deploy_why_asked.clone(), false)
+    }
+    Err(said) => {
+      eprintln!("deploy flush: {repository} at {commit} was not started: {said}");
+
+      // The testbed deploys nothing a declaration does not place, so a checkout whose declaration names no deploy
+      // root and a refusal together say that no deployment of this machine puts the repository live.
+      match deploy_root(checkout, home) {
+        None => stall(fill_marks(&JOB_NOTICES.deploy_why_no_root, &[("said", &said)]), true),
+        Some(_) => stall(fill_marks(&JOB_NOTICES.deploy_why_refused, &[("said", &said)]), false),
+      }
+    }
+  }
 }
 
 /// One read of this machine's repositories at the present moment; a test's ground reads nothing.

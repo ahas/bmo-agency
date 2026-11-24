@@ -262,8 +262,11 @@ seeds. The other crates and the server reach the store only through it.
     `deploy_watch`, as JSON, the unit last judged for each deploy root under `judged` and the units seen
     running and not yet judged, each with its deploy root, under `running` (`docs/agent-control.md`, 「A
     deployment that did not go live is told」); and the deploy queue's flush's: the owner's own row of the flush
-    minutes, `deploy_flush_minutes`, a positive whole number, and `deploy_flush_last`, the epoch milliseconds
-    of the last flush (`docs/agent-control.md`, 「The deploy queue is flushed every hour」);
+    minutes, `deploy_flush_minutes`, a positive whole number, `deploy_flush_last`, the epoch milliseconds
+    of the last flush, and `deploy_stalls`, as JSON, the moment each waiting commit was first read waiting under
+    `since`, keyed by its repository, item and commit, those told as waiting too long under `stale`, and each
+    repository told as one nothing deploys under `undeployable`, with the waiting commits it was told for
+    (`docs/agent-control.md`, 「The deploy queue is flushed every hour」);
   - the machine's room: its seven limits, `machine_limit:<name>`, the launcher's notice of launches held,
     `machine_launch_held`, its `at` and `held` as JSON; and the job and item a job's run named while it
     goes, `worker_job:*` by the checkout, as JSON (`docs/agent-control.md`, 「Room on the machine」);
