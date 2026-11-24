@@ -340,8 +340,8 @@ async fn base_off(ground: &Ground, person: Option<&str>, variables: &mut BTreeMa
 }
 
 // The record named the file its person's withheld apps stand in, written first, where it acts for a person's
-// account; and for the administrator's account, the file of the MCP servers its holder is not attached to, where it
-// was written (docs/tools.md, 「The apps a person reaches」).
+// account; and for the administrator's account, the file of the MCP servers its holder is not attached to, named
+// whatever was written (docs/tools.md, 「The apps a person reaches」).
 async fn withhold(
   ground: &Ground,
   request: &mut SessionRequest,
@@ -367,9 +367,8 @@ async fn withhold(
 
   let file = file();
 
-  if crate::apps::write_for_administrator(ground, &file, &account, issued).await {
-    request.withheld_apps_file = Some(file);
-  }
+  crate::apps::write_for_administrator(ground, &file, &account, issued).await;
+  request.withheld_apps_file = Some(file);
 }
 
 // Whom a record is issued for: the holder its run is let in on or stands for, and its line.

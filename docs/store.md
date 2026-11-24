@@ -93,6 +93,9 @@ seeds. The other crates and the server reach the store only through it.
   - the agents' attachments: `agent_attachments`, one row an item attached to a holder — the account, the holder's
     kind, `supervisor` or `agent`, its name, the item's kind, `skill` or `mcp`, its name, and when it was attached
     in epoch milliseconds (`docs/person-nodes.md`, 「Attaching skills and MCP servers」);
+  - the accounts' MCP servers: `mcp_servers`, one row a server agency put at home for an account — the account, the
+    server's name, the key its home copy stands under, and when the row was written in epoch milliseconds
+    (`docs/person-nodes.md`, 「MCP servers」);
   - the accounts' nodes: `person_nodes`, one row an account — its id, the node its runs stand on, whether that
     node is shared with other accounts, and when it was set (`docs/person-nodes.md`, 「Which node is a person's」,
     「Several accounts on one node」);

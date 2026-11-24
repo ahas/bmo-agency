@@ -30,11 +30,12 @@ const RUN_FOLDER: &str = "agency/withheld-apps";
 const KIND_HEAD: &str = "app.";
 const OFFERED_TAIL: &str = ".offered";
 
-/// What a withheld-apps file holds: the keys of the apps that do not reach the person, the account they were
-/// resolved for, which a turn resolves them again for, and what the person's personal tools may reach.
+/// What a withheld-apps file holds: the keys of the apps that do not reach the person, none where they cannot be
+/// known, written null, which the tool host does not read and so takes as every app withheld; the account they were
+/// resolved for, which a turn resolves them again for; and what the person's personal tools may reach.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Withheld {
-  pub apps: BTreeSet<String>,
+  pub apps: Option<BTreeSet<String>>,
   pub account: String,
   #[serde(default)]
   pub personal: Personal,
@@ -44,6 +45,54 @@ pub struct Withheld {
   /// The line the record's runs go out on.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub line: Option<String>,
+  /// That the MCP servers attached to the holder were withheld all the same, and why; none where they were not.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub attached: Option<AttachedWithheld>,
+}
+
+/// What a file says of the attached MCP servers it withholds because what is attached could not be known
+/// (docs/person-nodes.md, 「Attaching skills and MCP servers」).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AttachedWithheld {
+  pub withheld: bool,
+  pub why: String,
+}
+
+impl AttachedWithheld {
+  fn because(why: String) -> Self {
+    Self {
+      withheld: true,
+      why,
+    }
+  }
+}
+
+/// The apps a resolution withholds, none where they cannot be known, and why the attached MCP servers are among them
+/// where they are.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Resolved {
+  apps: Option<BTreeSet<String>>,
+  attached: Option<AttachedWithheld>,
+}
+
+impl Resolved {
+  // The apps the chain withholds, and the MCP servers of the account's the record withholds beside them: none of the
+  // apps known where agency's record of those servers was not read.
+  fn of(mut apps: BTreeSet<String>, mcp: Result<crate::attachments::WithheldMcp, String>) -> Self {
+    match mcp {
+      Ok(mcp) => {
+        apps.extend(mcp.keys);
+        Self {
+          apps: Some(apps),
+          attached: mcp.why.map(AttachedWithheld::because),
+        }
+      }
+      Err(why) => Self {
+        apps: None,
+        attached: Some(AttachedWithheld::because(why)),
+      },
+    }
+  }
 }
 
 /// Whom a record is issued for: its holder and its line, which decide the MCP servers it reaches.
@@ -152,6 +201,37 @@ fn write(file: &Path, withheld: &Withheld) -> Result<(), String> {
   agent_host::disk::publish_bytes(file, text.as_bytes()).map_err(|why| format!("{}: {why}", file.display()))
 }
 
+// The file written whole, and taken away where it cannot be, so a record naming it reaches no app; the log says once,
+// as the file comes to say it, that the attached MCP servers are withheld. Whether it was written.
+fn put(file: &Path, withheld: &Withheld, before: Option<&Withheld>) -> bool {
+  if let Err(why) = write(file, withheld) {
+    eprintln!(
+      "the withheld apps were not written, so the file is taken away and every app withheld: {why}"
+    );
+
+    if let Err(why) = std::fs::remove_file(file)
+      && why.kind() != std::io::ErrorKind::NotFound
+    {
+      eprintln!("the withheld apps' file {} was not taken away either: {why}", file.display());
+    }
+
+    return false;
+  }
+
+  if let Some(attached) = &withheld.attached
+    && before.and_then(|before| before.attached.as_ref()) != Some(attached)
+  {
+    let every = if withheld.apps.is_none() { ", and every app with them" } else { "" };
+
+    eprintln!(
+      "the MCP servers attached for account {} are withheld from its record{every}: {}",
+      withheld.account, attached.why
+    );
+  }
+
+  true
+}
+
 /// The keys of the apps that do not reach `person`: every app whose offered setting the account service declares,
 /// each withheld unless both its settings resolve `true` for the person. An app whose settings do not resolve is
 /// withheld; an account service that does not list its kinds is the error.
@@ -234,18 +314,17 @@ pub async fn write_for(ground: &Ground, file: &Path, person: &str, issued: &Issu
   let service = service(ground);
 
   match resolve_all(ground, &service, person, issued).await {
-    Ok(apps) => {
+    Ok(resolved) => {
       let withheld = Withheld {
-        apps,
+        apps: resolved.apps,
         account: person.to_owned(),
         personal: personal(&service, person).await,
         holder: issued.holder.clone(),
         line: issued.line.clone(),
+        attached: resolved.attached,
       };
 
-      if let Err(why) = write(file, &withheld) {
-        eprintln!("the withheld apps were not written: {why}");
-      }
+      put(file, &withheld, read(file).as_ref());
     }
     Err(why) => {
       eprintln!("the apps of account {person} were not resolved, so its file stands as it was: {why}")
@@ -259,52 +338,40 @@ async fn resolve_all(
   service: &AccountService,
   person: &str,
   issued: &Issued,
-) -> Result<BTreeSet<String>, String> {
-  let mut apps = resolve(service, person).await?;
+) -> Result<Resolved, String> {
+  let apps = resolve(service, person).await?;
 
-  // A registry that cannot be read names no MCP server, which the tool host then cannot serve either.
-  match crate::attachments::withheld_mcp(ground, person, issued.holder.as_ref(), issued.line.as_deref())
-    .await
-  {
-    Ok(mcp) => apps.extend(mcp),
-    Err(why) => eprintln!("the MCP servers of account {person} were not read: {why}"),
-  }
+  Ok(Resolved::of(apps, withheld_mcp(ground, person, issued).await))
+}
 
-  Ok(apps)
+// The keys of the account's MCP servers the record's holder does not reach, by whom it is issued for.
+async fn withheld_mcp(
+  ground: &Ground,
+  account: &str,
+  issued: &Issued,
+) -> Result<crate::attachments::WithheldMcp, String> {
+  crate::attachments::withheld_mcp(ground, account, issued.holder.as_ref(), issued.line.as_deref()).await
 }
 
 /// The file written for a record of the administrator's account: the keys of its MCP servers the record's holder is
-/// not attached to alone, and `personal` both true, so its sessions keep every other app. Whether it was written: a
-/// record whose file was not names none.
-pub async fn write_for_administrator(ground: &Ground, file: &Path, account: &str, issued: &Issued) -> bool {
-  match crate::attachments::withheld_mcp(ground, account, issued.holder.as_ref(), issued.line.as_deref())
-    .await
-  {
-    Ok(apps) => {
-      let withheld = Withheld {
-        apps,
-        account: account.to_owned(),
-        personal: Personal {
-          network: true,
-          secrets: true,
-        },
-        holder: issued.holder.clone(),
-        line: issued.line.clone(),
-      };
+/// not attached to alone, and `personal` both true, so its sessions keep every other app; every app withheld where
+/// agency's record of those servers cannot be read, and the file taken away where it cannot be written. The record
+/// names it whatever was written.
+pub async fn write_for_administrator(ground: &Ground, file: &Path, account: &str, issued: &Issued) {
+  let resolved = Resolved::of(BTreeSet::new(), withheld_mcp(ground, account, issued).await);
+  let withheld = Withheld {
+    apps: resolved.apps,
+    account: account.to_owned(),
+    personal: Personal {
+      network: true,
+      secrets: true,
+    },
+    holder: issued.holder.clone(),
+    line: issued.line.clone(),
+    attached: resolved.attached,
+  };
 
-      match write(file, &withheld) {
-        Ok(()) => true,
-        Err(why) => {
-          eprintln!("the withheld apps were not written: {why}");
-          false
-        }
-      }
-    }
-    Err(why) => {
-      eprintln!("the MCP servers of account {account} were not read, so its record names no file: {why}");
-      false
-    }
-  }
+  put(file, &withheld, read(file).as_ref());
 }
 
 /// As a resident program's turn begins: the place's file, where it stands, resolved again for the account it
@@ -321,18 +388,12 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
   let administrator =
     crate::account_isolation::owners_own(&ground.db, &before.account).await.unwrap_or(false);
   let resolved = if administrator {
-    crate::attachments::withheld_mcp(
-      ground,
-      &before.account,
-      issued.holder.as_ref(),
-      issued.line.as_deref(),
-    )
-    .await
+    Ok(Resolved::of(BTreeSet::new(), withheld_mcp(ground, &before.account, &issued).await))
   } else {
     resolve_all(ground, &service, &before.account, &issued).await
   };
-  let apps = match resolved {
-    Ok(apps) => apps,
+  let resolved = match resolved {
+    Ok(resolved) => resolved,
     Err(why) => {
       eprintln!(
         "the apps of account {} were not resolved, so its file stands as it was: {why}",
@@ -351,29 +412,30 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
     personal(&service, &before.account).await
   };
 
-  if apps == before.apps && personal == before.personal {
+  if resolved.apps == before.apps && personal == before.personal && resolved.attached == before.attached {
     return None;
   }
 
-  let changed = Changed {
-    off: apps.difference(&before.apps).cloned().collect(),
-    on: before.apps.difference(&apps).cloned().collect(),
+  // A file whose apps cannot be known, before or after, names none to tell of.
+  let changed = match (&resolved.apps, &before.apps) {
+    (Some(apps), Some(held)) if apps != held => Some(Changed {
+      off: apps.difference(held).cloned().collect(),
+      on: held.difference(apps).cloned().collect(),
+    }),
+    _ => None,
   };
-  let apps_moved = apps != before.apps;
+  let after = Withheld {
+    apps: resolved.apps,
+    personal,
+    attached: resolved.attached,
+    ..before.clone()
+  };
 
-  if let Err(why) = write(
-    &file,
-    &Withheld {
-      apps,
-      personal,
-      ..before
-    },
-  ) {
-    eprintln!("the withheld apps were not written: {why}");
+  if !put(&file, &after, Some(&before)) {
     return None;
   }
 
-  apps_moved.then_some(changed)
+  changed
 }
 
 /// The fact a session is told of a change of the apps it reaches.

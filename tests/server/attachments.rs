@@ -2,8 +2,10 @@
 //! servers」): the account's holders and what each line takes; a holder's lists set whole, refused on a line that
 //! takes none of a kind, for a holder or an item not the account's; an attached skill placed in its own agent's plugin
 //! alone, and a supervisor's own plugin; a launch placing attached skills on a line that takes none refused; and the
-//! keys of the account's MCP servers each record withholds, by its holder and its line. The tool host's registry and
-//! catalogue stand in as files the test writes.
+//! keys of the account's MCP servers each record withholds, by its holder and its line, and every one, the attached
+//! among them, where what is attached cannot be known; agency's own record of them made to agree with the tool host's
+//! listing; and attached skills placed whole or not at all. The tool host's registry and catalogue stand in as files
+//! the test writes.
 
 use std::collections::BTreeMap;
 use std::os::unix::fs::PermissionsExt;
@@ -330,7 +332,10 @@ async fn each_record_withholds_the_mcp_servers_its_holder_is_not_attached_to() {
     .unwrap();
 
   let withheld = |holder: Option<Holder>, line: &'static str| async move {
-    attachments::withheld_mcp(ground, ACCOUNT, holder.as_ref(), Some(line)).await.unwrap()
+    let withheld = attachments::withheld_mcp(ground, ACCOUNT, holder.as_ref(), Some(line)).await.unwrap();
+
+    assert_eq!(withheld.why, None, "what is attached was known");
+    withheld.keys
   };
   let both = ["own-40-tracker".to_owned(), "shared-3-17-files".to_owned()].into();
 
@@ -352,13 +357,210 @@ async fn each_record_withholds_the_mcp_servers_its_holder_is_not_attached_to() {
     line: Some("chat".to_owned()),
   };
 
-  assert!(apps::write_for_administrator(ground, &file, ADMINISTRATOR, &issued).await);
+  apps::write_for_administrator(ground, &file, ADMINISTRATOR, &issued).await;
 
   let written: Withheld = apps::read(&file).unwrap();
 
-  assert_eq!(written.apps, ["own-1-tracker".to_owned()].into());
+  assert_eq!(written.apps, Some(["own-1-tracker".to_owned()].into()));
   assert!(written.personal.network && written.personal.secrets);
   assert_eq!(written.holder, issued.holder);
+  assert_eq!(written.attached, None, "nothing attached was withheld for want of knowing");
+}
+
+// The tool host's listing of an account's personal tools, standing in as text that does not read.
+fn listing_unread(stood: &Stood, account: &str) {
+  std::fs::write(stood.data().join("stand-in").join(format!("owner-{account}.json")), "not a listing")
+    .unwrap();
+}
+
+// "agency keeps its own record of each account's MCP servers, made to agree with the tool host's listing where it
+// reads: every server listed written, a row whose key no listed tool stands under taken away"
+#[tokio::test]
+async fn the_record_of_the_mcp_servers_is_made_to_agree_with_the_listing() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+
+  attachments::record_server(&ground.db, ACCOUNT, "gone", "own-40-gone").await.unwrap();
+  attachments::record_server(&ground.db, ACCOUNT, "files", "shared-3-17-files")
+    .await
+    .unwrap();
+  stood.stand_in(
+    "owner-40",
+    json!([
+      { "name": "tracker", "app": "own-40-tracker", "entries": [] },
+      { "name": "files", "app": "shared-3-17-files", "entries": [] },
+    ]),
+  );
+
+  // The catalogue holds no record of the shared key: the listing alone cannot class it, so its row stands.
+  let withheld = attachments::withheld_mcp(ground, ACCOUNT, None, Some("worker")).await.unwrap();
+
+  assert_eq!(withheld.keys, ["own-40-tracker".to_owned(), "shared-3-17-files".to_owned()].into());
+  assert_eq!(withheld.why, None);
+  assert_eq!(
+    attachments::recorded_servers(&ground.db, ACCOUNT).await.unwrap(),
+    BTreeMap::from([
+      ("files".to_owned(), "shared-3-17-files".to_owned()),
+      ("tracker".to_owned(), "own-40-tracker".to_owned()),
+    ])
+  );
+
+  // Gone from the listing, the server leaves the record.
+  stood.stand_in("owner-40", json!([{ "name": "tracker", "app": "own-40-tracker", "entries": [] }]));
+  attachments::withheld_mcp(ground, ACCOUNT, None, Some("worker")).await.unwrap();
+  assert_eq!(
+    attachments::recorded_servers(&ground.db, ACCOUNT).await.unwrap(),
+    BTreeMap::from([("tracker".to_owned(), "own-40-tracker".to_owned())])
+  );
+
+  attachments::forget_server(&ground.db, ACCOUNT, "tracker").await.unwrap();
+  assert!(attachments::recorded_servers(&ground.db, ACCOUNT).await.unwrap().is_empty());
+}
+
+// "where the tool host's listing cannot be read, the file names the key of every MCP server agency's record holds, the
+// attached ones among them, and its `attached` says why"
+#[tokio::test]
+async fn an_unread_listing_withholds_every_recorded_mcp_server_attached_or_not() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+
+  stood.stand_in("owner-40", json!([{ "name": "tracker", "app": "own-40-tracker", "entries": [] }]));
+  attachments::set(ground, ACCOUNT, ("agent", "coder-u40"), &[], &["tracker".to_owned()])
+    .await
+    .unwrap();
+  attachments::record_server(&ground.db, ACCOUNT, "weekly", "own-40-weekly")
+    .await
+    .unwrap();
+
+  let holder = Holder::agent("coder-u40");
+  let both: std::collections::BTreeSet<String> =
+    ["own-40-tracker".to_owned(), "own-40-weekly".to_owned()].into();
+
+  // The listing reads: the attached server reaches its holder; the recorded one it no longer lists has left.
+  let read = attachments::withheld_mcp(ground, ACCOUNT, Some(&holder), Some("worker")).await.unwrap();
+
+  assert!(read.keys.is_empty(), "{read:?}");
+  attachments::record_server(&ground.db, ACCOUNT, "weekly", "own-40-weekly")
+    .await
+    .unwrap();
+
+  // The listing does not read: every recorded server is withheld, the attached one too, and why is said.
+  listing_unread(&stood, ACCOUNT);
+
+  let unread = attachments::withheld_mcp(ground, ACCOUNT, Some(&holder), Some("worker")).await.unwrap();
+
+  assert_eq!(unread.keys, both);
+  assert!(unread.why.as_deref().is_some_and(|why| why.contains("listing")), "{unread:?}");
+
+  // The administrator's file says so in its `attached`.
+  attachments::record_server(&ground.db, ADMINISTRATOR, "tracker", "own-1-tracker")
+    .await
+    .unwrap();
+  listing_unread(&stood, ADMINISTRATOR);
+
+  let file = stood.data().join("withheld.json");
+  let issued = Issued {
+    holder: Some(Holder::supervisor("forty-bmo")),
+    line: Some("chat".to_owned()),
+  };
+
+  apps::write_for_administrator(ground, &file, ADMINISTRATOR, &issued).await;
+
+  let raw: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+
+  assert_eq!(raw["apps"], json!(["own-1-tracker"]));
+  assert_eq!(raw["attached"]["withheld"], true, "{raw}");
+  assert!(raw["attached"]["why"].as_str().unwrap().contains("listing"), "{raw}");
+}
+
+// "where agency's own record cannot be read, the file is written with `apps` null, which the tool host takes as every
+// app withheld, keeping its account, holder and line"
+#[tokio::test]
+async fn an_unread_record_writes_a_file_the_tool_host_takes_as_every_app_withheld() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+
+  stood.stand_in("owner-1", json!([{ "name": "tracker", "app": "own-1-tracker", "entries": [] }]));
+  sea_orm::ConnectionTrait::execute_unprepared(&ground.db, r#"DROP TABLE "mcp_servers""#)
+    .await
+    .unwrap();
+
+  let refused = attachments::withheld_mcp(ground, ADMINISTRATOR, None, Some("chat")).await.unwrap_err();
+
+  assert!(refused.contains("record"), "{refused}");
+
+  let file = stood.data().join("withheld.json");
+  let issued = Issued {
+    holder: Some(Holder::supervisor("forty-bmo")),
+    line: Some("chat".to_owned()),
+  };
+
+  apps::write_for_administrator(ground, &file, ADMINISTRATOR, &issued).await;
+
+  let raw: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+
+  assert_eq!(raw["apps"], serde_json::Value::Null, "{raw}");
+  assert_eq!(raw["attached"]["withheld"], true, "{raw}");
+
+  let written = apps::read(&file).unwrap();
+
+  assert_eq!(written.apps, None);
+  assert_eq!((written.account.as_str(), written.holder), (ADMINISTRATOR, issued.holder));
+}
+
+// "where a holder's attachments or an attached skill's folder do not read whole, none of its attached skills is
+// placed: the run carries the plugin it carries with nothing attached, and a supervisor no plugin of attached skills"
+#[tokio::test]
+async fn attached_skills_that_do_not_read_whole_are_none_placed() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+  let trees = Trees::of(ground);
+  let both = ["tidy".to_owned(), "sort".to_owned()];
+
+  stood.skill(ACCOUNT, "tidy");
+  stood.skill(ACCOUNT, "sort");
+  attachments::set(ground, ACCOUNT, ("agent", "coder-u40"), &both, &[]).await.unwrap();
+  attachments::set(ground, ACCOUNT, ("supervisor", "forty-bmo"), &both, &[])
+    .await
+    .unwrap();
+
+  let plugin_of = |agent: &'static str| {
+    let (ground, trees) = (ground, &trees);
+
+    async move {
+      composed_as(
+        agent.to_owned(),
+        role_run(ground, trees, "coder", None, None, "claude-opus-5-5", "/work", "claude-code"),
+      )
+      .await
+      .unwrap()
+      .plugin_dir
+    }
+  };
+  let bare = plugin_of("coder-u40-02").await;
+
+  assert!(plugin_of("coder-u40").await.join("skills/sort/SKILL.md").is_file());
+
+  // One attached skill's folder no longer reads: neither is placed, never the one that reads alone.
+  std::fs::remove_file(agency_server::skills::folder_of(stood.data(), ACCOUNT).join("sort/SKILL.md"))
+    .unwrap();
+
+  assert!(
+    attachments::attached_skills(ground, "worker", &Holder::agent("coder-u40"))
+      .await
+      .unwrap()
+      .is_empty()
+  );
+  assert_eq!(plugin_of("coder-u40").await, bare, "the role's plugin alone");
+  assert_eq!(attachments::supervisor_plugin(ground, "forty-bmo").await.unwrap(), None);
+
+  // The attachments themselves do not read: none placed, and the launch goes on.
+  stood.skill(ACCOUNT, "sort");
+  sea_orm::ConnectionTrait::execute_unprepared(&ground.db, r#"DROP TABLE "agent_attachments""#)
+    .await
+    .unwrap();
+  assert_eq!(plugin_of("coder-u40").await, bare);
+  assert_eq!(attachments::supervisor_plugin(ground, "forty-bmo").await.unwrap(), None);
 }
 
 #[test]

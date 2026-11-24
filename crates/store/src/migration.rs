@@ -108,6 +108,7 @@ mod m20270116_000001_session_reset_clean;
 mod m20270120_000001_supervisor_sleep;
 mod m20270121_000001_note_assistant_plain;
 mod m20270122_000001_agent_attachments;
+mod m20270123_000001_mcp_servers;
 
 use sea_orm_migration::prelude::*;
 
@@ -133,7 +134,7 @@ pub const SETTINGS_WRITTEN: [&str; 1] = ["research_supervisor"];
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 64] = [
+pub const OWN_TABLES: [&str; 65] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -170,6 +171,7 @@ pub const OWN_TABLES: [&str; 64] = [
   "node_workplaces",
   "person_nodes",
   "agent_attachments",
+  "mcp_servers",
   "node_rotation",
   "node_assignments",
   "live_claude_openings",
@@ -312,6 +314,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270120_000001_supervisor_sleep::Migration),
       Box::new(m20270121_000001_note_assistant_plain::Migration),
       Box::new(m20270122_000001_agent_attachments::Migration),
+      Box::new(m20270123_000001_mcp_servers::Migration),
     ]
   }
 

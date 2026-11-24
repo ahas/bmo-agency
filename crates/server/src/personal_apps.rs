@@ -589,7 +589,11 @@ async fn put_held(
 
   let own =
     (app.is_none() && manifest.is_some_and(is_mcp)).then(|| crate::attachments::own_key(account, name));
-  let home = put_home(ground, account, (name, app.or(own.as_deref())), &version, files).await?;
+  let key = app.or(own.as_deref());
+
+  keep_server(ground, account, name, key, manifest).await?;
+
+  let home = put_home(ground, account, (name, key), &version, files).await?;
   let pointed =
     ask(&runner, &json!({ "owner": account, "point": { "tool": name, "version": version } })).await?;
 
@@ -601,6 +605,31 @@ async fn put_held(
     entries: entries(ground, account, name).await,
     said: placed.said.into_iter().chain(lines(&home)).collect(),
   })
+}
+
+// Agency's record of the account's MCP servers kept as one is put at home (docs/person-nodes.md, 「MCP servers」):
+// an MCP server's row written before the put, which is refused where it cannot be, so its key is withheld from the
+// moment it can stand; an app's taking any row of its name away, a row left where that fails withholding a key no
+// server stands under.
+async fn keep_server(
+  ground: &Ground,
+  account: &str,
+  name: &str,
+  key: Option<&str>,
+  manifest: Option<&str>,
+) -> Result<(), Fault> {
+  match key.filter(|_| manifest.is_some_and(is_mcp)) {
+    Some(key) => crate::attachments::record_server(&ground.db, account, name, key).await.map_err(|why| {
+      Fault::Refused(format!("the record of the account's MCP servers was not written: {}", why.detail))
+    }),
+    None => {
+      if let Err(why) = crate::attachments::forget_server(&ground.db, account, name).await {
+        eprintln!("the record of {account}'s {name} was not taken away: {}", why.detail);
+      }
+
+      Ok(())
+    }
+  }
 }
 
 /// The app sent back to a version its PC keeps: the one named, else the newest older than the one in place; its
@@ -644,13 +673,27 @@ pub async fn back(
 
   expect(&described, "described")?;
 
-  let app = listed_tools(ground, account)
+  let listed = listed_tools(ground, account)
     .await
     .unwrap_or_default()
     .into_iter()
     .find(|tool| tool["name"] == name)
     .and_then(|tool| tool["app"].as_str().map(str::to_owned));
-  let home = put_home(ground, account, (name, app.as_deref()), &target, &described.last["files"]).await?;
+  // A server's key stands in agency's record where the tool host's listing does not read.
+  let app = match listed {
+    Some(app) => Some(app),
+    None => crate::attachments::recorded_servers(&ground.db, account)
+      .await
+      .map_err(|why| {
+        Fault::Refused(format!("the record of the account's MCP servers was not read: {}", why.detail))
+      })?
+      .remove(name),
+  };
+  let files = &described.last["files"];
+
+  keep_server(ground, account, name, app.as_deref(), files["tool.toml"].as_str()).await?;
+
+  let home = put_home(ground, account, (name, app.as_deref()), &target, files).await?;
   let pointed =
     ask(&runner, &json!({ "owner": account, "point": { "tool": name, "version": target } })).await?;
 
@@ -674,10 +717,15 @@ pub async fn remove(ground: &Ground, account: &str, name: &str) -> Result<Outcom
   let home = pocket(ground, &["take", "--owner", account, name]).await;
   let mut said: Vec<String> = home.as_deref().map(|said| lines(said).collect()).unwrap_or_default();
 
-  if home.is_ok()
-    && let Err(why) = crate::attachments::forget_item(&ground.db, account, "mcp", name).await
-  {
-    eprintln!("the attachments of {account}'s {name} were not taken away: {}", why.detail);
+  if home.is_ok() {
+    if let Err(why) = crate::attachments::forget_item(&ground.db, account, "mcp", name).await {
+      eprintln!("the attachments of {account}'s {name} were not taken away: {}", why.detail);
+    }
+
+    // A row left standing withholds a key no tool stands under, until the tool host's listing takes it away.
+    if let Err(why) = crate::attachments::forget_server(&ground.db, account, name).await {
+      eprintln!("the record of {account}'s {name} was not taken away: {}", why.detail);
+    }
   }
 
   let pc = match runner(ground, account).await {

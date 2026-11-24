@@ -1,8 +1,9 @@
 //! The skills and MCP servers an account attaches to its agents (docs/person-nodes.md, 「Attaching skills and MCP
 //! servers」): the holders an account has — its supervisors and its role agents, and for the administrator's account
 //! those of no account too — and what is attached to each, kept in `agent_attachments`; the attached skills a launch
-//! places on a line that takes them, refused on one that does not; and the keys of the account's MCP servers a
-//! record's holder is not attached to, which its withheld-apps file names.
+//! places on a line that takes them, refused on one that does not, and none where they do not read whole; agency's
+//! own record of the account's MCP servers, `mcp_servers`; and the keys of the account's MCP servers a record's holder
+//! is not attached to, which its withheld-apps file names, every one where what is attached cannot be known.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -138,25 +139,71 @@ pub async fn attached_to<C: ConnectionTrait>(
 }
 
 /// The skills attached to a holder, each its name and its folder at home, for a launch on `line`: none where none
-/// is attached, and the launch refused where some are and the line's carries take no attached skill.
+/// is attached, and the launch refused where some are and the line's carries take no attached skill. None either
+/// where they do not read whole (docs/person-nodes.md, 「Attaching skills and MCP servers」): the holder's
+/// attachments unread, or an attached skill's folder, which the log says once.
 pub async fn attached_skills(
   ground: &Ground,
   line: &str,
   holder: &Holder,
 ) -> Result<Vec<(String, PathBuf)>, Refusal> {
-  let skills: Vec<(String, PathBuf)> = attached_to(&ground.db, holder)
-    .await?
-    .into_iter()
-    .filter(|(_, kind, _)| kind == SKILL)
-    .map(|(account, _, name)| {
-      let folder = crate::skills::folder_of(&ground.roots.data, &account).join(&name);
-
-      (name, folder)
-    })
-    .filter(|(_, folder)| folder.join(crate::skills::SKILL_FILE).is_file())
-    .collect();
+  let skills = match skills_read(ground, holder).await {
+    Ok(skills) => skills,
+    Err(why) => {
+      eprintln!(
+        "agency: the skills attached to the {} {} are withheld from its launch: {why}",
+        holder.kind, holder.name
+      );
+      Vec::new()
+    }
+  };
 
   place_on(line, &holder.name, skills)
+}
+
+// The skills attached to a holder, each read whole, or why they were not.
+async fn skills_read(ground: &Ground, holder: &Holder) -> Result<Vec<(String, PathBuf)>, String> {
+  let mut skills = Vec::new();
+
+  for (account, kind, name) in attached_to(&ground.db, holder)
+    .await
+    .map_err(|why| format!("its attachments were not read: {}", why.detail))?
+  {
+    if kind != SKILL {
+      continue;
+    }
+
+    let folder = crate::skills::folder_of(&ground.roots.data, &account).join(&name);
+
+    reads_whole(&folder).map_err(|why| format!("the skill {name} does not read: {why}"))?;
+    skills.push((name, folder));
+  }
+
+  Ok(skills)
+}
+
+// Whether a skill's folder reads whole: its `SKILL.md`, and every folder and file under it.
+fn reads_whole(folder: &std::path::Path) -> Result<(), String> {
+  let said = |path: &std::path::Path, why: std::io::Error| format!("{}: {why}", path.display());
+  let skill_file = folder.join(crate::skills::SKILL_FILE);
+
+  std::fs::read(&skill_file).map_err(|why| said(&skill_file, why))?;
+
+  let mut open = vec![folder.to_owned()];
+
+  while let Some(dir) = open.pop() {
+    for entry in std::fs::read_dir(&dir).map_err(|why| said(&dir, why))? {
+      let path = entry.map_err(|why| said(&dir, why))?.path();
+
+      if path.is_dir() {
+        open.push(path);
+      } else {
+        std::fs::File::open(&path).map_err(|why| said(&path, why))?;
+      }
+    }
+  }
+
+  Ok(())
 }
 
 /// The attached skills a launch on `line` places, refused where there are some and the line takes none.
@@ -238,9 +285,20 @@ static KINDS: LazyLock<std::sync::Mutex<BTreeMap<String, String>>> = LazyLock::n
 /// them, each standing under an own key, and each whose shared key is a catalogue record's of the kind `mcp`, its
 /// company read off the key. `texts` reads each shared one's text from the catalogue as well.
 pub async fn mcp_items(ground: &Ground, account: &str, texts: bool) -> Result<Vec<McpItem>, String> {
-  let tools = crate::personal_apps::listed_tools(ground, account)
+  let tools = listed(ground, account).await?;
+
+  Ok(mcp_items_of(ground, &tools, texts).await)
+}
+
+// The account's personal tools as the tool host lists them, or why they were not read.
+async fn listed(ground: &Ground, account: &str) -> Result<Vec<Value>, String> {
+  crate::personal_apps::listed_tools(ground, account)
     .await
-    .map_err(|fault| Refused::from(fault).error)?;
+    .map_err(|fault| Refused::from(fault).error)
+}
+
+// The MCP servers among the personal tools listed.
+async fn mcp_items_of(ground: &Ground, tools: &[Value], texts: bool) -> Vec<McpItem> {
   let mut items = Vec::new();
 
   for tool in tools {
@@ -253,7 +311,7 @@ pub async fn mcp_items(ground: &Ground, account: &str, texts: bool) -> Result<Ve
         name: name.to_owned(),
         key: key.to_owned(),
         own: true,
-        title: first_title(&tool),
+        title: first_title(tool),
         titles: BTreeMap::new(),
       });
       continue;
@@ -299,46 +357,168 @@ pub async fn mcp_items(ground: &Ground, account: &str, texts: bool) -> Result<Ve
     }
   }
 
-  Ok(items)
+  items
 }
 
 fn first_title(tool: &Value) -> Option<String> {
   tool["entries"][0]["title"].as_str().map(str::to_owned)
 }
 
+/// Agency's own record of the account's MCP servers (docs/person-nodes.md, 「MCP servers」): each server's name and
+/// the key its home copy stands under.
+pub async fn recorded_servers<C: ConnectionTrait>(
+  db: &C,
+  account: &str,
+) -> Result<BTreeMap<String, String>, store::Fault> {
+  all(
+    db,
+    r#"SELECT "name", "key" FROM "mcp_servers" WHERE "account" = $1"#,
+    vec![account.into()],
+  )
+  .await?
+  .iter()
+  .map(|row| Ok((row.try_get("", "name")?, row.try_get("", "key")?)))
+  .collect()
+}
+
+/// The account's MCP server of the name recorded under its key, as it is put at home.
+pub async fn record_server<C: ConnectionTrait>(
+  db: &C,
+  account: &str,
+  name: &str,
+  key: &str,
+) -> Result<(), store::Fault> {
+  run(
+    db,
+    r#"INSERT INTO "mcp_servers" ("account", "name", "key", "recorded_at") VALUES ($1, $2, $3, $4)
+       ON CONFLICT ("account", "name") DO UPDATE SET "key" = EXCLUDED."key", "recorded_at" = EXCLUDED."recorded_at""#,
+    vec![account.into(), name.into(), key.into(), crate::now_ms().into()],
+  )
+  .await?;
+  Ok(())
+}
+
+/// The account's MCP server of the name taken out of the record, as it leaves home or an app stands in its name.
+pub async fn forget_server<C: ConnectionTrait>(
+  db: &C,
+  account: &str,
+  name: &str,
+) -> Result<(), store::Fault> {
+  run(
+    db,
+    r#"DELETE FROM "mcp_servers" WHERE "account" = $1 AND "name" = $2"#,
+    vec![account.into(), name.into()],
+  )
+  .await?;
+  Ok(())
+}
+
+// The record made to agree with the tool host's listing: every server listed written, and every row whose key the
+// listing holds no tool of taken away.
+async fn reconcile(
+  ground: &Ground,
+  account: &str,
+  recorded: &mut BTreeMap<String, String>,
+  tools: &[Value],
+  items: &[McpItem],
+) -> Result<(), store::Fault> {
+  let keys: BTreeSet<&str> = tools.iter().filter_map(|tool| tool["app"].as_str()).collect();
+  let gone: Vec<String> = recorded
+    .iter()
+    .filter(|(_, key)| !keys.contains(key.as_str()))
+    .map(|(name, _)| name.clone())
+    .collect();
+
+  for name in gone {
+    forget_server(&ground.db, account, &name).await?;
+    recorded.remove(&name);
+  }
+
+  for item in items {
+    if recorded.get(&item.name) != Some(&item.key) {
+      record_server(&ground.db, account, &item.name, &item.key).await?;
+      recorded.insert(item.name.clone(), item.key.clone());
+    }
+  }
+
+  Ok(())
+}
+
+/// What a record withholds of the account's MCP servers: their keys, and why the attached ones are among them where
+/// they are.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WithheldMcp {
+  pub keys: BTreeSet<String>,
+  pub why: Option<String>,
+}
+
 /// The keys of the account's MCP servers a record withholds (docs/tools.md, 「The apps a person reaches」): every one
-/// not attached to its holder, and every one where its line takes no attached MCP server or it names no holder.
+/// not attached to its holder, and every one where its line takes no attached MCP server or it names no holder. The
+/// servers are agency's record's and the tool host's listing's together, the record made to agree with the listing
+/// where it reads; where the listing or the holder's attachments cannot be read, every one the record holds, the
+/// attached among them, and why. Agency's own record unread is the error, which withholds every app.
 pub async fn withheld_mcp(
   ground: &Ground,
   account: &str,
   holder: Option<&Holder>,
   line: Option<&str>,
-) -> Result<BTreeSet<String>, String> {
-  let items = mcp_items(ground, account, false).await?;
+) -> Result<WithheldMcp, String> {
+  let mut recorded = recorded_servers(&ground.db, account)
+    .await
+    .map_err(|why| format!("agency's record of the account's MCP servers was not read: {}", why.detail))?;
+  let mut listed_items = Vec::new();
+  let mut why = None;
 
-  if items.is_empty() {
-    return Ok(BTreeSet::new());
+  match listed(ground, account).await {
+    Ok(tools) => {
+      listed_items = mcp_items_of(ground, &tools, false).await;
+
+      if let Err(fault) = reconcile(ground, account, &mut recorded, &tools, &listed_items).await {
+        eprintln!(
+          "agency: the record of account {account}'s MCP servers was not made to agree with the tool host: {}",
+          fault.detail
+        );
+      }
+    }
+    Err(fault) => {
+      why = Some(format!("the tool host's listing of the account's personal tools was not read: {fault}"));
+    }
+  }
+
+  // Each server by its name and its key: a name the record and the listing key apart withholds both keys.
+  let servers: BTreeSet<(String, String)> = recorded
+    .into_iter()
+    .chain(listed_items.into_iter().map(|item| (item.name, item.key)))
+    .collect();
+
+  if servers.is_empty() {
+    return Ok(WithheldMcp::default());
   }
 
   let takes = line.is_some_and(|line| RUN_LINES.carries(line).takes_attached_mcp());
-  let attached: BTreeSet<String> = match holder.filter(|_| takes) {
-    Some(holder) => attached_to(&ground.db, holder)
-      .await
-      .map_err(|why| why.detail)?
-      .into_iter()
-      .filter(|(of, kind, _)| of == account && kind == MCP)
-      .map(|(_, _, name)| name)
-      .collect(),
+  let attached: BTreeSet<String> = match holder.filter(|_| takes && why.is_none()) {
+    Some(holder) => match attached_to(&ground.db, holder).await {
+      Ok(rows) => rows
+        .into_iter()
+        .filter(|(of, kind, _)| of == account && kind == MCP)
+        .map(|(_, _, name)| name)
+        .collect(),
+      Err(fault) => {
+        why = Some(format!("the holder's attachments were not read: {}", fault.detail));
+        BTreeSet::new()
+      }
+    },
     None => BTreeSet::new(),
   };
 
-  Ok(
-    items
+  Ok(WithheldMcp {
+    keys: servers
       .into_iter()
-      .filter(|item| !attached.contains(&item.name))
-      .map(|item| item.key)
+      .filter(|(name, _)| !attached.contains(name))
+      .map(|(_, key)| key)
       .collect(),
-  )
+    why,
+  })
 }
 
 // One holder of the account's as its row reads, before what is attached to it.

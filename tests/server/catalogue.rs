@@ -745,6 +745,8 @@ fn serve_mcp_runner(socket: &Path, asks: RunnerAsks) {
         json!({ "t": "wants", "network": ["mcp.example.com"], "secrets": ["tracker_token"] })
       } else if asked.get("point").is_some() {
         json!({ "t": "pointed", "version": "v1", "kept": [] })
+      } else if asked.get("adopt").is_some() {
+        json!({ "t": "adopted" })
       } else {
         json!({ "t": "taken" })
       };
@@ -930,7 +932,8 @@ async fn a_skill_is_shared_installed_moved_dropped_and_adopted_at_home_with_no_p
 
 // "an MCP server is put under its own key; its place asks for what it wants, carried read from the person's own
 // secret space; it is shared as an app, shown with how it is reached, and installed with its place carrying what its
-// version asks for, refused where the receiver's space holds no file of its secret"
+// version asks for, refused where the receiver's space holds no file of its secret"; and agency's record of each
+// account's MCP servers keeps the key through the put, the install, the adoption and the removal
 #[tokio::test]
 async fn an_mcp_server_is_put_under_its_own_key_shared_and_installed_carrying_its_secret() {
   use base64::Engine;
@@ -1008,6 +1011,32 @@ async fn an_mcp_server_is_put_under_its_own_key_shared_and_installed_carrying_it
     "a received copy's place carries its version's permissions from the first ask"
   );
   assert_eq!(home_pointer(&stood, TEAMMATE, "tracker").unwrap()["app"], "shared-3-17-tracker");
+
+  // Agency's own record of each account's MCP servers holds the key each copy stands under.
+  let recorded = |account: i64| async move {
+    agency_server::attachments::recorded_servers(&ground.db, &account.to_string())
+      .await
+      .unwrap()
+  };
+  let one = |key: &str| BTreeMap::from([("tracker".to_owned(), key.to_owned())]);
+
+  assert_eq!(recorded(MAKER).await, one("own-17-tracker"));
+  assert_eq!(recorded(TEAMMATE).await, one("shared-3-17-tracker"));
+
+  // Adopted, the copy is the teammate's own and stands under their own key; removed, it leaves the record.
+  catalogue::adopt(ground, &teammate, "17-tracker").await.unwrap();
+  assert_eq!(home_pointer(&stood, TEAMMATE, "tracker").unwrap()["app"], "own-21-tracker");
+  assert_eq!(recorded(TEAMMATE).await, one("own-21-tracker"));
+
+  personal_apps::remove(ground, &TEAMMATE.to_string(), "tracker").await.unwrap();
+  assert!(recorded(TEAMMATE).await.is_empty());
+  assert_eq!(recorded(MAKER).await, one("own-17-tracker"), "another account's record stands");
+
+  // A dropped copy leaves the record as well.
+  catalogue::install(ground, &teammate, "17-tracker").await.unwrap();
+  assert_eq!(recorded(TEAMMATE).await, one("shared-3-17-tracker"));
+  catalogue::uninstall(ground, &teammate, "17-tracker").await.unwrap();
+  assert!(recorded(TEAMMATE).await.is_empty());
 }
 
 // "the maker asks for the other languages: each locale holding no text is filled and marked machine; the maker sets

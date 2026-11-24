@@ -102,12 +102,21 @@ here.
 - **An MCP server reaches the record's holder alone** (`docs/person-nodes.md`, 「Attaching skills and MCP
   servers」): the file's `apps` also names the key of every MCP server of the record's account not attached to the
   record's holder — the supervisor a supervisor's record is held by, the seat a role run is let in on — and of every
-  one where the record's line takes no attached MCP server or the record names no holder; a registry that cannot be
-  read names no MCP server, which the tool host then cannot serve either. The file keeps the holder,
-  `holder` (`{kind, name}`), and the line, `line`, so a turn resolves them again. A record of the administrator's
-  account, which the chain withholds nothing from, has a file written as well, `apps` those keys alone and
-  `personal` both true; where it cannot be written, or the tool host's registry cannot be read for it, the record
-  names none, as before any MCP server stood.
+  one where the record's line takes no attached MCP server or the record names no holder. The account's servers are
+  those of agency's own record of them and of the tool host's listing together (`docs/person-nodes.md`, 「MCP
+  servers」). The file keeps the holder, `holder` (`{kind, name}`), and the line, `line`, so a turn resolves them
+  again. A record of the administrator's account, which the chain withholds nothing from, has a file written as
+  well, `apps` those keys alone and `personal` both true, and names it whatever was written.
+- **What cannot be known withholds** (`docs/person-nodes.md`, 「Attaching skills and MCP servers」):
+  - where the tool host's listing or the holder's attachments cannot be read, `apps` names every MCP server of
+    agency's record, the attached ones among them;
+  - where agency's own record cannot be read, `apps` is written null, which the tool host reads as a file that does
+    not read, every app withheld, until a turn resolves the file again;
+  - the file's `attached`, `{"withheld": true, "why"}`, says that the attached servers were withheld and why, and
+    is left out where they were not; agency's log says it once, as the file comes to say it. The tool host reads
+    past it.
+  - A file that cannot be written is taken away, so a record naming it reaches no app; a run's file of its own
+    never stood before, so its record names one that does not stand.
 - **When it resolves:**
   - as it issues a record, before the record is asked of the tool host;
   - as each turn of a resident program begins, before the turn's words go in: the place's file, where it stands, is
@@ -123,7 +132,8 @@ here.
   it; where a turn's resolution withholds other apps than the file held before, and the turn is a chat session's in
   a room, a notice is owed in agency's outbox to the supervisor in that room, as the fact the chat line's policy
   words for it, naming the apps turned off and on, so the session does not reach for a tool it no longer has. It
-  carries no instruction.
+  carries no instruction. A file whose `apps` is null, before the turn or after it, names no apps to tell of, so no
+  notice is owed for it.
 
 
 ## The owner and the runner a record names

@@ -130,12 +130,14 @@ async fn an_app_not_both_offered_and_on_for_the_person_is_withheld() {
 async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
   let table = table();
   let address = account_service(table.clone()).await;
+  let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let more = BTreeMap::from([
     ("WEB_ADDRESS".to_owned(), address.clone()),
     ("WEB_TOKEN".to_owned(), "chain-token".to_owned()),
+    (agency_server::personal_apps::POCKET_VARIABLE.to_owned(), empty_registry(home.path())),
   ]);
-  let ground = ground_with(sea_orm::DatabaseConnection::Disconnected, home.path(), &more);
+  let ground = ground_with(scratch.db().clone(), home.path(), &more);
   let place = home.path().join("place");
   let file = apps::place_file(&place);
 
@@ -143,7 +145,7 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
   assert_eq!(
     apps::read(&file),
     Some(Withheld {
-      apps: keys(&[]),
+      apps: Some(keys(&[])),
       account: COMPANY_PERSON.to_owned(),
       personal: Personal {
         network: true,
@@ -184,7 +186,7 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
       on: vec![],
     }
   );
-  assert_eq!(apps::read(&file).unwrap().apps, keys(&["almanac"]));
+  assert_eq!(apps::read(&file).unwrap().apps, Some(keys(&["almanac"])));
   assert!(apps::changed_fact(&changed).contains("turned off: almanac; turned on: none"));
 
   let instruction = apps::changed_instruction("u7", 42, &changed);
@@ -213,7 +215,7 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     .unwrap()
     .insert(("app.almanac.on".to_owned(), COMPANY_PERSON.to_owned()), false);
   assert_eq!(apps::refresh(&gone, &place).await, None);
-  assert_eq!(apps::read(&file).unwrap().apps, keys(&[]));
+  assert_eq!(apps::read(&file).unwrap().apps, Some(keys(&[])));
 
   // A place no record of a person's named has no file, and nothing is resolved for it.
   assert_eq!(apps::refresh(&ground, &home.path().join("elsewhere")).await, None);
@@ -333,7 +335,7 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
   let file = apps::place_file(&place);
 
   assert_eq!(record["withheldAppsFile"], json!(file));
-  assert_eq!(apps::read(&file).unwrap().apps, keys(&["almanac", "ledger"]));
+  assert_eq!(apps::read(&file).unwrap().apps, Some(keys(&["almanac", "ledger"])));
   assert_eq!(apps::read(&file).unwrap().account, OTHER_PERSON);
 
   for agent in ["u9", "keeper"] {
@@ -343,7 +345,7 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
     let written = apps::read(&file).unwrap();
 
     assert_eq!(record["withheldAppsFile"], json!(file), "{agent}: {record}");
-    assert!(written.apps.is_empty(), "{agent}: no MCP server stands");
+    assert_eq!(written.apps, Some(keys(&[])), "{agent}: no MCP server stands");
     assert_eq!(written.account, "9");
     assert!(written.personal.network && written.personal.secrets, "{agent}");
   }

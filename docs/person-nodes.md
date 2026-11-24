@@ -528,6 +528,14 @@ it with `bmo/app_put`.
 - **Which personal tools of an account are MCP servers** is read from the tool host's listing of the account's
   personal tools: one whose key is an own key, and one whose shared key is the key of a catalogue record of the kind
   `mcp`, its company read off the key.
+- **Agency keeps its own record of them,** `mcp_servers` in its store (`docs/store.md`): one row a server of an
+  account's, its name and the key its home copy stands under. Agency puts every one at home itself, so the row is
+  written before the put — an own server's under its own key, a received copy's under its shared app's key, an
+  adopted copy's moved onto its own key — and a put the row cannot be written for is refused; a put of an app that is
+  no MCP server takes away any row of its name, and a removal at home takes the row away with the server, a dropped
+  copy's among them. Each time a record's withheld-apps file is resolved and the tool host's listing reads for the
+  account, the record is made to agree with it: every server it lists is written, and a row whose key the listing holds no tool of is taken away; a row whose key
+  the listing holds but the catalogue cannot class is kept.
 
 ## Attaching skills and MCP servers
 
@@ -552,9 +560,24 @@ A person's skill, and a person's MCP server, reach the agents it is attached to 
 - **An MCP server reaches a record's holder alone:** every record's withheld-apps file (`docs/tools.md`, 「The apps a
   person reaches」) names, beside the apps the chain withholds, the key of every MCP server of the record's account
   not attached to the record's holder — a supervisor's record, that supervisor; a role run's, its seat — and of every
-  one where the record's line's carries' `mcp` lack `attached` or the record names no holder. A record of the
-  administrator's account has a file written as well, naming those keys alone with `personal` both true, so its
-  sessions keep every other app and the network and secrets of their personal tools.
+  one where the record's line's carries' `mcp` lack `attached` or the record names no holder. The servers are those of
+  agency's record and of the tool host's listing together. A record of the administrator's account has a file written
+  as well, naming those keys alone with `personal` both true, so its sessions keep every other app and the network
+  and secrets of their personal tools.
+- **Only what is known to be attached reaches a run; what cannot be known withholds:**
+  - where the tool host's listing of the account's personal tools cannot be read, or the holder's attachments cannot
+    be read, the file names the key of every MCP server agency's record holds, the attached ones among them, so the
+    run goes on without any;
+  - where agency's own record cannot be read, the file is written with `apps` null, which the tool host does not read
+    and so takes as every app withheld (the tool host's `docs/api.md`, 「`withheldAppsFile` withholds whole apps」);
+    the file keeps its account, holder and line, so a later turn resolves it again;
+  - either way the file's `attached` says so, `{"withheld": true, "why"}`, and agency's log says it once, as the
+    file comes to say it.
+- **Attached skills are placed whole or not at all:** where a holder's attachments cannot be read from the store, or
+  the folder of a skill attached to it does not read whole — its `SKILL.md` and every file and folder under it —
+  none of its attached skills is placed, and the log says why once a launch: a role run carries the plugin it carries
+  with nothing attached, its role's or its agent's own list, and a supervisor's program is handed no plugin of
+  attached skills.
 
 ## Who reaches a node
 
