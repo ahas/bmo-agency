@@ -117,6 +117,19 @@ unit_permission = "manage"
 person_writer = "heads"
 default = true
 
+# A person's own local AI (docs/supply.md, 「A person's local AI」): whether a person here may add a local AI of their
+# own, served on their PC, as a source of their own supply. A link turns it off for everyone below it.
+[personal_local_ai]
+key = "supply.personal-local-ai"
+description = "Whether a person here may add a local AI of their own: an OpenAI-compatible server their own PC reaches, which carries their own runs alone. A link turns it off for everyone below it; none turns it back on."
+shape = "flag"
+mode = "narrowing"
+rules = true
+levels = ["platform", "unit", "person"]
+unit_permission = "manage"
+person_writer = "heads"
+default = true
+
 # A person's own agents (docs/role-agents.md, 「A person's own agents」): the organisation supplies the agents its
 # people are given — the sign-up composition above — and each person lays their own changes over that set. Each change
 # a person may make is a setting of its own, allowed or locked by their organisation.

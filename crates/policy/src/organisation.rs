@@ -82,6 +82,8 @@ pub struct Organisation {
   pub composition: Composition,
   pub repositories: Kind,
   pub personal_apps: PersonalApps,
+  /// Whether a person may add a local AI of their own (docs/supply.md, 「A person's local AI」).
+  pub personal_local_ai: Kind,
   pub own_agents: OwnAgents,
 }
 

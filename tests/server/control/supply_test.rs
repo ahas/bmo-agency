@@ -82,6 +82,7 @@ fn ask(road: &str, model: Option<&str>) -> SupplyTestAsk {
   SupplyTestAsk {
     road: road.to_owned(),
     model: model.map(str::to_owned),
+    local: None,
   }
 }
 

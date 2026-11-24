@@ -202,6 +202,24 @@ never the model's name.
   on another. What this document says of the worker line holds there alike: a job in the repository reads
   the worker line, and the pinned model answers as a worker of that repository.
 
+### A person's local AI
+
+- **A local AI a person adds is a registration they own** (`docs/supply.md`, 「A person's local AI」), made through
+  `/personal-models` in their name, never through the owner's routes or the command:
+  - its name is `u<account>-` and the name the person gave, so no two people's collide and the registry's rule
+    holds; its label is the name they gave;
+  - its one address stands on their PC, node label `pc`: the address as they gave it, plain `http`, its key the
+    file of their own secret, `users/<account>/<name>` under `env/`, which agency neither writes nor removes;
+  - its window is the one the person names within the registry's bounds, else the policy's
+    (`policy/supply.toml`, `[local_ai]`), and its answer size the policy's;
+  - it is on or off, the person's switch: one off offers no personal supply and its address is carried by no link.
+- **Its address is reached through the person's PC, never from here.** The address row keeps a port of this
+  machine's loopback, the lowest free in the policy's range as the address is made, and the gateway asks that port
+  in place of the address's own host and port, keeping its path; the PC's link listens on the port and carries each
+  connection to the address as the PC reaches it (`docs/person-nodes.md`, 「A local AI on a PC」). An address on the
+  loopback of the PC is the PC's own, so nothing here is ever asked in its name. While the PC's link stands
+  down, the port refuses, and the run fails as a registration whose engine does not answer does.
+
 ### Where it is set
 
 - **The console:** the registered-models tab of the agent management screen lists every registration
@@ -379,6 +397,8 @@ never the model's name.
 - **A registration on the deployment's own machines stays on them:** its requests go to loopback — the
   gateway, and behind it the engine on its node and the cards it uses on the internal network — and
   what each hop logs of a request is the node's own concern (`docs/work-nodes.md`).
+- **A person's local AI is sent their own runs alone,** on their own PC or the network it reaches: what a run of
+  theirs carries goes to the server they named, and nothing of anyone else's.
 - **What a translation on an external registration sends about people:** parts of documents the console
   asked to translate, a person book's text as it is where that is the document.
 
@@ -395,6 +415,8 @@ never the model's name.
   - An address set through `PUT /models/{modelKey}/addresses/{node}` may name a key file the console's secret
     store wrote in the platform's space, one plain file name under `env/`. Agency keeps the name alone and
     neither writes, reads back nor removes that file.
+  - A person's local AI names the file of the person's own secret, `users/<account>/<name>`, which agency keeps
+    the name of alone, as a named key file (「A person's local AI」).
   - A removed address or registration takes away the files agency wrote for it, and leaves a file it did
     not write where it is.
 - **Who handles the files:** the harness-machine crate writes, takes away and checks them, for agency's

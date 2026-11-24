@@ -817,6 +817,11 @@ pub async fn spec(
     }
     _ => None,
   };
+  // The local AIs of that account the PC's link carries from here (docs/person-nodes.md, 「A local AI on a PC」).
+  let reach = match runner_owner.as_deref().and_then(|owner| owner.parse::<i64>().ok()) {
+    Some(owner) => crate::local_ai::reaches(db, owner).await?,
+    None => Vec::new(),
+  };
 
   Ok(Ok(Spec {
     node: node.to_owned(),
@@ -866,6 +871,7 @@ pub async fn spec(
     rewrite,
     runner: jake.is_some().then(|| roots.runner_socket(node)),
     runner_owner,
+    reach,
     jake,
     local,
   }))

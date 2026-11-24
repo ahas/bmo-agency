@@ -322,6 +322,7 @@ async fn connection(
       }
     }
     Some(Frame::Run { owner }) => run_tool(reader, writer, &tools, &owner).await,
+    Some(Frame::Reach { to }) => reach(reader, writer, &to).await,
     first => {
       let (node, first) = match first {
         Some(Frame::Near { node }) => (node, None),
@@ -333,6 +334,47 @@ async fn connection(
       session(reader, writer, Greeting::Said(first), Some(carrier), superseded).await;
     }
   }
+}
+
+/// How long the far end tries to reach a local AI's address before it says it could not.
+const REACH_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// A stream named for a person's local AI (docs/person-nodes.md, 「A local AI on a PC」): the host and port connected
+/// to from the PC, the near end told whether it was reached, and the stream joined to the connection, each side's
+/// close passed on to the other.
+pub async fn reach(
+  reader: impl tokio::io::AsyncRead + Unpin,
+  mut writer: impl tokio::io::AsyncWrite + Unpin,
+  to: &str,
+) {
+  let reached = match tokio::time::timeout(REACH_WAIT, tokio::net::TcpStream::connect(to)).await {
+    Ok(Ok(reached)) => reached,
+    Ok(Err(why)) => {
+      let _ = writer
+        .write_all(
+          Frame::Reached {
+            why: Some(format!("{to}: {why}")),
+          }
+          .line()
+          .as_bytes(),
+        )
+        .await;
+      return;
+    }
+    Err(_) => {
+      let why = format!("{to} did not answer within {} seconds", REACH_WAIT.as_secs());
+      let _ = writer.write_all(Frame::Reached { why: Some(why) }.line().as_bytes()).await;
+      return;
+    }
+  };
+
+  if writer.write_all(Frame::Reached { why: None }.line().as_bytes()).await.is_err() {
+    return;
+  }
+
+  let mut stream = tokio::io::join(reader, writer);
+  let mut reached = reached;
+  let _ = tokio::io::copy_bidirectional(&mut stream, &mut reached).await;
 }
 
 /// One call's passage handed to a runner of this far end's own binary, run for the one owner the near end named,

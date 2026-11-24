@@ -37,6 +37,7 @@ mod own_agent_routes;
 pub mod own_llm;
 mod person_node_routes;
 mod personal_app_routes;
+pub mod personal_models;
 mod personal_skill_routes;
 pub mod personal_supply;
 pub mod pool;

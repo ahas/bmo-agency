@@ -1,7 +1,8 @@
 //! Personal tools on a PC (docs/person-nodes.md, 「Personal tools on a PC」): the runner confines a tool to its own
 //! version and data folders where bubblewrap makes namespaces here, and refuses what it does not run; and a call asked
 //! on the near end's runner socket is carried over a stand-in hub to the far end's runner and answered, its caller
-//! going away ending the tool's process on the PC.
+//! going away ending the tool's process on the PC; and a person's local AI on the PC is reached from here through the
+//! link (「A local AI on a PC」).
 
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
@@ -677,4 +678,160 @@ fn the_proxy_reaches_listed_names_alone() {
     std::net::Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 1).into()
   ));
   assert!(!node_link::proxy::this_machine("192.0.2.7".parse().unwrap()));
+}
+
+// A local AI standing in on the PC's loopback: every connection answered with one HTTP response naming what it was
+// asked, standing until the test ends.
+fn local_ai_on_the_pc() -> u16 {
+  let listener = std::net::TcpListener::bind("127.0.0.2:0").unwrap();
+  let port = listener.local_addr().unwrap().port();
+
+  std::thread::spawn(move || {
+    for stream in listener.incoming().flatten() {
+      let mut reading = BufReader::new(stream.try_clone().unwrap());
+      let mut first = String::new();
+
+      let _ = reading.read_line(&mut first);
+
+      let body = format!("asked {}", first.trim());
+      let mut writing = stream;
+      let _ = write!(
+        writing,
+        "HTTP/1.1 200 OK\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+        body.len()
+      );
+    }
+  });
+
+  port
+}
+
+// "a person's local AI on the PC is reached from here at the port the spec names, each connection carried over the hub
+// to the far end, which connects from the PC; a test asked once on the runner socket is told whether the PC reached
+// it, and one for another account, or for an address the PC does not reach, is refused"
+#[test]
+fn a_local_ai_on_the_pc_is_reached_from_here_through_the_link() {
+  let binary = crate::support::binary::path("node-link");
+  let dir = tempfile::tempdir().unwrap();
+  let there = dir.path().join("there");
+  let connect = dir.path().join("jake-hub");
+  let hub_env = dir.path().join("hub.env");
+  let mirror_port = free_port();
+  let served = local_ai_on_the_pc();
+  let here = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+
+  runnable(&connect, FAKE_CONNECT);
+  fs::write(&hub_env, "JAKE_CONTROL_PORT=1\nJAKE_CONTROL_TOKEN=t\nJAKE_CONTROL_KEY=k\n").unwrap();
+  fs::create_dir_all(there.join("data").join("run")).unwrap();
+
+  let _far = Started(
+    Command::new(&binary)
+      .args(["serve", "--root"])
+      .arg(&there)
+      .args(["--listen", &format!("127.0.0.2:{mirror_port}")])
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("serve"),
+  );
+  let spec = dir.path().join("link.json");
+  let runner_socket = dir.path().join("runner.sock");
+
+  fs::write(
+    &spec,
+    json!({
+      "node": "u7",
+      "ssh": [],
+      "root": there,
+      "binary": binary,
+      "herdr": { "local": dir.path().join("h.sock"), "remote": dir.path().join("rh.sock") },
+      "bridge": dir.path().join("b.sock"),
+      "deploy": dir.path(),
+      "control": dir.path().join("c.sock"),
+      "proc": dir.path().join("proc"),
+      "state": dir.path().join("state.json"),
+      "jake": {
+        "agent": "u7",
+        "connect": [connect, "connect"],
+        "hub_env": hub_env,
+        "mirror_port": mirror_port,
+        "herdr_port": 1
+      },
+      "runner": runner_socket,
+      "runner_owner": "a1",
+      "reach": [{ "port": here, "to": format!("127.0.0.2:{served}") }]
+    })
+    .to_string(),
+  )
+  .unwrap();
+
+  let _near = Started(
+    Command::new(&binary)
+      .arg("connect")
+      .arg(&spec)
+      .env("NODE_LINK_FIRST_WAIT_MS", "50")
+      .stdin(Stdio::null())
+      .stdout(Stdio::null())
+      .stderr(Stdio::null())
+      .spawn()
+      .expect("connect"),
+  );
+
+  // A request at the port here is answered by the server on the PC.
+  let mut answered = String::new();
+
+  wait_for("the local AI reached from here", || {
+    let Ok(mut stream) = std::net::TcpStream::connect(("127.0.0.1", here)) else {
+      return false;
+    };
+
+    stream.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+    let _ = stream.write_all(b"POST /v1/chat/completions HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\n\r\n");
+    answered.clear();
+    let _ = std::io::Read::read_to_string(&mut stream, &mut answered);
+    answered.contains("asked POST /v1/chat/completions")
+  });
+
+  // A test asked once on the runner socket: told it was reached, then spoken to as the address.
+  let ask = |line: Value| {
+    let mut stream = std::os::unix::net::UnixStream::connect(&runner_socket).unwrap();
+
+    stream.set_read_timeout(Some(Duration::from_secs(20))).unwrap();
+    stream.write_all(format!("{line}\n").as_bytes()).unwrap();
+    stream
+  };
+  let first_line = |stream: &std::os::unix::net::UnixStream| -> Value {
+    let mut line = Vec::new();
+    let mut byte = [0u8; 1];
+    let mut reading = stream;
+
+    while std::io::Read::read(&mut reading, &mut byte).unwrap_or(0) == 1 && byte[0] != b'\n' {
+      line.push(byte[0]);
+    }
+
+    serde_json::from_slice(&line).unwrap()
+  };
+
+  let mut reached = ask(json!({ "owner": "a1", "reach": format!("127.0.0.2:{served}") }));
+
+  assert_eq!(first_line(&reached), json!({ "t": "reached" }));
+  reached.write_all(b"GET /v1/models HTTP/1.1\r\nhost: x\r\n\r\n").unwrap();
+
+  let mut said = String::new();
+  let _ = std::io::Read::read_to_string(&mut reached, &mut said);
+
+  assert!(said.contains("asked GET /v1/models"), "{said}");
+
+  // Another account's ask is refused here, and an address the PC does not reach is refused with why.
+  let other = ask(json!({ "owner": "b2", "reach": format!("127.0.0.2:{served}") }));
+
+  assert_eq!(first_line(&other)["t"], "refused");
+
+  let closed = free_port();
+  let unreached = ask(json!({ "owner": "a1", "reach": format!("127.0.0.2:{closed}") }));
+  let refusal = first_line(&unreached);
+
+  assert_eq!(refusal["t"], "refused", "{refusal}");
+  assert!(refusal["why"].as_str().unwrap().contains(&closed.to_string()), "{refusal}");
 }

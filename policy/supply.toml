@@ -102,3 +102,44 @@ road = "A road is one of {roads}."
 model_needed = "The registration to test is named by model."
 # A registration the registry does not hold.
 unknown_model = "Not a registered model: {model}"
+# A person's local AI is refused by their chain, the person holds no PC of their own, or the PC or the address on it
+# could not be reached. With {why}.
+withheld = "Your organisation does not let you add a local AI of your own."
+no_pc = "Your local AI is reached from your own PC, and you hold none attached that is yours alone."
+unreachable = "Your PC did not reach the local AI: {why}"
+
+# A person's own local AI (docs/supply.md, 「A person's local AI」; docs/own-llm.md, 「A person's local AI」).
+[local_ai]
+# The node label its one address stands under.
+node = "pc"
+# How long, in characters, the name a person gives one may be; its registration's name is that name after the
+# account's mark, held to the registry's rule as well.
+name_most = 24
+# The window a run on it is told where the person names none, and its answer size, in tokens, held to the
+# registry's bounds (policy/registry.toml).
+context_tokens = 32768
+answer_tokens = 4096
+# How long its test's one request is waited for, in seconds: a local server may load its model first.
+test_seconds = 120
+# The ports of this machine's loopback its addresses are asked at, the PC's link listening on each
+# (docs/person-nodes.md, 「A local AI on a PC」): the first and the last of the range.
+first_port = 47300
+last_port = 47799
+
+# What its routes say, each to the person.
+[local_ai.words]
+no_person = "Only a signed-in person keeps a local AI of their own."
+# A name out of its rule. With {most}.
+name = "A local AI's name is a lowercase letter, then lowercase letters, digits and hyphens, {most} characters at most."
+# An address that is not a plain http chat completions address.
+url = "The address is a plain http address of an OpenAI-compatible server, such as http://localhost:11434/v1."
+model = "Name the model the server serves."
+key_name = "A key is the name of one of your secrets."
+enabled = "A switch is true or false."
+# No local AI of the person's of that {name}.
+unknown = "There is no local AI {name} of yours."
+unchecked = "Whether your organisation lets you add a local AI could not be checked: the account service did not answer."
+# A candidate a test names without its address or its model.
+candidate = "A local AI to test names its address and its model."
+# The address taken by none of the policy's ports.
+no_port = "No port is free to reach another local AI."

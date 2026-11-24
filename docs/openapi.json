@@ -4390,6 +4390,221 @@
         ]
       }
     },
+    "/personal-models": {
+      "get": {
+        "operationId": "listPersonalModels",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "The signed-in person's own local AIs, and whether their chain lets them add one.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalModels"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden"
+        ]
+      }
+    },
+    "/personal-models/{name}": {
+      "put": {
+        "operationId": "putPersonalModel",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Add or change a local AI of the signed-in person's own, served on their PC.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalModel"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "$ref": "#/components/responses/NoPc"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownModel"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "personal-local-ai-withheld",
+          "no-pc",
+          "no-port",
+          "unknown-model",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the name the person gave the local AI"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalModelAsk"
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "changePersonalModel",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Turn one of the person's local AIs on or off.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonalModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownModel"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "bad-request",
+          "forbidden",
+          "personal-local-ai-withheld",
+          "unknown-model",
+          "access-unchecked"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the name the person gave the local AI"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalModelChange"
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePersonalModel",
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Remove one of the person's local AIs.",
+        "responses": {
+          "204": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/UnknownModel"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "unknown-model",
+          "conflict"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "the name the person gave the local AI"
+            }
+          }
+        ]
+      }
+    },
     "/organisation-supply/{unit}": {
       "get": {
         "operationId": "listOrganisationSupply",
@@ -16091,6 +16306,120 @@
         },
         "description": "A change of one of the person's keys: its place, its switch, or both."
       },
+      "PersonalModels": {
+        "type": "object",
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PersonalModel"
+            }
+          }
+        },
+        "required": [
+          "allowed",
+          "items"
+        ],
+        "description": "A person's own local AIs, and whether their chain lets them add one."
+      },
+      "PersonalModel": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name the person gave it."
+          },
+          "model": {
+            "type": "string",
+            "description": "Its registration's key on the registry's provider, `registered::<registration>`."
+          },
+          "url": {
+            "type": "string",
+            "description": "The address as the person's PC reaches it."
+          },
+          "modelName": {
+            "type": "string",
+            "description": "The model the server serves."
+          },
+          "keyName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The name of the person's secret its key is, or null."
+          },
+          "contextTokens": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "addedAt": {
+            "type": "integer",
+            "format": "int64",
+            "description": "epoch seconds"
+          }
+        },
+        "required": [
+          "name",
+          "model",
+          "url",
+          "modelName",
+          "keyName",
+          "contextTokens",
+          "enabled",
+          "addedAt"
+        ],
+        "description": "One local AI of a person's own (docs/supply.md, 「A person's local AI」)."
+      },
+      "PersonalModelAsk": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "A plain http address ending in `/chat/completions`, as the person's PC reaches it."
+          },
+          "modelName": {
+            "type": "string"
+          },
+          "keyName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One plain name in the person's own space of the secret store, or null for no key."
+          },
+          "contextTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The window a run on it is told, within the registry's bounds; the policy's where none is named."
+          }
+        },
+        "required": [
+          "url",
+          "modelName"
+        ],
+        "description": "A local AI of the person's own made or changed."
+      },
+      "PersonalModelChange": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "description": "One of the person's local AIs turned on or off."
+      },
       "OrganisationSupplyPage": {
         "type": "object",
         "properties": {
@@ -16214,7 +16543,12 @@
           },
           "ownSupply": {
             "type": "boolean",
-            "description": "Whether they hold a login or a key of their own that is on."
+            "description": "Whether they hold a login, a key or a local AI of their own that is on."
+          },
+          "localAi": {
+            "type": "boolean",
+            "description": "Whether they may add a local AI of their own now: their chain allows it and they hold a PC of their own.",
+            "default": false
           }
         },
         "required": [
@@ -16223,7 +16557,8 @@
           "organisation",
           "organisationSupply",
           "personalOnly",
-          "ownSupply"
+          "ownSupply",
+          "localAi"
         ],
         "description": "The supply sources the signed-in person's delegation chain leaves open."
       },
@@ -16242,7 +16577,7 @@
               "string",
               "null"
             ],
-            "description": "Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or\n`failed` — or null where it does."
+            "description": "Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused`,\n`failed`, `withheld`, `no-pc` or `unreachable` — or null where it does."
           },
           "reason": {
             "type": [
@@ -16272,13 +16607,47 @@
               "string",
               "null"
             ],
-            "description": "The registration to test on `registered`, which a platform's test names."
+            "description": "The registration to test on `registered`, by its name or its key: the platform's for a platform's test, a\nlocal AI of the person's own for a person's."
+          },
+          "local": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LocalModelTried"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A local AI of the person's not saved yet, tried in place of `model` on `registered`."
           }
         },
         "required": [
           "road"
         ],
         "description": "The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise."
+      },
+      "LocalModelTried": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "A plain http address ending in `/chat/completions`, as the person's PC reaches it."
+          },
+          "modelName": {
+            "type": "string"
+          },
+          "keyName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "url",
+          "modelName"
+        ],
+        "description": "A local AI tried before it is saved: its address, the model it serves and its key's secret name, where it asks one."
       },
       "OffBoarded": {
         "type": "object",
@@ -16292,11 +16661,17 @@
             "type": "integer",
             "format": "int64",
             "description": "How many of their keys were turned off."
+          },
+          "localAis": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many of their local AIs were turned off."
           }
         },
         "required": [
           "accounts",
-          "keys"
+          "keys",
+          "localAis"
         ],
         "description": "What a person's off-boarding turned off."
       },
@@ -22507,6 +22882,26 @@
           }
         }
       },
+      "NoPc": {
+        "description": "no-pc",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "NoPort": {
+        "description": "no-port",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "NoRunner": {
         "description": "no-runner",
         "content": {
@@ -22747,6 +23142,16 @@
           }
         }
       },
+      "PersonalLocalAiWithheld": {
+        "description": "personal-local-ai-withheld",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
       "RoadChoiceWithheld": {
         "description": "road-choice-withheld",
         "content": {
@@ -22939,6 +23344,16 @@
       },
       "UnknownMember": {
         "description": "unknown-member",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "UnknownModel": {
+        "description": "unknown-model",
         "content": {
           "application/json": {
             "schema": {

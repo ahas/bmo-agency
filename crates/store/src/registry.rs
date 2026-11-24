@@ -44,6 +44,9 @@ pub struct RegisteredAddress {
   pub placed_at: Option<i64>,
   /// Whether the instance behind it keeps role files (docs/own-llm.md, 「Role files」).
   pub role_files: bool,
+  /// The port of this machine's loopback the address is asked at, its owner's PC's link carrying it there; none
+  /// where it is asked as it stands (docs/own-llm.md, 「A person's local AI」).
+  pub reach_port: Option<i64>,
 }
 
 // An integer column, however the writer stored it.
@@ -64,7 +67,7 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
   .fetch_all(&mut *store)
   .await?;
   let addresses = sqlx::query(
-    "SELECT registration, node, url, key_file, key_owned, placed_at, role_files \
+    "SELECT registration, node, url, key_file, key_owned, placed_at, role_files, reach_port \
      FROM registered_model_addresses ORDER BY registration, position, node",
   )
   .fetch_all(&mut *store)
@@ -85,6 +88,7 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
         key_owned: flag(address, "key_owned")?,
         placed_at: whole(address, "placed_at")?,
         role_files: flag(address, "role_files")?,
+        reach_port: whole(address, "reach_port")?,
       });
     }
     read.push(Registration {

@@ -182,6 +182,30 @@ PC; the tool host at home keeps a copy of each one's description alone and relay
   node's setup record as `confinement`, `ready` or why not. It holds nothing else of the workplace back: the PC's
   BMO runs as before, and its personal tools are refused until bubblewrap confines there.
 
+## A local AI on a PC
+
+A person's own local AI (`docs/supply.md`, 「A person's local AI」) is a server their PC reaches — on its loopback,
+or on the network it stands on — and the gateway here asks it through the PC's link, so an address that reads
+`localhost` is the PC's own and never this machine's.
+
+- **The link carries a local AI's address from here to the PC:**
+  - the spec names, for each local AI that is on of the account the PC runs personal tools for (「Personal tools on a
+    PC」), a port of this machine's loopback and the host and port the address names, as the PC reaches them
+    (`docs/own-llm.md`, 「A person's local AI」);
+  - the near end listens on each such port at this machine's loopback, reading the spec again every few seconds so
+    one added or taken away is listened on or let go with no new connection;
+  - each connection taken there opens a new byte stream to the far end's mirror port, as a personal tool's call does,
+    and names it with a `reach` frame naming the host and port;
+  - the far end connects to that host and port from the PC, says whether it reached it, and joins the stream to the
+    connection; one it could not reach closes the stream, so the gateway's request fails at once.
+- **A test asks the same way, once:** a test of a person's local AI (`docs/supply.md`, 「Testing a source」) asks on
+  the link's runner socket with a first line naming the account and the host and port to reach; the near end refuses
+  it for any account but the one the spec names, as it refuses a call, opens the stream as above and answers the
+  caller one line, whether the PC reached the address, before the two are joined. The test then speaks its one
+  request over it.
+- **A PC several accounts share, or none owns, carries none:** its spec names no account, so no local AI of anyone's
+  is listened for, and a test on its runner socket is refused.
+
 ## The network and secrets of a call
 
 A personal tool asks for the network and secrets in its manifest's `[permissions]` (the tool host's `docs/api.md`,
@@ -753,6 +777,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | the model gateway's port | PC → here | the same way, each connection joined here to the gateway (`docs/work-nodes.md`, 「The model gateway on a node」) |
 | the home bridge's socket | PC → here | the same way from the node's bridge socket, each connection joined here to the bridge's socket |
 | a personal tool's call | here → PC | a byte stream of its own to the far end's mirror port for each call asked on the link's runner socket, named `run`, joined there to a runner (「Personal tools on a PC」) |
+| a local AI's address | here → PC | the near end listens on a port of this machine's loopback for each, and opens a byte stream of its own to the far end's mirror port for each connection, named `reach`, joined there to the host and port the PC reaches (「A local AI on a PC」) |
 
 - **The far end stands on the PC as a service of the person's own,** started by the workplace's setup and kept
   running there: the link's serve program, listening at the PC's loopback alone, inside the Linux shell beside the
@@ -823,6 +848,7 @@ The link of a person's node carries what the SSH link carries (`docs/work-nodes.
 | who reaches a node | the administrator's grant and the capabilities that operate the platform written into every record agency issues for a supervisor of no account or of the administrator's account and into no other; the records the node tool reads a node's owners and a caller's account from, and one read of them with the grant and the reach; no session handed the hub's settings file's path or anything read from it, an account's sessions standing on its PC or its isolation node, and the home bridge of an account's node running the policy's verbs alone; agency's setup, check, sync and link reaching a hub with a credential scoped to the node's agent, made from the hub's control key, and refused 403 `agent-out-of-reach` on any other agent | — |
 | several accounts on one node | a record's `shared`, a second account's record on a node refused `node-taken` unless both are shared; each account of a shared record given `<node root>/accounts/<account>`, its supervisors' folders standing there through the link spec, and its root answered by the access read; a record not shared keeping its folders | the node service's tool running an owner's command inside the `root` the access read answers; a program of one account kept from every other account's root, places and records on the node, which needs a process namespace, the herdr and agent host sockets out of its reach, places and CLI records of each account's own and bubblewrap set up and checked on the PC, all at once (「Several accounts on one node」) |
 | personal tools on a PC | the runner, `node-link runner`, running an owner's placed version confined by bubblewrap to its version and data folders with a clean environment and no network but the call's own proxy to the addresses its manifest lists, the secrets it names handed in the confinement's memory for the call alone, refusing without bubblewrap; each call asked on the link's runner socket carried over a stream of its own to a runner on the PC, refused for any account but the one the spec names, a shared PC naming none; the caller gone ending the runner's group and the tool; records naming their account and its runner, the administrator's a command on this machine; the setup looking for bubblewrap, installing it where `sudo` asks no password, trying it, and saying and keeping what it found | a call-back into the host, an isolation node's runner, and personal tools on a shared PC |
+| a local AI on a PC | the spec naming each local AI that is on of the PC's own account with its port here and its host and port there; the near end listening on each port and carrying each connection over a stream of its own, named `reach`, to the far end, which connects from the PC and says whether it reached it; a test asking once on the runner socket | — |
 | personal apps | an app's source in the PC's 'my apps', one folder each, written by a worker ask naming the app; the runner placing it confined into a new version, describing, pointing, listing and taking versions, three older ones kept; a put, a going back, a removal and a listing through agency's server, the description put at home under the PC's version; the chain's `personal-apps.make` deciding who may put one and `personal-apps.network` and `personal-apps.secrets` the ceiling of what it may ask for; a screen of an app's own built with the workplace's screen kit, its index written as it is placed, its files read for the tool host, and a short-lived session issued for a console to read and call it under | — |
 | a check on a real PC | a PC attached as a jake agent with its stream ports set; its workplace ready, set up through the hub by the links pass as soon as the hub holds the node, set up again past the policy's while where it is left missing, and its copy kept on the deployed commit by the links pass's sync; the server writing its jake spec and holding its link, the mirror, the herdr session, the tool host and the bridge each answering through it; an account bound to it whose supervisor's folder is made on the PC, whose program starts there past its first-run screens, and whose turn is put in once its status line, answered through the bridge, is drawn, so its BMO answers from the PC | — |
 

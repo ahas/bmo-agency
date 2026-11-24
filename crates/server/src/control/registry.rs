@@ -46,6 +46,9 @@ pub struct Address {
   pub key_owned: bool,
   /// Whether the instance behind it keeps role files (docs/own-llm.md, 「Role files」).
   pub role_files: bool,
+  /// The port of this machine's loopback the address is asked at through its owner's PC, none where it is asked
+  /// as it stands (docs/own-llm.md, 「A person's local AI」).
+  pub reach_port: Option<i64>,
 }
 
 /// One registration with its addresses in their order.
@@ -69,6 +72,9 @@ pub struct Registration {
   pub languages: Vec<String>,
   /// The account it belongs to, none for the platform's (docs/supply.md, 「Owned supply」).
   pub account: Option<i64>,
+  /// Whether it is on: a person's local AI they switched off offers no supply (docs/supply.md, 「A person's local
+  /// AI」).
+  pub enabled: bool,
   pub addresses: Vec<Address>,
 }
 
@@ -123,6 +129,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
           key_file: address.try_get("", "key_file")?,
           key_owned: flag(address, "key_owned")?,
           role_files: flag(address, "role_files")?,
+          reach_port: address.try_get("", "reach_port")?,
         });
       }
     }
@@ -139,6 +146,7 @@ pub async fn registrations<C: ConnectionTrait>(db: &C) -> Result<Vec<Registratio
       role_files: flag(&row, "role_files")?,
       languages: languages(&row)?,
       account: row.try_get("", "account")?,
+      enabled: flag(&row, "enabled")?,
       addresses: held,
       name,
     });

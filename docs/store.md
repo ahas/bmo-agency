@@ -111,9 +111,10 @@ seeds. The other crates and the server reach the store only through it.
     was set — and `role_provider_prompt_seeded`, the role and provider of each one the policy gave
     (`docs/agent-roles.md`, 「A role's provider prompts」);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
-    card service, its instances' role files, its languages, a JSON list or none, and its owner's `account` or none
-    among its columns —,
-    `registered_model_addresses`, `card_demands`, one row a demand agency asked of the arbiter's master and
+    card service, its instances' role files, its languages, a JSON list or none, its owner's `account` or none,
+    and whether it is `enabled` among its columns —, `registered_model_addresses` — an address reached through
+    its owner's PC keeping the `reach_port` of this machine's loopback it is asked at, unique among them
+    (`docs/own-llm.md`, 「A person's local AI」) —, `card_demands`, one row a demand agency asked of the arbiter's master and
     has not yet given back — its id, the service, the registration, its holder, the slot's lease and the
     demand it was asked within where they stand, and when it was asked (`docs/own-llm.md`, 「An engine the
     arbiter stands」) —, and `model_fallbacks`;

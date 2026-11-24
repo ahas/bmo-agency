@@ -832,7 +832,7 @@ crate::moved!(CatalogueChange);
 // registration's addresses now: a worker's is stood again between its turns, and a supervisor's stale one has its
 // sessions replaced through their handoff while it is quiet (docs/supervisors.md, 「Where a supervisor's turn
 // runs」).
-fn restand(call: &crate::control::Call) {
+pub(super) fn restand(call: &crate::control::Call) {
   if let Some(places) = call.places().cloned() {
     let sessions = call.sessions();
 

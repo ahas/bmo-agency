@@ -77,6 +77,7 @@ pub mod keepalive {
   pub mod logins;
 }
 pub mod lines;
+pub mod local_ai;
 pub mod mcp;
 pub mod openapi;
 pub mod order;

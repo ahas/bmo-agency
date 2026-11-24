@@ -117,6 +117,15 @@ pub enum Frame {
   /// (docs/person-nodes.md, 「Personal tools on a PC」): the stream is that call's passage to a runner from here on,
   /// and its end the call's caller gone.
   Run { owner: String },
+  /// The first words of the near end on a stream it opened for a person's local AI (docs/person-nodes.md, 「A local
+  /// AI on a PC」): the host and port the PC reaches it at, which the far end connects to and joins the stream to.
+  Reach { to: String },
+  /// The far end's answer to a `reach`: none where it reached the address and joined the stream to it, else why not,
+  /// and the stream ends.
+  Reached {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    why: Option<String>,
+  },
 }
 
 /// What a connection the far end took reaches at home.

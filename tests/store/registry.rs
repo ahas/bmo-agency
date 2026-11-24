@@ -36,6 +36,7 @@ fn expected() -> Vec<Registration> {
         key_owned: true,
         placed_at: None,
         role_files: false,
+        reach_port: None,
       }],
     },
     Registration {
@@ -58,6 +59,7 @@ fn expected() -> Vec<Registration> {
           key_owned: false,
           placed_at: Some(1_700_000_000),
           role_files: true,
+          reach_port: None,
         },
         RegisteredAddress {
           node: "bravo".into(),
@@ -66,6 +68,7 @@ fn expected() -> Vec<Registration> {
           key_owned: false,
           placed_at: None,
           role_files: false,
+          reach_port: None,
         },
       ],
     },

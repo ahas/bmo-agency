@@ -329,10 +329,11 @@ crate::moved!(PersonalSupplyRemove);
 pub struct OffBoarded {
   pub accounts: u64,
   pub keys: u64,
+  pub local_ais: u64,
 }
 
-/// A person's supply switched off (docs/supply.md, 「What a person brings」): each of their Claude accounts and
-/// keys turned off and their gateway call key revoked; their secrets stay sealed where the console keeps them.
+/// A person's supply switched off (docs/supply.md, 「What a person brings」): each of their Claude accounts, keys
+/// and local AIs turned off and their gateway call key revoked; their secrets stay sealed where the console keeps them.
 pub async fn off_board(
   db: &DatabaseConnection,
   data_root: &std::path::Path,
@@ -351,12 +352,17 @@ pub async fn off_board(
     vec![user.into()],
   )
   .await?;
+  let local_ais = super::personal_models::off_board(&written, user).await?;
 
   written.commit().await?;
   super::claude_account_changes::let_choice_go_if_off(db).await?;
   crate::call_keys::revoke(db, data_root, user).await?;
 
-  Ok(OffBoarded { accounts, keys })
+  Ok(OffBoarded {
+    accounts,
+    keys,
+    local_ais,
+  })
 }
 
 /// `POST /people/{user}/off-boarding`: a person's supply switched off, the deployment's own call alone.
@@ -378,7 +384,10 @@ impl Route for OffBoarding {
       .map_err(|_| Refused::failed(format!("{named} is no user id")).with_field("user"))?;
     let done = off_board(call.store(), &call.data_root(), user).await?;
 
-    Ok(answer(StatusCode::OK, json!({ "accounts": done.accounts, "keys": done.keys })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "accounts": done.accounts, "keys": done.keys, "localAis": done.local_ais }),
+    ))
   }
 }
 

@@ -790,6 +790,30 @@ impl AgencyClient {
     Self::nothing(self.request(Method::DELETE, &["personal-supply", &supply_id.to_string()])).await
   }
 
+  /// `GET /personal-models`: The signed-in person's own local AIs.
+  pub async fn list_personal_models(&self) -> Answer<PersonalModels> {
+    Self::answered(self.request(Method::GET, &["personal-models"])).await
+  }
+
+  /// `PUT /personal-models/{name}`: Add or change a local AI of the signed-in person's own.
+  pub async fn put_personal_model(&self, name: &str, body: &PersonalModelAsk) -> Answer<PersonalModel> {
+    Self::answered(self.request(Method::PUT, &["personal-models", name]).json(body)).await
+  }
+
+  /// `PATCH /personal-models/{name}`: Turn one of the person's local AIs on or off.
+  pub async fn change_personal_model(
+    &self,
+    name: &str,
+    body: &PersonalModelChange,
+  ) -> Answer<PersonalModel> {
+    Self::answered(self.request(Method::PATCH, &["personal-models", name]).json(body)).await
+  }
+
+  /// `DELETE /personal-models/{name}`: Remove one of the person's local AIs.
+  pub async fn delete_personal_model(&self, name: &str) -> Answer<()> {
+    Self::nothing(self.request(Method::DELETE, &["personal-models", name])).await
+  }
+
   /// `POST /supply-test`: Test whether a supply source of a road answers now.
   pub async fn test_supply(&self, body: &SupplyTestAsk) -> Answer<SupplyTested> {
     Self::answered(self.request(Method::POST, &["supply-test"]).json(body)).await

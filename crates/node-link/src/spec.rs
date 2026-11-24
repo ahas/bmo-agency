@@ -84,6 +84,18 @@ pub struct Spec {
   /// the runner's socket refuses every call.
   #[serde(default)]
   pub runner_owner: Option<String>,
+  /// On a person's PC: each local AI of the account the PC runs personal tools for, by the port of this machine's
+  /// loopback the near end listens on for it and the host and port the PC reaches it at (docs/person-nodes.md, 「A
+  /// local AI on a PC」); none for any other node.
+  #[serde(default, skip_serializing_if = "Vec::is_empty")]
+  pub reach: Vec<Reach>,
+}
+
+/// A local AI's address the link carries from this machine's loopback to the PC.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Reach {
+  pub port: u16,
+  pub to: String,
 }
 
 /// How the link reaches a node on this machine that runs as a user of its own: the words its far end is started

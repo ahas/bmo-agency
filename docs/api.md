@@ -1327,6 +1327,10 @@ notice that holds nothing is withdrawn.
 | POST | `/personal-supply` | Add a key of the signed-in person's for a gateway road. |
 | PATCH | `/personal-supply/{supplyId}` | Change one of the person's keys: its place or its switch. |
 | DELETE | `/personal-supply/{supplyId}` | Remove one of the person's keys. |
+| GET | `/personal-models` | The signed-in person's own local AIs, and whether their chain lets them add one. |
+| PUT | `/personal-models/{name}` | Add or change a local AI of the signed-in person's own. |
+| PATCH | `/personal-models/{name}` | Turn one of the person's local AIs on or off. |
+| DELETE | `/personal-models/{name}` | Remove one of the person's local AIs. |
 | GET | `/organisation-supply/{unit}` | An organisation unit's own keys and Claude accounts, and whether its supply stands open. |
 | POST | `/organisation-supply/{unit}` | Add a key of the unit's for a gateway road, or an Anthropic API key. |
 | PATCH | `/organisation-supply/{unit}/{supplyId}` | Turn one of the unit's keys or accounts on or off. |
@@ -1449,24 +1453,42 @@ configuration home of its own under the data root; it answers 201 with the item,
 already as a key of the road, and 422 `unknown-road` as a person's is. `PATCH` takes `enabled` and answers the
 page; turning a refused key on clears `refusedAt`. `DELETE` answers 204. An item of no such unit's is 404
 `unknown-supply`. `GET /supply-sources` answers a person's call `personal`, `platform`, `organisation`,
-`organisationSupply`, `personalOnly` and `ownSupply` (`docs/supply.md`, 「The sources a run walks」); a call
-naming no person is refused 403.
+`organisationSupply`, `personalOnly`, `ownSupply` and `localAi` (`docs/supply.md`, 「The sources a run walks」); a
+call naming no person is refused 403.
+
+**A person's local AI** (`docs/supply.md`, 「A person's local AI」) is a registration they own, served on their own
+PC, through the person's own headers alone; a call naming no person is refused 403 `forbidden`. `GET
+/personal-models` answers `allowed`, whether the chain's `supply.personal-local-ai` lets them add one, and `items`,
+each local AI's `name` as they gave it, `model`, the registration's key on the registry's provider (`registered::<the
+registration's name>`), `url`, `modelName`, the model the server serves, `keyName`, the name of their secret or
+null, `contextTokens`, `enabled` and `addedAt`. `PUT /personal-models/{name}` takes `url`, an `http` chat
+completions address, `modelName`, `keyName`, one plain name in their `users/<user>/` space or null, and
+`contextTokens` where they name one, and answers 201 for one made and 200 for one changed; refused 403
+`personal-local-ai-withheld` where the chain forbids it, 409 `no-pc` where the person holds no PC of their own, 400
+with `field` for a name, an address, a model, a key's name or a window out of their rules, and 503
+`access-unchecked` where the account service did not answer. `PATCH` takes `enabled`; `DELETE` answers 204 and is
+refused as the registry refuses the removal of a registration something names. A name of no local AI of theirs
+is 404 `unknown-model`.
 
 **A supply test** (`POST /supply-test`, `docs/supply.md`, 「Testing a source」) takes `road`, one of `claude-code`,
-`codex`, `deepseek`, `openrouter` and `registered`, and `model`, the registration to test on `registered`, and
+`codex`, `deepseek`, `openrouter` and `registered`, `model`, the registration to test on `registered`, by its name
+or its key, and for a person's call on `registered`, `local` in place of `model`, a local AI not saved yet, its
+`url`, `modelName` and `keyName`; it
 answers 200 with `road`, `ok`, whether the source answers now, and where it does not `reasonCode`, its kebab-case
 code, and `reason`, the English sentence, both null where it does: `off` where the owner switched the road's
 provider off, `no-source` where no credential of the road is on (a person's call on `registered` among them),
 `login-needed` where Claude logins are on and none of them is signed in, `not-ready` where the gateway does not
 serve the key's member yet and the test is worth asking again in a few seconds, `refused` where the provider
-refused the key, and `failed` where the test reached no answer. A person's call tests their own supply, the
+refused the key, and `failed` where the test reached no answer; a person's local AI answers besides `withheld`
+where their chain forbids it, `no-pc` where they hold no PC of their own, and `unreachable` where their PC or the
+address on it could not be reached. A person's call tests their own supply, the
 administrator's and the deployment's own the platform's. A road that is none of these is refused 400 with the
 `field` `road`; on `registered`, a platform's call that names no model, or one that is no registration, 400 with
 the `field` `model`.
 
 **Off-boarding** (`POST /people/{user}/off-boarding`) is the account service's, the deployment's own call: it
-turns off each Claude account and key of the person, revokes their call key and answers `{accounts, keys}`, how
-many it turned off. A person's own call is refused 403 `forbidden`.
+turns off each Claude account, key and local AI of the person, revokes their call key and answers `{accounts,
+keys, localAis}`, how many it turned off. A person's own call is refused 403 `forbidden`.
 
 **A person's sign-in** (`POST /claude-logins` from a person's call) starts on the person's node, named by its
 record (「person-nodes」): a person with no node record is signed in on their isolation node, and one whose node

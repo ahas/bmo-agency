@@ -1671,6 +1671,82 @@ pub const OPERATIONS: &[Operation] = &[
   },
   Operation {
     method: "GET",
+    path: "/personal-models",
+    id: "listPersonalModels",
+    tag: "accounts",
+    summary: "The signed-in person's own local AIs, and whether their chain lets them add one.",
+    params: &[],
+    body: None,
+    answers: &[(200, Some("PersonalModels"), false)],
+    codes: &["forbidden"],
+  },
+  Operation {
+    method: "PUT",
+    path: "/personal-models/{name}",
+    id: "putPersonalModel",
+    tag: "accounts",
+    summary: "Add or change a local AI of the signed-in person's own, served on their PC.",
+    params: &[Param {
+      name: "name",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "the name the person gave the local AI",
+    }],
+    body: Some("PersonalModelAsk"),
+    answers: &[(200, Some("PersonalModel"), false), (201, Some("PersonalModel"), false)],
+    codes: &[
+      "bad-request",
+      "forbidden",
+      "personal-local-ai-withheld",
+      "no-pc",
+      "no-port",
+      "unknown-model",
+      "access-unchecked",
+    ],
+  },
+  Operation {
+    method: "PATCH",
+    path: "/personal-models/{name}",
+    id: "changePersonalModel",
+    tag: "accounts",
+    summary: "Turn one of the person's local AIs on or off.",
+    params: &[Param {
+      name: "name",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "the name the person gave the local AI",
+    }],
+    body: Some("PersonalModelChange"),
+    answers: &[(200, Some("PersonalModel"), false)],
+    codes: &[
+      "bad-request",
+      "forbidden",
+      "personal-local-ai-withheld",
+      "unknown-model",
+      "access-unchecked",
+    ],
+  },
+  Operation {
+    method: "DELETE",
+    path: "/personal-models/{name}",
+    id: "deletePersonalModel",
+    tag: "accounts",
+    summary: "Remove one of the person's local AIs.",
+    params: &[Param {
+      name: "name",
+      place: "path",
+      required: true,
+      kind: "string",
+      description: "the name the person gave the local AI",
+    }],
+    body: None,
+    answers: &[(204, None, false)],
+    codes: &["forbidden", "unknown-model", "conflict"],
+  },
+  Operation {
+    method: "GET",
     path: "/organisation-supply/{unit}",
     id: "listOrganisationSupply",
     tag: "accounts",
@@ -4415,6 +4491,10 @@ fn schema(g: &mut SchemaGenerator, name: &str) -> Schema {
     "OrganisationSupplyChange" => g.subschema_for::<OrganisationSupplyChange>(),
     "SupplySources" => g.subschema_for::<SupplySources>(),
     "SupplyTestAsk" => g.subschema_for::<SupplyTestAsk>(),
+    "PersonalModels" => g.subschema_for::<PersonalModels>(),
+    "PersonalModel" => g.subschema_for::<PersonalModel>(),
+    "PersonalModelAsk" => g.subschema_for::<PersonalModelAsk>(),
+    "PersonalModelChange" => g.subschema_for::<PersonalModelChange>(),
     "SupplyTested" => g.subschema_for::<SupplyTested>(),
     "ModelAddressAsk" => g.subschema_for::<ModelAddressAsk>(),
     "ComposedAgents" => g.subschema_for::<ComposedAgents>(),
@@ -4593,7 +4673,7 @@ fn status_of(code: &str) -> u16 {
     "unauthorized" => 401,
     "forbidden" => 403,
     "no-route" | "not-found" | "no-job" | "unknown-session" | "unknown-repository" | "unknown-worker"
-    | "unknown-account" | "unknown-supply" | "unknown-member" | "not-supplied" => 404,
+    | "unknown-account" | "unknown-supply" | "unknown-member" | "not-supplied" | "unknown-model" => 404,
     "not-the-sender"
     | "personal-apps-withheld"
     | "permission-withheld"
@@ -4604,12 +4684,13 @@ fn status_of(code: &str) -> u16 {
     | "own-agents-withheld"
     | "road-choice-withheld"
     | "instructions-withheld"
+    | "personal-local-ai-withheld"
     | "role-off" => 403,
     "conflict" | "name-taken" | "node-taken" | "seeded" | "running" | "no-turn" | "not-owner"
     | "worker-on-node" | "agent-busy" | "node-not-attached" | "no-runner" | "no-older-version"
     | "withdrawn" | "awaiting-approval" | "locked" | "too-many-agents" | "road-not-supplied"
     | "supplied-agent" | "secret-missing" | "installed-copy" | "line-takes-none" | "node-not-ready"
-    | "login-elsewhere" => 409,
+    | "login-elsewhere" | "no-pc" | "no-port" => 409,
     "gone" | "run-ended" => 410,
     "too-large" => 413,
     "failed" | "checkout-not-made" | "members-unwritten" => 500,

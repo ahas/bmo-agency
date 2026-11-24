@@ -388,6 +388,38 @@ pub async fn carry_run(spec_path: &Path, client: tokio::net::UnixStream) {
       return;
     }
   };
+  let reach_to = serde_json::from_str::<Value>(&first)
+    .ok()
+    .and_then(|asked| asked.get("reach").and_then(Value::as_str).map(str::to_owned));
+
+  // A test of the account's local AI: the PC asked to reach the address, the caller told whether it did, and the
+  // two joined (docs/person-nodes.md, 「A local AI on a PC」).
+  if let Some(to) = reach_to {
+    let (mut child, mut input, mut output) = match open_reach(&jake, &to).await {
+      Ok(opened) => opened,
+      Err(why) => {
+        let _ = writing.write_all(refuse(why).as_bytes()).await;
+        return;
+      }
+    };
+
+    if writing.write_all(Frame::Reached { why: None }.line().as_bytes()).await.is_err() {
+      let _ = child.start_kill();
+      return;
+    }
+
+    tokio::select! {
+      _ = tokio::io::copy(&mut reading, &mut input) => {}
+      _ = tokio::io::copy(&mut output, &mut writing) => {
+        let _ = writing.flush().await;
+      }
+    }
+
+    let _ = child.start_kill();
+    let _ = child.wait().await;
+    return;
+  }
+
   let mut command = match jake_command(&jake, jake.mirror_port) {
     Ok(command) => command,
     Err(why) => {
@@ -439,6 +471,150 @@ pub async fn carry_run(spec_path: &Path, client: tokio::net::UnixStream) {
 
   let _ = child.start_kill();
   let _ = child.wait().await;
+}
+
+/// How long the far end is waited on to say whether it reached a local AI's address: its own try's bound and the
+/// greeting's.
+const REACHED_WAIT: Duration = Duration::from_secs(20);
+
+/// A new stream to the far end's mirror port through the hub, greeted and named for a local AI's address `to`
+/// (docs/person-nodes.md, 「A local AI on a PC」), once the far end said it reached it: the hub's connect program
+/// standing for the stream, what goes to the address and what comes back from it. Where it is not reached, why.
+async fn open_reach(
+  jake: &crate::spec::Jake,
+  to: &str,
+) -> Result<
+  (
+    tokio::process::Child,
+    tokio::process::ChildStdin,
+    BufReader<tokio::process::ChildStdout>,
+  ),
+  String,
+> {
+  let mut command =
+    jake_command(jake, jake.mirror_port).map_err(|why| format!("the PC could not be reached: {why}"))?;
+  let mut child = command.stderr(Stdio::null()).spawn().map_err(|why| {
+    let program = command.as_std().get_program().to_string_lossy().into_owned();
+
+    format!("{program}: {why}")
+  })?;
+  let (Some(mut input), Some(output)) = (child.stdin.take(), child.stdout.take()) else {
+    return Err("the stream to the PC has no ends".to_owned());
+  };
+  let mut output = BufReader::new(output);
+  let mut line = String::new();
+  let greeted = matches!(
+    tokio::time::timeout(DIAL_WAIT, output.read_line(&mut line)).await,
+    Ok(Ok(read)) if read > 0 && matches!(Frame::read(&line), Some(Frame::Hello { .. }))
+  );
+
+  if !greeted {
+    let _ = child.start_kill();
+    return Err("the PC's far end did not greet the stream".to_owned());
+  }
+
+  if input.write_all(Frame::Reach { to: to.to_owned() }.line().as_bytes()).await.is_err() {
+    let _ = child.start_kill();
+    return Err("the stream to the PC closed".to_owned());
+  }
+
+  line.clear();
+
+  match tokio::time::timeout(REACHED_WAIT, output.read_line(&mut line)).await {
+    Ok(Ok(read)) if read > 0 => match Frame::read(&line) {
+      Some(Frame::Reached { why: None }) => Ok((child, input, output)),
+      Some(Frame::Reached { why: Some(why) }) => {
+        let _ = child.start_kill();
+        Err(why)
+      }
+      _ => {
+        let _ = child.start_kill();
+        Err("the PC's far end does not carry a local AI yet".to_owned())
+      }
+    },
+    _ => {
+      let _ = child.start_kill();
+      Err("the PC's far end did not say whether it reached the address".to_owned())
+    }
+  }
+}
+
+/// How often the near end reads its spec for the local AIs it listens for.
+const REACH_EVERY: Duration = Duration::from_secs(3);
+
+/// The ports of this machine's loopback the near end listens on for a person's local AIs (docs/person-nodes.md, 「A
+/// local AI on a PC」), kept to what the spec names as it is read again: a port it names newly is listened on, one
+/// it no longer names let go. Each connection taken is carried to the address the spec names for its port as it is
+/// taken, and closed where the PC does not reach it.
+async fn reaches(spec_path: PathBuf) {
+  let mut listening: HashMap<u16, tokio::task::JoinHandle<()>> = HashMap::new();
+
+  loop {
+    let wanted: BTreeSet<u16> = match Spec::read(&spec_path) {
+      Ok(spec) if spec.jake.is_some() => spec.reach.iter().map(|one| one.port).collect(),
+      _ => BTreeSet::new(),
+    };
+
+    listening.retain(|port, accepting| {
+      let kept = wanted.contains(port) && !accepting.is_finished();
+
+      if !kept {
+        accepting.abort();
+      }
+
+      kept
+    });
+
+    for port in wanted {
+      if listening.contains_key(&port) {
+        continue;
+      }
+
+      match tokio::net::TcpListener::bind(("127.0.0.1", port)).await {
+        Ok(listener) => {
+          let spec_path = spec_path.clone();
+
+          listening.insert(port, tokio::spawn(accept_reach(listener, port, spec_path)));
+        }
+        Err(why) => eprintln!("a local AI's port {port} could not be listened on: {why}"),
+      }
+    }
+
+    tokio::time::sleep(REACH_EVERY).await;
+  }
+}
+
+// Each connection on a local AI's port carried to the PC as the spec names the port's address now.
+async fn accept_reach(listener: tokio::net::TcpListener, port: u16, spec_path: PathBuf) {
+  loop {
+    let Ok((client, _)) = listener.accept().await else { continue };
+    let spec_path = spec_path.clone();
+
+    tokio::spawn(async move {
+      let Ok(spec) = Spec::read(&spec_path) else { return };
+      let (Some(jake), Some(to)) = (
+        spec.jake.as_ref(),
+        spec.reach.iter().find(|one| one.port == port).map(|one| one.to.clone()),
+      ) else {
+        return;
+      };
+      let (mut child, mut input, mut output) = match open_reach(jake, &to).await {
+        Ok(opened) => opened,
+        Err(why) => return eprintln!("{}: a local AI at {to} was not reached: {why}", spec.node),
+      };
+      let (mut reading, mut writing) = client.into_split();
+
+      tokio::select! {
+        _ = tokio::io::copy(&mut reading, &mut input) => {}
+        _ = tokio::io::copy(&mut output, &mut writing) => {
+          let _ = writing.flush().await;
+        }
+      }
+
+      let _ = child.start_kill();
+      let _ = child.wait().await;
+    });
+  }
 }
 
 // One connection here carried to a port on the PC through the hub's connect program.
@@ -971,6 +1147,11 @@ pub async fn connect(spec_path: PathBuf) -> Result<(), String> {
     bind_mode(&spec.bridge, bridge_mode).map_err(|error| format!("{}: {error}", spec.bridge.display()))?;
 
   tokio::spawn(control(control_listener, current.clone(), spec.state.clone()));
+
+  // On a person's PC, each local AI of its account's listened for here and carried to the PC.
+  if spec.jake.is_some() {
+    tokio::spawn(reaches(spec_path.clone()));
+  }
 
   // On a person's PC, each call of a personal tool asked here carried to the PC's runner over a stream of its own.
   if let (Some(_), Some(socket)) = (&spec.jake, &spec.runner) {

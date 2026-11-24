@@ -85,6 +85,7 @@ pub fn kinds() -> Vec<Kind> {
     own(&organisation.personal_apps.share_scope),
     own(&organisation.personal_apps.share_review),
     own(&organisation.personal_apps.install),
+    own(&organisation.personal_local_ai),
     own(&organisation.own_agents.add),
     own(&organisation.own_agents.road),
   ]

@@ -49,6 +49,12 @@ pub enum Outcome {
   Refused(String),
   /// The test reached no answer, with why.
   Failed(String),
+  /// The person's chain forbids a local AI of their own (docs/supply.md, 「A person's local AI」).
+  Withheld,
+  /// The person holds no PC of their own a local AI is reached from.
+  NoPc,
+  /// The person's PC, or the address on it, could not be reached, with why.
+  Unreachable(String),
 }
 
 impl Outcome {
@@ -62,6 +68,9 @@ impl Outcome {
       Self::NotReady => Some("not-ready"),
       Self::Refused(_) => Some("refused"),
       Self::Failed(_) => Some("failed"),
+      Self::Withheld => Some("withheld"),
+      Self::NoPc => Some("no-pc"),
+      Self::Unreachable(_) => Some("unreachable"),
     }
   }
 
@@ -86,6 +95,9 @@ impl Outcome {
       Self::NotReady => said(&words().not_ready, &[]),
       Self::Refused(why) => said(&words().refused, &[("why", why)]),
       Self::Failed(why) => said(&words().failed, &[("why", why)]),
+      Self::Withheld => said(&words().withheld, &[]),
+      Self::NoPc => said(&words().no_pc, &[]),
+      Self::Unreachable(why) => said(&words().unreachable, &[("why", why)]),
     }
   }
 }
@@ -323,8 +335,9 @@ async fn named_registration(
   model: Option<&str>,
 ) -> Result<registry::Registration, Refused> {
   let model = model.ok_or_else(|| Refused::failed(&words().model_needed).with_field("model"))?;
+  let (_, name) = super::walk_reads::model_key(model, None);
 
-  registry::registration(&ground.db, model).await?.ok_or_else(|| {
+  registry::registration(&ground.db, &name).await?.ok_or_else(|| {
     Refused::failed(fill_marks(&words().unknown_model, &[("model", model)])).with_field("model")
   })
 }
@@ -345,6 +358,42 @@ async fn registration(ground: &Ground, held: Option<registry::Registration>) -> 
     Ok(key) => asked(&machine, &key, &held.name, Duration::from_secs(SUPPLY.test.registered_seconds)).await,
     Err(failed) => failed,
   }
+}
+
+// What a person's test on the registry tries (docs/supply.md, 「Testing a source」): the local AI of theirs `model`
+// names, or the one `local` describes before it is saved — its address, its model and its key file — and none where
+// they name neither, or name a registration that is no local AI of theirs.
+async fn local_tried(
+  ground: &Ground,
+  person: i64,
+  model: Option<&str>,
+  local: Option<&Value>,
+) -> Result<Option<(String, String, Option<String>)>, Refused> {
+  if let Some(local) = local.filter(|local| !local.is_null()) {
+    let text =
+      |name: &str| local.get(name).and_then(Value::as_str).map(str::trim).filter(|text| !text.is_empty());
+    let (Some(url), Some(name)) = (text("url"), text("modelName")) else {
+      return Err(Refused::failed(&SUPPLY.local_ai.words.candidate).with_field("local"));
+    };
+    let url = super::personal_models::checked_url(url)?;
+    let key = match text("keyName") {
+      None => None,
+      Some(secret) => {
+        Some(crate::local_ai::key_file(person, &super::personal_models::checked_secret(secret)?))
+      }
+    };
+
+    return Ok(Some((url, name.to_owned(), key)));
+  }
+
+  let Some(model) = model else { return Ok(None) };
+  let (_, name) = super::walk_reads::model_key(model, None);
+  let held = crate::local_ai::of_person(&ground.db, person)
+    .await?
+    .into_iter()
+    .find(|one| one.registration == name);
+  // A registration that is no local AI of theirs is none they bring.
+  Ok(held.map(|held| (held.url, held.model, held.key_file)))
 }
 
 /// `POST /supply-test`: whether a source of a road answers now, the person's own for a person's call and the
@@ -383,13 +432,29 @@ impl Route for SupplyTest {
       }
       _ => None,
     };
+    let local = match (&stands, acting) {
+      (Stands::Registrations, Acting::Person(person)) => {
+        Some(local_tried(&ground, person, model.as_deref(), body.get("local")).await?)
+      }
+      _ => None,
+    };
     let outcome = if !provider_enabled(&ground.db, &road).await? {
       Outcome::Off
     } else {
-      match stands {
-        Stands::Logins => logins(&ground, acting).await?,
-        Stands::Members => members(&ground, acting, &road).await?,
-        Stands::Registrations => registration(&ground, held).await,
+      match (stands, acting, local) {
+        (Stands::Logins, ..) => logins(&ground, acting).await?,
+        (Stands::Members, ..) => members(&ground, acting, &road).await?,
+        (Stands::Registrations, Acting::Person(person), Some(Some(tried))) => {
+          let tried = crate::local_ai::Tried {
+            url: &tried.0,
+            model: &tried.1,
+            key_file: tried.2.as_deref(),
+          };
+
+          crate::local_ai::test(&ground, person, &tried).await?
+        }
+        (Stands::Registrations, Acting::Person(_), _) => Outcome::NoSource,
+        (Stands::Registrations, ..) => registration(&ground, held).await,
       }
     };
 

@@ -17,6 +17,45 @@ pub struct Supply {
   pub retry_ceiling_seconds: i64,
   pub words: Words,
   pub test: Test,
+  pub local_ai: LocalAi,
+}
+
+/// A person's own local AI (docs/supply.md, 「A person's local AI」).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalAi {
+  /// The node label its one address stands under.
+  pub node: String,
+  /// How long, in characters, the name a person gives one may be.
+  pub name_most: usize,
+  /// The window a run on it is told where the person names none, in tokens.
+  pub context_tokens: i64,
+  /// Its answer size, in tokens.
+  pub answer_tokens: i64,
+  /// How long its test's one request is waited for, in seconds.
+  pub test_seconds: u64,
+  /// The first and the last port of this machine's loopback its addresses are asked at.
+  pub first_port: u16,
+  pub last_port: u16,
+  pub words: LocalAiWords,
+}
+
+/// What a person's local AI routes say.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LocalAiWords {
+  pub no_person: String,
+  /// With `{most}`.
+  pub name: String,
+  pub url: String,
+  pub model: String,
+  pub key_name: String,
+  pub enabled: String,
+  /// With `{name}`.
+  pub unknown: String,
+  pub unchecked: String,
+  pub candidate: String,
+  pub no_port: String,
 }
 
 /// The test of one source of a road (docs/supply.md, 「Testing a source」).
@@ -52,6 +91,10 @@ pub struct TestWords {
   pub model_needed: String,
   /// With `{model}`.
   pub unknown_model: String,
+  pub withheld: String,
+  pub no_pc: String,
+  /// With `{why}`.
+  pub unreachable: String,
 }
 
 #[derive(Debug, Deserialize)]

@@ -983,8 +983,11 @@ pub struct SupplySources {
   pub organisation_supply: bool,
   /// Whether their own login or key is all that can carry their runs.
   pub personal_only: bool,
-  /// Whether they hold a login or a key of their own that is on.
+  /// Whether they hold a login, a key or a local AI of their own that is on.
   pub own_supply: bool,
+  /// Whether they may add a local AI of their own now: their chain allows it and they hold a PC of their own.
+  #[serde(default)]
+  pub local_ai: bool,
 }
 
 /// One agent's road in a sign-up composition.
@@ -1048,6 +1051,8 @@ pub struct OffBoarded {
   pub accounts: i64,
   /// How many of their keys were turned off.
   pub keys: i64,
+  /// How many of their local AIs were turned off.
+  pub local_ais: i64,
 }
 
 /// The source of a road a supply test asks of: the person's own for a person's call, the platform's otherwise.
@@ -1056,9 +1061,74 @@ pub struct OffBoarded {
 pub struct SupplyTestAsk {
   /// One of `claude-code`, `codex`, `deepseek`, `openrouter` and `registered`.
   pub road: String,
-  /// The registration to test on `registered`, which a platform's test names.
+  /// The registration to test on `registered`, by its name or its key: the platform's for a platform's test, a
+  /// local AI of the person's own for a person's.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub model: Option<String>,
+  /// A local AI of the person's not saved yet, tried in place of `model` on `registered`.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub local: Option<LocalModelTried>,
+}
+
+/// A local AI tried before it is saved: its address, the model it serves and its key's secret name, where it asks one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct LocalModelTried {
+  /// A plain http address ending in `/chat/completions`, as the person's PC reaches it.
+  pub url: String,
+  pub model_name: String,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub key_name: Option<String>,
+}
+
+/// One local AI of a person's own (docs/supply.md, 「A person's local AI」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalModel {
+  /// The name the person gave it.
+  pub name: String,
+  /// Its registration's key on the registry's provider, `registered::<registration>`.
+  pub model: String,
+  /// The address as the person's PC reaches it.
+  pub url: String,
+  /// The model the server serves.
+  pub model_name: String,
+  /// The name of the person's secret its key is, or null.
+  pub key_name: Option<String>,
+  pub context_tokens: i64,
+  pub enabled: bool,
+  /// epoch seconds
+  pub added_at: i64,
+}
+
+/// A person's own local AIs, and whether their chain lets them add one.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalModels {
+  pub allowed: bool,
+  pub items: Vec<PersonalModel>,
+}
+
+/// A local AI of the person's own made or changed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalModelAsk {
+  /// A plain http address ending in `/chat/completions`, as the person's PC reaches it.
+  pub url: String,
+  pub model_name: String,
+  /// One plain name in the person's own space of the secret store, or null for no key.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub key_name: Option<String>,
+  /// The window a run on it is told, within the registry's bounds; the policy's where none is named.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub context_tokens: Option<i64>,
+}
+
+/// One of the person's local AIs turned on or off.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PersonalModelChange {
+  pub enabled: bool,
 }
 
 /// Whether a source of a road answers now, and where it does not, why.
@@ -1068,8 +1138,8 @@ pub struct SupplyTested {
   pub road: String,
   /// Whether the source answers now.
   pub ok: bool,
-  /// Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or
-  /// `failed` — or null where it does.
+  /// Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused`,
+  /// `failed`, `withheld`, `no-pc` or `unreachable` — or null where it does.
   pub reason_code: Option<String>,
   /// Why it does not, the English sentence, or null where it does.
   pub reason: Option<String>,

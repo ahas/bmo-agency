@@ -109,6 +109,7 @@ mod m20270120_000001_supervisor_sleep;
 mod m20270121_000001_note_assistant_plain;
 mod m20270122_000001_agent_attachments;
 mod m20270123_000001_mcp_servers;
+mod m20270124_000001_local_ai;
 
 use sea_orm_migration::prelude::*;
 
@@ -315,6 +316,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270121_000001_note_assistant_plain::Migration),
       Box::new(m20270122_000001_agent_attachments::Migration),
       Box::new(m20270123_000001_mcp_servers::Migration),
+      Box::new(m20270124_000001_local_ai::Migration),
     ]
   }
 

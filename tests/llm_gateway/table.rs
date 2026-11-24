@@ -36,6 +36,7 @@ fn address(node: &str, url: &str, key_file: Option<&str>) -> RegisteredAddress {
     key_owned: false,
     placed_at: None,
     role_files: false,
+    reach_port: None,
   }
 }
 
@@ -92,6 +93,21 @@ fn each_registration_is_served_under_its_name_and_each_node_of_several_on_its_ow
       named("single", "https://llm.example.com/v1"),
     ]
   );
+}
+
+// "a person's local AI is asked at its port of this machine's loopback, its path kept, never at the host it names"
+#[test]
+fn a_local_ai_reached_through_its_owner_s_pc_is_asked_at_its_loopback_port() {
+  let mut reached = address("pc", "http://localhost:11434/v1/chat/completions", Some("users/7/ollama-key"));
+
+  reached.reach_port = Some(47_300);
+
+  let config: Value =
+    serde_json::from_str(&gateway_table(&[registration("u7-ollama", vec![reached])]).text).unwrap();
+  let entry = &config["model_list"][0];
+
+  assert_eq!(entry["model_name"], "u7-ollama");
+  assert_eq!(entry["litellm_params"]["api_base"], "http://127.0.0.1:47300/v1");
 }
 
 #[test]

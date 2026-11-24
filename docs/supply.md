@@ -35,7 +35,7 @@ platform pays for takes it.
 | Codex | none | an OpenAI key, a personal member of the gateway |
 | DeepSeek | none | a DeepSeek key, a personal member of the gateway |
 | OpenRouter | none | an OpenRouter key, a personal member of the gateway |
-| The registry's provider | none | none: a registration is the platform's, or its owner's (「Owned supply」) |
+| The registry's provider | none | a local AI of their own on their PC, an OpenAI-compatible address with an optional key (「A person's local AI」) |
 
 - **A key is the person's secret in the console's secret store,** the file `users/<user>/<name>` under the data
   root's `env/`; agency is handed the name alone and reads the file only where a run or the gateway hands its key
@@ -53,8 +53,31 @@ platform pays for takes it.
   person's own headers (`docs/api.md`, 「Who a caller acts for」 and 「personal supply」). The administrator sees
   of another person's supply only which roads it serves, and the Claude accounts list the administrator reads
   holds the platform's accounts alone.
-- **A person off-boarded has their personal supply switched off:** each of their Claude accounts and keys is
-  turned off and their gateway call key is revoked. Their secrets stay sealed where the console keeps them.
+- **A person off-boarded has their personal supply switched off:** each of their Claude accounts, keys and local
+  AIs is turned off and their gateway call key is revoked. Their secrets stay sealed where the console keeps them.
+
+### A person's local AI
+
+- **A local AI of a person's own is a model served where their runs stand:** an OpenAI-compatible chat completions
+  address reached from their own PC — a server on the PC's loopback such as Ollama, LM Studio or llama.cpp's, or
+  one on the PC's own network — its model's name, and a key where the server asks one, the person's secret by its
+  name. Agency keeps it as a registration the person owns (`docs/own-llm.md`, 「A person's local AI」), so it answers
+  that person's runs alone and the gateway refuses anyone else's request naming it (「Owned supply」).
+- **It is personal supply:** a run of the person's on the registry's provider naming it — an agent of theirs whose
+  road they set to it — goes out on it where their order reaches `personal` (「Choosing a source as a run starts」),
+  as their own login or key goes out on its road. It is placed in their order wherever personal supply stands
+  there, and is never a platform source or an organisation's.
+- **It needs a PC of the person's own:** a node their record names, reached through the hub, that no other account
+  shares (`docs/person-nodes.md`, 「Several accounts on one node」), since its address is reached from there. One
+  added while the person holds no such PC is refused 409 `no-pc`.
+- **Their organisation may forbid it:** the delegation chain's `supply.personal-local-ai`, a flag agency declares,
+  narrowing down the chain and on unless a link turns it off, for the platform, units and the person, written by a
+  unit's heads (`docs/prompt-layers.md`, 「The settings agency declares」). Where it stands off for the person, adding
+  one is refused 403 `personal-local-ai-withheld`, its test answers `withheld`, and a run naming one they already
+  hold finds no personal supply and ends `withheld` (「Why none is left」). The administrator's account is held to
+  none of it. A check the account service did not answer is refused 503 `access-unchecked`.
+- **Only the person adds, lists, switches and removes theirs,** through `/personal-models` (`docs/api.md`,
+  「accounts, rest and usage」); one switched off is taken by no run and its address is carried by no link.
 
 ### Signing a person's login in
 
@@ -97,10 +120,11 @@ platform pays for takes it.
   credential for the road (「Organisation supply」).
 - **`GET /supply-sources`** answers the signed-in person what the order their runs walk holds — `personal`,
   `platform` (any platform source), `organisation` — whether a unit of their path holds supply of its own that is
-  on, `personalOnly`, whether their own login or key is all that can carry their runs, and `ownSupply`, whether they
-  hold one of their own that is on, which the console reads to ask a new person for one before they start (the
-  web's `docs/web.md`, 「The join page」). With no hook registered, or one that does not answer, the order is
-  personal supply alone.
+  on, `personalOnly`, whether their own login or key is all that can carry their runs, `ownSupply`, whether they
+  hold one of their own that is on, a local AI among them, and `localAi`, whether they may add a local AI of their
+  own now — their chain allows it and they hold a PC of their own (「A person's local AI」) —, which the console reads
+  to ask a new person for one before they start (the web's `docs/web.md`, 「The join page」). With no hook
+  registered, or one that does not answer, the order is personal supply alone.
 
 ## Testing a source
 
@@ -116,7 +140,13 @@ platform pays for takes it.
     under their own call key, naming the road's first member as their personal member (`docs/own-llm.md`,
     「Personal members」). The launcher lays that member on its next beat, so a gateway that does not serve it yet
     answers `not-ready`, to be asked again in a few seconds; a key the provider refuses answers `refused`;
-  - on the registry's provider, `no-source`, since a person brings none there.
+  - on the registry's provider, a local AI of theirs (「A person's local AI」): the one the test names as its
+    `model`, or one not saved yet that the test describes as `local` — its address, its model and its key's name —
+    so the console tries it before it is kept. One request of a single answer token goes to the address from the
+    person's PC, the link carrying it there (`docs/person-nodes.md`, 「A local AI on a PC」), with the key their
+    secret holds. It answers `withheld` where their chain forbids personal local AI, `no-pc` where they hold no PC
+    of their own, `unreachable` where their PC or the address on it cannot be reached, `refused` where the server
+    refuses the key, and `failed` where it answers otherwise; a person's test naming neither answers `no-source`.
 - **For the platform** — the administrator's call or the deployment's own — it tests the platform's supply:
   - on Claude Code, the accounts no other person owns, with those marked lendable (「Owned supply」 and 「The
     lendable accounts」), judged as a person's are;
@@ -226,8 +256,8 @@ platform pays for takes it.
   starts (「The supply hook」), then walks the order within its road (「The sources a run walks」):
   - **personal supply** is taken where the person holds an open credential for the road's provider: a Claude
     login or `api-key` account that can answer now for a Claude Code road, an open key of the road or a member
-    of the road they own for a gateway road, a registration they own for the registry's provider. It goes out
-    on that credential.
+    of the road they own for a gateway road, a registration they own for the registry's provider, a local AI of
+    theirs only while it is on and their chain allows it (「A person's local AI」). It goes out on that credential.
   - **organisation supply** is taken where the order holds it and a unit of the person's path holds an open
     credential for the road and the hook accepts a reservation for it first. It goes out on that credential.
   - **a platform source** is taken where the hook accepts a reservation for it first (「Reservations」). It goes
@@ -307,8 +337,8 @@ platform pays for takes it.
   sentence it ends with, and a job waits with, is the policy's for that reason (`policy/supply.toml`,
   `[words.closed]`), each saying what the person can do:
   - `no-order`: the order named no source — add a login or key of their own, or ask the platform's administrator;
-  - `withheld`: the order named sources and the person's chain closed every one — ask their organisation's
-    administrator to turn one on;
+  - `withheld`: the order named sources and the person's chain closed every one, or the run's model is a local AI
+    of theirs their chain forbids (「A person's local AI」) — ask their organisation's administrator to turn one on;
   - `no-personal`: no open login or key of their own answers the road's provider — add one in their supply
     settings;
   - `own-refused`: the provider refused their own key for the road — add it again;
@@ -361,7 +391,7 @@ platform pays for takes it.
 | Part | Stands | Left |
 |---|---|---|
 | call keys and request records | a call key per account on its nodes, the platform key here alone, each request recorded with its account, model, run and cost | — |
-| personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, the test of a source, the off-boarding switch | — |
+| personal supply | personal members, `api-key` accounts, a person's own accounts and keys through their headers, the sign-in on their node, a person's local AI on their PC under the chain's `supply.personal-local-ai`, the test of a source, a local AI's tried from the person's PC before it is kept, the off-boarding switch | — |
 | owned supply | a Claude account's, a gateway member's and a registration's owner, the walk and the gateway holding to it, the administrator's owned supply carrying the deployment's own runs | — |
 | organisation supply | the three source settings on the chain, the order's shape, a unit's keys and Claude accounts, the walk to the nearest unit, its reservation and the gateway's members of it | a Claude subscription login of a unit's own, signed in from its screen |
 | sources and reservations | the hook, the walk at a run's start, reservations, extension, the settlement outbox, the capture after a restart | — |

@@ -1085,6 +1085,42 @@ export interface paths {
         patch: operations["changePersonalSupply"];
         trace?: never;
     };
+    "/personal-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The signed-in person's own local AIs, and whether their chain lets them add one. */
+        get: operations["listPersonalModels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/personal-models/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Add or change a local AI of the signed-in person's own, served on their PC. */
+        put: operations["putPersonalModel"];
+        post?: never;
+        /** Remove one of the person's local AIs. */
+        delete: operations["deletePersonalModel"];
+        options?: never;
+        head?: never;
+        /** Turn one of the person's local AIs on or off. */
+        patch: operations["changePersonalModel"];
+        trace?: never;
+    };
     "/organisation-supply/{unit}": {
         parameters: {
             query?: never;
@@ -4474,6 +4510,49 @@ export interface components {
             place?: number | null;
             enabled?: boolean | null;
         };
+        /** @description A person's own local AIs, and whether their chain lets them add one. */
+        PersonalModels: {
+            allowed: boolean;
+            items: components["schemas"]["PersonalModel"][];
+        };
+        /** @description One local AI of a person's own (docs/supply.md, 「A person's local AI」). */
+        PersonalModel: {
+            /** @description The name the person gave it. */
+            name: string;
+            /** @description Its registration's key on the registry's provider, `registered::<registration>`. */
+            model: string;
+            /** @description The address as the person's PC reaches it. */
+            url: string;
+            /** @description The model the server serves. */
+            modelName: string;
+            /** @description The name of the person's secret its key is, or null. */
+            keyName: string | null;
+            /** Format: int64 */
+            contextTokens: number;
+            enabled: boolean;
+            /**
+             * Format: int64
+             * @description epoch seconds
+             */
+            addedAt: number;
+        };
+        /** @description A local AI of the person's own made or changed. */
+        PersonalModelAsk: {
+            /** @description A plain http address ending in `/chat/completions`, as the person's PC reaches it. */
+            url: string;
+            modelName: string;
+            /** @description One plain name in the person's own space of the secret store, or null for no key. */
+            keyName?: string | null;
+            /**
+             * Format: int64
+             * @description The window a run on it is told, within the registry's bounds; the policy's where none is named.
+             */
+            contextTokens?: number | null;
+        };
+        /** @description One of the person's local AIs turned on or off. */
+        PersonalModelChange: {
+            enabled: boolean;
+        };
         /** @description An organisation unit's own supply as its heads read it. */
         OrganisationSupplyPage: {
             /** Format: int64 */
@@ -4526,8 +4605,13 @@ export interface components {
             organisationSupply: boolean;
             /** @description Whether their own login or key is all that can carry their runs. */
             personalOnly: boolean;
-            /** @description Whether they hold a login or a key of their own that is on. */
+            /** @description Whether they hold a login, a key or a local AI of their own that is on. */
             ownSupply: boolean;
+            /**
+             * @description Whether they may add a local AI of their own now: their chain allows it and they hold a PC of their own.
+             * @default false
+             */
+            localAi: boolean;
         };
         /** @description Whether a source of a road answers now, and where it does not, why. */
         SupplyTested: {
@@ -4535,8 +4619,8 @@ export interface components {
             /** @description Whether the source answers now. */
             ok: boolean;
             /**
-             * @description Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused` or
-             *     `failed` — or null where it does.
+             * @description Why it does not, the kebab-case code — `off`, `no-source`, `login-needed`, `not-ready`, `refused`,
+             *     `failed`, `withheld`, `no-pc` or `unreachable` — or null where it does.
              */
             reasonCode: string | null;
             /** @description Why it does not, the English sentence, or null where it does. */
@@ -4546,8 +4630,20 @@ export interface components {
         SupplyTestAsk: {
             /** @description One of `claude-code`, `codex`, `deepseek`, `openrouter` and `registered`. */
             road: string;
-            /** @description The registration to test on `registered`, which a platform's test names. */
+            /**
+             * @description The registration to test on `registered`, by its name or its key: the platform's for a platform's test, a
+             *     local AI of the person's own for a person's.
+             */
             model?: string | null;
+            /** @description A local AI of the person's not saved yet, tried in place of `model` on `registered`. */
+            local?: components["schemas"]["LocalModelTried"] | null;
+        };
+        /** @description A local AI tried before it is saved: its address, the model it serves and its key's secret name, where it asks one. */
+        LocalModelTried: {
+            /** @description A plain http address ending in `/chat/completions`, as the person's PC reaches it. */
+            url: string;
+            modelName: string;
+            keyName?: string | null;
         };
         /** @description What a person's off-boarding turned off. */
         OffBoarded: {
@@ -4561,6 +4657,11 @@ export interface components {
              * @description How many of their keys were turned off.
              */
             keys: number;
+            /**
+             * Format: int64
+             * @description How many of their local AIs were turned off.
+             */
+            localAis: number;
         };
         /** @description Rest: the deployment's rest as it stands, or as a write or an end of it left it. */
         Rest: {
@@ -6937,6 +7038,24 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description no-pc */
+        NoPc: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description no-port */
+        NoPort: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description no-runner */
         NoRunner: {
             headers: {
@@ -7153,6 +7272,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description personal-local-ai-withheld */
+        PersonalLocalAiWithheld: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description road-choice-withheld */
         RoadChoiceWithheld: {
             headers: {
@@ -7326,6 +7454,15 @@ export interface components {
         };
         /** @description unknown-member */
         UnknownMember: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description unknown-model */
+        UnknownModel: {
             headers: {
                 [name: string]: unknown;
             };
@@ -9727,6 +9864,124 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["UnknownSupply"];
+        };
+    };
+    listPersonalModels: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalModels"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    putPersonalModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalModelAsk"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalModel"];
+                };
+            };
+            /** @description Answered. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalModel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownModel"];
+            409: components["responses"]["NoPc"];
+            422: components["responses"]["AccessUnchecked"];
+        };
+    };
+    deletePersonalModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownModel"];
+            409: components["responses"]["Conflict"];
+        };
+    };
+    changePersonalModel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonalModelChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalModel"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["UnknownModel"];
+            422: components["responses"]["AccessUnchecked"];
         };
     };
     listOrganisationSupply: {

@@ -374,6 +374,19 @@ pub async fn personal_source(
   }
 
   if owner_of(ground, provider, model).await? == Some(account) {
+    // A local AI of theirs carries their runs only while it is on and their chain allows it (docs/supply.md, 「A
+    // person's local AI」).
+    if provider == REGISTERED && crate::local_ai::is_local(&ground.db, model).await? {
+      let on = crate::local_ai::of_person(&ground.db, account)
+        .await?
+        .iter()
+        .any(|one| one.registration == model && one.enabled);
+
+      if !on || local_withheld(ground, account).await {
+        return Ok(None);
+      }
+    }
+
     return Ok(Some(Source::Owned));
   }
 
@@ -391,6 +404,26 @@ pub async fn personal_source(
   .is_some();
 
   Ok(keyed.then_some(Source::Personal))
+}
+
+// Whether the person's chain forbids them a local AI of their own; an account service that does not answer forbids
+// it too, so no run goes out on what the chain may close.
+async fn local_withheld(ground: &Ground, account: i64) -> bool {
+  !crate::local_ai::allowed(ground, account).await.unwrap_or(false)
+}
+
+/// Whether the run's model is a local AI of the person's that their chain forbids.
+async fn own_local_withheld(
+  ground: &Ground,
+  account: i64,
+  provider: &str,
+  model: &str,
+) -> Result<bool, Refusal> {
+  if provider != REGISTERED || owner_of(ground, provider, model).await? != Some(account) {
+    return Ok(false);
+  }
+
+  Ok(crate::local_ai::is_local(&ground.db, model).await? && local_withheld(ground, account).await)
 }
 
 /// Whether the person holds a key of their own for the road that its provider refused, where none of theirs is open.
@@ -617,6 +650,11 @@ pub async fn next_source(
       if let Some(personal) = personal_source(ground, account, &chosen.provider, &chosen.model).await? {
         chosen.source = personal;
         return Ok(Ok(()));
+      }
+
+      if own_local_withheld(ground, account, &chosen.provider, &chosen.model).await? {
+        last = Closed::of(Shortfall::Withheld, PERSONAL, SUPPLY.words.withheld.clone(), None);
+        continue;
       }
 
       let reason = fill_marks(&SUPPLY.words.no_personal, &[("provider", &chosen.provider)]);

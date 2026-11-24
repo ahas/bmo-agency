@@ -168,11 +168,18 @@ pub fn key_variable(key_file: &str) -> String {
   format!("BMO_KEY_{named}")
 }
 
-/// The chat completions address without its path's last two parts, which the OpenAI client adds.
-fn api_base(address: &str) -> String {
+/// The chat completions address without its path's last two parts, which the OpenAI client adds; an address
+/// reached through its owner's PC asked at its port of this machine's loopback in place of its own host and port
+/// (docs/own-llm.md, 「A person's local AI」).
+fn api_base(address: &str, reach_port: Option<i64>) -> String {
   let Ok(mut parsed) = url::Url::parse(address) else {
     return address.trim_end_matches('/').to_owned();
   };
+  if let Some(port) = reach_port.and_then(|port| u16::try_from(port).ok()) {
+    let _ = parsed.set_scheme("http");
+    let _ = parsed.set_host(Some("127.0.0.1"));
+    let _ = parsed.set_port(Some(port));
+  }
   let path = parsed.path().strip_suffix("/chat/completions").unwrap_or(parsed.path()).to_owned();
   parsed.set_path(&path);
   parsed.as_str().trim_end_matches('/').to_owned()
@@ -259,6 +266,7 @@ pub fn laid_instances(mut registrations: Vec<Registration>, picture: Option<&Val
           key_owned: false,
           placed_at: None,
           role_files: registration.role_files,
+          reach_port: None,
         })
       })
       .collect();
@@ -308,7 +316,7 @@ pub fn gateway_table_with_personal(
       }
       let params = Params {
         model: format!("openai/{}", registration.model),
-        api_base: Some(api_base(&address.url)),
+        api_base: Some(api_base(&address.url, address.reach_port)),
         api_key: variable.map_or_else(|| "no-key".to_owned(), |variable| format!("os.environ/{variable}")),
         chat_template_kwargs: TemplateSettings {
           enable_thinking: false,

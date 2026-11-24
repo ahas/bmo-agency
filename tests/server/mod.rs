@@ -87,6 +87,7 @@ mod control {
   mod owned_accounts;
   mod pane_death;
   mod person_node_routes;
+  mod personal_models;
   mod personal_supply;
   mod pickup_restart;
   mod preamble;
