@@ -644,19 +644,22 @@ const NODE_CARRIED_LOGINS: [&str; 3] =
 /// no browser opened there, and every other login taken away first. Where that Claude Code does not stand, the
 /// pane says the policy's line for it in place of starting anything. A shell holds the pane after the CLI ends, so
 /// what it said last stays to be read; the CLI's words are handed to it as arguments, never spliced into its script.
+/// The shell holds the pane in the `wait` builtin over a sleep in the background, never over a sleep in the
+/// foreground: a shell runs a trap only once its foreground command ends, so a hangup that came as the sleep was
+/// being started, the sleep itself not yet there to end by it, would leave the shell and the directory an hour.
 /// A `fresh` sign-in, a new login's, takes its directory away as its pane closes where no login was written into it,
 /// so a new login given up, refused or never shown an address leaves nothing on the node.
 pub fn node_launch(node_root: &str, node_home: &str, home: &str, lang: &str, fresh: bool) -> NodeLaunch {
   let policy = &CLAUDE_CODE.console_login;
   let leave = if fresh {
     format!(
-      r#"gone() {{ [ -f "$CLAUDE_CONFIG_DIR/{CREDENTIAL_FILE}" ] || rm -rf "$CLAUDE_CONFIG_DIR"; exit 0; }}; trap gone HUP INT TERM; "#
+      r#"gone() {{ kill $! 2>/dev/null; [ -f "$CLAUDE_CONFIG_DIR/{CREDENTIAL_FILE}" ] || rm -rf "$CLAUDE_CONFIG_DIR"; exit 0; }}; trap gone HUP INT TERM; "#
     )
   } else {
     String::new()
   };
   let script = format!(
-    r#"{leave}unset {}; mkdir -p -m 700 "$CLAUDE_CONFIG_DIR" && if [ -x "$1" ]; then "$@"; else printf '%s\n' {}; fi; while :; do sleep 3600; done"#,
+    r#"{leave}unset {}; mkdir -p -m 700 "$CLAUDE_CONFIG_DIR" && if [ -x "$1" ]; then "$@"; else printf '%s\n' {}; fi; while :; do sleep 3600 & wait $!; done"#,
     NODE_CARRIED_LOGINS.join(" "),
     crate::verbs::work_node_setup::shell_word(&policy.missing),
   );

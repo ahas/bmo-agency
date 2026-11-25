@@ -100,16 +100,28 @@ fn a_sign_in_pane_on_a_workplace_with_no_claude_code_of_its_own_says_so_and_star
 // The shell of a launch, run as herdr runs a pane's, its first line read within a bound; then `close` sent to its
 // whole group as herdr's closing the pane sends it, and the group taken down.
 fn run_pane(launch: &agency_server::control::claude_logins::NodeLaunch, cwd: &Path, close: &str) -> String {
-  let mut shell = std::process::Command::new(&launch.command[0])
+  let mut shell = std::process::Command::new(&launch.command[0]);
+
+  shell
     .args(&launch.command[1..])
     .env_clear()
     .envs(&launch.env)
     .current_dir(cwd)
     .process_group(0)
     .stdout(std::process::Stdio::piped())
-    .stderr(std::process::Stdio::null())
-    .spawn()
-    .unwrap();
+    .stderr(std::process::Stdio::null());
+  // The shell takes the hangup at its default, as a pane's shell under the node's herdr service does, whatever
+  // the test run was handed: under `nohup` it would inherit the hangup ignored, which a non-interactive shell can
+  // neither trap nor be ended by.
+  // SAFETY: signal in the child before exec, an async-signal-safe call.
+  unsafe {
+    shell.pre_exec(|| {
+      libc::signal(libc::SIGHUP, libc::SIG_DFL);
+      Ok(())
+    });
+  }
+
+  let mut shell = shell.spawn().unwrap();
   let mut out = std::io::BufReader::new(shell.stdout.take().unwrap());
   let (said, heard) = std::sync::mpsc::channel();
 
