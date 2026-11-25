@@ -276,7 +276,7 @@ impl ServerHandler for AgencyServer {
     let mut info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build());
     let mut server = Implementation::default();
     server.name = "bmo-agency".to_owned();
-    server.version = env!("CARGO_PKG_VERSION").to_owned();
+    server.version = crate::VERSION.to_owned();
     info.server_info = server;
     info.instructions = Some(INSTRUCTIONS.to_owned());
     info

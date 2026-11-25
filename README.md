@@ -87,4 +87,5 @@ declaration and is not covered by the repository's MIT licence.
 
 ## Version
 
-The version is the workspace's, in semver.
+The version is the set's, in semver, read off the git tag when a build is made; the workspace manifest's
+version is a placeholder that never moves.

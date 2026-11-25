@@ -17,3 +17,11 @@ pub mod windows;
 pub use balance::{Balance, KeptBalance};
 pub use reader::Reader;
 pub use windows::{FULL, Keeping, KeptWindow, Reading, Slot, Window};
+
+/// The version the siren names itself at to the codex app-server: the set's version the build was made at,
+/// which the testbed hands the build as `BMO_VERSION`, else the manifest's placeholder (bmo-chat's
+/// `docs/conventions.md`, 「Versions」).
+pub const VERSION: &str = match option_env!("BMO_VERSION") {
+  Some(version) => version,
+  None => env!("CARGO_PKG_VERSION"),
+};

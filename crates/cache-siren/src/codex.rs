@@ -232,7 +232,7 @@ async fn ask_app_server(program: &Path) -> Result<Vec<Window>, String> {
       "id": 1,
       "method": "initialize",
       "params": {
-        "clientInfo": { "name": "agency", "title": "Agency", "version": env!("CARGO_PKG_VERSION") },
+        "clientInfo": { "name": "agency", "title": "Agency", "version": crate::VERSION },
         "capabilities": null,
       },
     }),

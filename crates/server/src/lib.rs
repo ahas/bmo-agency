@@ -159,6 +159,14 @@ use crate::hooks::Hooks;
 use crate::peers::{PeerFault, Peers};
 use crate::readiness::Readiness;
 
+/// The version the agency's MCP server names itself at: the set's version the build was made at, which the
+/// testbed hands the build as `BMO_VERSION`, else the manifest's placeholder (bmo-chat's
+/// `docs/conventions.md`, 「Versions」).
+pub const VERSION: &str = match option_env!("BMO_VERSION") {
+  Some(version) => version,
+  None => env!("CARGO_PKG_VERSION"),
+};
+
 /// What every handler stands on: the store, the deployment's configuration, the services agency calls,
 /// the bus its events are published on and its hooks registered with, and whether its places have
 /// stood once since it started.

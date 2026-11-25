@@ -119,6 +119,7 @@ them.
 - Review: `cargo fmt --all --check` (108 columns, 2-space indentation, as `rustfmt.toml` sets) and
   `cargo clippy --workspace --all-targets -- -D warnings`.
 - Tests: `cargo test --workspace`, and `bun test` for `tests/packages/`.
-- The version is the workspace's, and it moves only at a release the owner declares by name (bmo-chat's
-  `docs/conventions.md`, 「Versions」): a commit, a deploy, a fix or a contract change moves none, and a
-  deployment is told apart by its commit. A sibling is a path dependency and is never pinned to a version.
+- The version is the set's, read off the git tag when a build is made: the testbed hands it to the build as
+  `BMO_VERSION`, and the MCP server names it (bmo-chat's `docs/conventions.md`, 「Versions」). The workspace
+  manifest's version is a placeholder that never moves; a commit, a deploy, a fix or a contract change moves
+  no version, and a deployment is told apart by its commit. A sibling is a path dependency and is never pinned to a version.

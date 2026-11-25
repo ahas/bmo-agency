@@ -83,4 +83,4 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ## 版本
 
-版本即工作区的版本，遵循 semver。
+版本属于整个套件，遵循 semver，在构建时从 git 标签读取；工作区清单中的版本只是永不变动的占位值。

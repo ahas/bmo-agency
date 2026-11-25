@@ -92,4 +92,5 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ## 버전
 
-버전은 워크스페이스의 버전을 따르며, semver 형식입니다.
+버전은 세트 전체의 것이며 semver 형식으로, 빌드할 때 git 태그에서 읽습니다. 워크스페이스 매니페스트의 버전은
+움직이지 않는 자리표시 값입니다.

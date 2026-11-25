@@ -27,13 +27,14 @@ a field's exact shape matters, the OpenAPI document is the one to read.
 
 ## Versioning
 
-- The contract carries the repository's one version; the workspace manifest is its source, and the current
-  version is `0.1.0-rev.81`. It moves only at a release the owner declares by name (bmo-chat's
-  `docs/conventions.md`, 「Versions」); a deployment is told apart by its commit.
+- The version is the set's (bmo-chat's `docs/conventions.md`, 「Versions」): a release tags the commit
+  `v<version>`, a build reads it off the tag and the testbed hands it to the build as `BMO_VERSION`, and the
+  MCP server names it. The workspace manifest's version and the OpenAPI document's are a placeholder that
+  never moves; a deployment is told apart by its commit.
 - A change to this document and a change to the boundary go in one commit. A change to a route, an event, a
   hook or a shared table's contract repairs this document in the same commit.
-- The major moves on a removed or renamed route, field or event, the minor on an addition, the patch on
-  anything else. Before the first release the revision moves instead.
+- Toward the next release, a removed or renamed route, field or event counts as a major step, an addition as
+  a minor one, anything else as a patch.
 
 ## The control port
 
