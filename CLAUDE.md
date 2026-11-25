@@ -65,7 +65,8 @@ them.
 - **A test drops every database it makes, and fails where it cannot.** A store of a test's own is a copy of
   a template its harness migrates once per process on the server `BMO_TEST_POSTGRES` names. The Rust harness
   names them `agency_rs_tmpl_` and `agency_rs_copy_`, the TypeScript one `agency_ts_tmpl_` and
-  `agency_ts_copy_`, each followed by the process id. The drop ends the suite role's own sessions on the
+  `agency_ts_copy_`, each followed by the process id. The drop first takes no new connection to the
+  database, so nothing the test left running opens a session again, ends the suite role's own sessions on the
   database and drops it without forcing, since forcing needs the right to end an autovacuum worker, which
   the suite's role need not hold, while the plain drop stops one itself. Before a harness process makes its
   first database it drops those of its own two names whose process no longer runs on this machine and that

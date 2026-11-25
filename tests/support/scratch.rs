@@ -184,12 +184,19 @@ async fn empty_database() -> String {
   made_from("template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'").await
 }
 
-/// Drops `database`. This role's own sessions on it are ended first, since a drop that forces every session
-/// off needs the right to end other roles' processes, an autovacuum worker's among them, which the suite's
-/// role need not hold; the plain drop then stops an autovacuum worker itself and waits a few seconds for the
-/// ended sessions to leave. A session that opened between the two is ended on the next attempt.
+/// Drops `database`. It first takes no new connection, since what a test started may still be running on its
+/// runtime's other threads, a pool among it opening a session again as each is ended. This role's own sessions
+/// on it are then ended, since a drop that forces every session off needs the right to end other roles'
+/// processes, an autovacuum worker's among them, which the suite's role need not hold; the plain drop then stops
+/// an autovacuum worker itself and waits a few seconds for the ended sessions to leave. A session that stays past
+/// that is ended again on the next attempt.
 async fn drop_database(admin: &mut PgConnection, database: &str) -> Result<(), sqlx::Error> {
   let mut attempt = 1;
+
+  // A database already gone refuses the change, and the drop below reads it as dropped.
+  let _ = admin
+    .execute(format!("ALTER DATABASE \"{database}\" WITH ALLOW_CONNECTIONS false").as_str())
+    .await;
 
   loop {
     sqlx::query(

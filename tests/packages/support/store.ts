@@ -144,7 +144,8 @@ function inUse(error: unknown): boolean {
   return (error as { errno?: unknown } | null)?.errno === IN_USE;
 }
 
-// A test database dropped. The test role ends only its own sessions on it. A forced drop would try to end
+// A test database dropped. It first takes no new connection, so nothing the test left running opens a session
+// again as its sessions are ended. The test role ends only its own sessions on it. A forced drop would try to end
 // every holder, and the server refuses the whole drop, before ending any, where one holder is a worker of
 // its own — an autovacuum worker visiting the database, say — since a role without the right to signal
 // every backend may not end it. A plain drop asks the server's own workers there to stop and waits a few
@@ -152,6 +153,9 @@ function inUse(error: unknown): boolean {
 // between, it fails as in use, and the drop tries again within its bound and then says who held it.
 async function dropped(sql: PostgresClient, name: string): Promise<void> {
   const until = Date.now() + dropWithinMs;
+
+  // A database already gone refuses the change, and the drop below reads it as dropped.
+  await sql.unsafe(`ALTER DATABASE "${name}" WITH ALLOW_CONNECTIONS false`).catch(() => undefined);
 
   for (;;) {
     try {
