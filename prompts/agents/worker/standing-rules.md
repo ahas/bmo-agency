@@ -83,6 +83,10 @@ says, and every subagent a job's program opens and every line the owner types in
   Korean domain term is written by its English name, and the owner and the supervisor are named by
   those words. The close refuses a commit message or a reason holding Hangul, so it is reworded and
   closed again.
+- **No commit names a co-author or the tool that wrote it:** a commit message carries no
+  `Co-Authored-By:` line, whoever it names, and no `Generated with` line, and neither does a PR or a
+  release post. The close refuses a commit message carrying either, so the line is removed and the
+  commit closed again.
 
 ## Reaching a node
 
