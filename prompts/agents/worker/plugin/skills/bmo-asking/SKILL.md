@@ -1,8 +1,8 @@
 ---
 name: "bmo-asking"
 bundle: worker
-version: "2.2.0"
-description: "How a job asks: anything it cannot settle or do itself goes to its supervisor with bmo job ask — a decision that is not the job's, a command on a node it cannot reach, a deployment it waits on — and the supervisor settles it or puts it to the owner; and a document for the owner to read or approve filed in the deployment's 아카이브. Use before asking anything and before handing the owner any document."
+version: "2.3.0"
+description: "How a job asks: anything it cannot settle or do itself goes to its supervisor with bmo job ask — a decision that is not the job's, a command on a node it cannot reach — and the supervisor settles it or puts it to the owner; and a document for the owner to read or approve filed in the deployment's 아카이브. Use before asking anything and before handing the owner any document."
 ---
 
 # Asking
@@ -11,7 +11,7 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
 
 - **Every question goes to your supervisor, never to the owner directly.** `bmo job ask` hands it to the
   supervisor of the owner's room at once, and the supervisor judges it: what it can settle itself — a command on
-  a node your account does not reach, a deployment your work waits on, a look-up with its reach, a choice the
+  a node your account does not reach, a look-up with its reach, a choice the
   owner's standing word already settles — it does, and answers with the result; a decision that is the owner's
   — hard to undo, his own taste, money, an account — it puts to him in its own words; where it is unclear what
   you ask or why, it talks it over with you first. You never word a question for the owner and never write
@@ -28,7 +28,7 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
 - **The command:**
   `bmo job ask --todo <id> --question '<무엇을 정하거나 해 달라는지>' --why '<왜 네가 못 하는지 한 줄>' [--option '<하나>' --option '<다른 하나>' --recommend <추천 번호>]`.
   - A choice puts two or more options, the one you would take named by its number; a request the supervisor
-    answers in its own words — a command's output, a deployment done — puts none, and no `--recommend`. A
+    answers in its own words — a command's output — puts none, and no `--recommend`. A
     question with no options is the supervisor's alone: it never reaches the owner until the supervisor writes
     its choices.
 - **Write it for someone who knows nothing of the work.** The supervisor may hand your question to the owner as
@@ -64,8 +64,7 @@ description: "How a job asks: anything it cannot settle or do itself goes to its
     would do and what it costs.
   - Where the talk changes the choice, the same call puts it again with `--option` for every option
     anew and `--recommend`, plus `--question` or `--why` where those changed.
-  - Where the supervisor only says it is still at work — "deploying; I answer once it is live" — and asks
-    nothing, it needs no answer: run the same ask again, or, where you would say something, acknowledge it with
+  - Where the supervisor only says it is still at work and asks nothing, it needs no answer: run the same ask again, or, where you would say something, acknowledge it with
     `bmo job ask --talk <질문 번호> --say '<words>' --ack`. An acknowledgement is written on the question and
     handed to nobody, so it wakes nobody; both wait on the question as it stands, and the supervisor settles it
     once its work ends. Never answer such a word with a plain `--talk` — "thank you, I wait" — since a plain talk

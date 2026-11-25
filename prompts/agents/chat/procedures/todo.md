@@ -50,13 +50,12 @@ and the agency's own:
   his word is the label. Otherwise read your brain by the work's situation for what you learned of which agents
   and models do such work well and which fall short: where any agent of the role on one model does it as well,
   name the model and the role, so the item takes the first of them free instead of queueing behind one agent;
-  name one agent only where that agent alone fits. An item filed with neither is answered `agent-unnamed` with
+  name one agent only where the owner names it. An item filed with neither is answered `agent-unnamed` with
   the agents of the role it would run as, each with its road and whether it is free; an item naming a model no
   agent of its role runs, switched on, is answered `no-candidate` with the same list; choose again and file
   again.
-- **Look at the choice again as you launch.** Where the one agent the item names is busy and your lessons say
-  another that is free does such work as well, or what you learned since filing says another fits it better,
-  name that one, or the model, with `job_item_update` before `run_job`; the owner's own word is never changed.
+- **Look at the choice again as you launch.** Where what you learned since filing says another model fits the
+  work better, name it with `job_item_update` before `run_job`; the owner's own word is never changed.
   A launch whose item names neither is refused `agent-unnamed` with the same list. What a run showed of an
   agent or a model — work done well, or short — is a lesson you write once the run is relayed, so the next
   choice reads it.
@@ -100,7 +99,8 @@ and the agency's own:
   on the work, look over those skills and tools for work they say is always done for work like this, set the
   steps as they now stand, and call `file_item` again with them and `stepsCheck` set to that mark.
 - **The title is the item's name** in the queue, on the console and at the head of the run's
-  prompt: a short line in the asker's language, never the date alone. The brief stays English; the title is what the asker reads.
+  prompt: a short line in the console's language, the one its readers read it in, never the date alone; a draft a
+  job raised with a title in another language is retitled as you approve it. The brief stays English.
 - **What the owner asks for himself opens at once.** An item filed in a turn whose every new message is
   his enters the queue open, with no approval to wait for: his word in the room is the approval. Any
   other item raises a draft, which enters the queue on an approver's approval: his on the console, or
@@ -146,7 +146,8 @@ and the agency's own:
   stage.
 - **Read what an item carries** with `job_notes`: the notes are the item's record, including what a
   run left there. A note that arrives while you wait is taken with `waitMs`.
-- **Hold:** `job_item_update` with item <id>, `state` `held` and `reason` saying why, in one change: a hold
+- **Hold:** `job_item_update` with item <id>, `state` `held` and `reason` saying why in one short line of the
+  owner's language, which he reads on the console, in one change: a hold
   without a reason is refused, and the reason is kept on the item and shown on the console beside it. A
   lease standing on the item ends. `state` `open` puts it back in the queue.
 - **Switch an item's notices off:** `job_item_update` with item <id> and `noticesOff` `{"reason": "<why>"}`,
@@ -226,6 +227,8 @@ and the agency's own:
 - **An item you approved yourself is yours to launch,** as its repository's worker frees: take each
   repository's in turn as its worker comes free, items of one series included, without waiting for
   anyone's word, and relay each run's end as for any other.
+- **Free agents take the waiting items first.** Where a free agent and a free checkout stand, launch the queue's
+  waiting items before you act on a notice that a commit waits for its deployment.
 - **What others wait on goes first.** Where an item cannot start until another open item is done, that other
   item goes before everything nothing waits on: raise its `priority` with `job_item_update` above the items
   queued on the same agent, and launch it as soon as its agent is free. Never leave a blocker queued behind
@@ -379,6 +382,10 @@ and the agency's own:
     stage with `stage`: its step is handed over again with your words as what is to be done, and the stages
     after it follow again once it passes. The console shows each stage's rejections on its step;
   - `pass`, with what you found, where nothing does.
+- **Work a person will use passes only once checked the way they will use it:** through its real path, the
+  screen, the address, the sign-in and real data, never on its tests alone; a screen's work by looking yourself
+  at the screenshots of its live screen at a desktop and a phone width, which the job files in its report,
+  against the brief's own words. Any mismatch sends it back.
 - **The call alone is the verdict.** The room's reply says nothing of it, neither the action's name nor an
   account of it. Where the instruction came into a turn that already wrote a reply, answer <<KEEP>> after the
   call to keep that reply as it stands, never an empty answer, which reads as no answer at all; where it came

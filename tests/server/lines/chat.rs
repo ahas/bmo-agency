@@ -1065,7 +1065,8 @@ fn the_manual_speaks_with_speak_generates_other_sounds_and_keeps_a_briefing_turn
   let voice = section(&system, "A LINE FOR THE VOICE");
 
   for said in [
-    "bmo use bmo/speak --arg emotion=",
+    "`bmo use bmo/speak` with no argument, so it is said in the neutral voice",
+    "`--arg emotion=<a feeling>` only where the person asks for one",
     "goes out as a voice note in your voice",
     "your face speaks it",
     "The voice unit derives how each word is said",

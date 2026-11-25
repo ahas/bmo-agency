@@ -26,6 +26,8 @@ bring to the code itself.
   out of view is reached by scrolling, that a press does what it says — never the component's own state. A
   typecheck and a unit test see none of this, so neither stands in for it. Where the repository holds no
   browser harness, the report says so and a row is raised for one.
+- **Operation records stay.** Logs, access logs and history rows are never deleted or dropped to unblock
+  something; the key or the schema that blocks it is fixed instead.
 - **The item is the whole of the work.** What its brief does not ask for is a row, not an edit; what the
   work needs to be right belongs inside it.
 

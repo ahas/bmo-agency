@@ -198,6 +198,13 @@ printf 'Authorization: Bearer %s\n' "$(field AGENCY_CONTROL_TOKEN)" > "$header"
 curl -sf -o /dev/null -H @"$header" "http://127.0.0.1:$(field AGENCY_CONTROL_PORT)/supervisors/$(field AGENCY_AGENT_KEY)"
 '''
 
+# The first chat agent's starting lessons, written into its brain once and only where it holds no memory
+# (docs/supervisors.md, 「A fresh brain's starting lessons」).
+[[after]]
+id = "first-lessons"
+run = "sh deploy/first-lessons run"
+done = "sh deploy/first-lessons done"
+
 [[verify]]
 id = "chat-agent-road"
 what = "the first chat agent's road can take a turn now: Claude Code is installed and signed in"

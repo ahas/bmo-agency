@@ -822,7 +822,8 @@ rule to.
   under the supervisor's name, and to make one where it keeps none, filed under its owner's id as the
   account key, or the deployment's where it names none (`docs/api.md`, 「Calls agency makes」). The
   supervisor stands whatever the brain answers: a brain that cannot be reached, or refuses, is logged, and
-  no later step makes the brain in its place.
+  no later step makes the brain in its place. A brain made this way holds no memory; only the install's first
+  chat agent is given lessons to start from (below).
 - **A room forgotten never takes a supervisor.** A supervisor is its owner account's, never a room's, and only
   its own removal below ends it. Its row carries the room its session last ran in, so the
   forgetting of a room (`DELETE /room-holdings/{roomId}`, `docs/api.md`) declares every row of `supervisors`
@@ -848,3 +849,18 @@ rule to.
   - Once begun it runs to its end apart from the request, as a reset does.
 - **An account removed for good takes every supervisor filed under it** the way this removal takes one, its brain
   kept for the brain's own removal (`docs/api.md`, 「owners and organisation units removed for good」).
+
+### A fresh brain's starting lessons
+
+- **The install's first chat agent starts with the lessons agency ships,** `deploy/first-lessons.json`: general
+  rules for situations a supervisor meets — how it reports, researches, draws, queues work and tunes models —
+  written for any owner, with nothing of one owner's machines, people or projects. Each is a `situation`
+  memory with its words and the situation that recalls it, labelled `source` `seed`, about no room and no person.
+- **They are written once, by the install, and only into an empty brain.** The install's `first-lessons`
+  after-step, run once the first chat agent is registered and its brain made, finds that brain as agency does,
+  by the agent's key among the brains of the kind `agent`, and writes each lesson through the brain's own
+  `POST /brains/{brainId}/memories` where the brain holds no memory of any status. A brain that already holds one,
+  kept from an earlier install or written since, is left as it is, and so is every brain of a supervisor added
+  later. No brain deployed means nothing is written.
+- **What the owner teaches later is the brain's own:** the lessons are rows like any other, confirmed,
+  replaced or closed as the supervisor's discipline says; nothing writes them again.

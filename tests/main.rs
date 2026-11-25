@@ -8,6 +8,7 @@ mod support;
 mod agent_host;
 mod cache_siren;
 mod deploy_quiet;
+mod first_lessons;
 mod harness_machine;
 mod harness_providers;
 mod herdr;

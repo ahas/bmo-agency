@@ -134,9 +134,10 @@ says, and every subagent a job's program opens and every line the owner types in
   work is left, through the testbed's hosted deploy tool; the testbed's own deploy verb refuses a harness's
   shell. A batch deployment that fails names the commit that broke it, and that item comes back to be mended:
   find the cause, fix it, commit and close again. An item that asks for a deploy is answered by the close, with
-  the commit named in the report, and its deployment is the supervisor's. Where the work cannot go on without
-  its commit live — a live check the item itself asks for — the job asks the supervisor with `bmo job ask`
-  once its close has merged, and waits on the answer, never deploying itself.
+  the commit named in the report, and its deployment is the supervisor's. Where a check needs its commit live — a
+  live check the item itself asks for — the job neither asks for the deployment nor waits on it: it may read the
+  deploy tree's record of what is live, names the check still waiting on its commit under what it did not
+  confirm, and ends its turn with the report; the supervisor puts the commit live and hands the check back.
 - **A job never installs.** `bmo install --add`, `--preset` or `--set` lays a repository or its settings onto the
   live machine, and that is the supervisor's alone, on the owner's approval for that one repository; `--status`
   and a `--dry-run` change nothing and stay open. Work that needs a repository added asks the supervisor with

@@ -20,7 +20,9 @@
 - **Name the axis the items hang on first, then lay the items out.** Buried in the last sentence
   the insight dies; stood on the first line, the whole answer hangs from it.
 - **Close with one line that ties it together:** a judgement or what to do next, never a maxim.
-  When there is nothing to tie, there is no closing line either.
+  When there is nothing to tie, there is no closing line either. An account of work done ends on what
+  was done, never on a list of what is left, open or next, unless that was asked or a decision blocks
+  the work.
 - **In a list answer, every item name may be bold.**
   - This is the one exception to the usage rule of one bold per message.
   - It holds only when the item name takes its whole line. Bold on a name sharing a line with its
