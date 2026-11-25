@@ -393,6 +393,15 @@ fn placed(runner: &Runner, asked: &Asked) -> Result<(PathBuf, PathBuf), String> 
   Ok((version, data))
 }
 
+/// One line answered on `output` and flushed. The process's standard output writes on a blocking thread of the
+/// runtime, which is let go unwritten where the runtime ends first, as it does once the runner returns: an answer
+/// unflushed would be lost to a caller waiting on it.
+async fn answer(output: &mut (impl AsyncWrite + Unpin), answered: &Answered) {
+  if output.write_all(answered.line().as_bytes()).await.is_ok() {
+    let _ = output.flush().await;
+  }
+}
+
 /// One call run: its first line read from `input`, the tool run confined, each line it writes on its errors and its
 /// end answered on `output`. `input` closing before the tool ends is its caller gone: the tool's process is ended
 /// and nothing more is answered.
@@ -421,14 +430,14 @@ pub async fn run(
         why: format!("the call does not read: {why}"),
       };
 
-      let _ = output.write_all(refused.line().as_bytes()).await;
+      answer(&mut output, &refused).await;
       return;
     }
   };
   let (version, data) = match placed(&runner, &asked) {
     Ok(folders) => folders,
     Err(why) => {
-      let _ = output.write_all(Answered::Refused { why }.line().as_bytes()).await;
+      answer(&mut output, &Answered::Refused { why }).await;
       return;
     }
   };
@@ -436,7 +445,7 @@ pub async fn run(
     match launch(&runner, &version, &data, &asked.run, &asked.network, &asked.secrets, Stdio::piped()) {
       Ok(launched) => launched,
       Err(why) => {
-        let _ = output.write_all(Answered::Refused { why }.line().as_bytes()).await;
+        answer(&mut output, &Answered::Refused { why }).await;
         return;
       }
     };
