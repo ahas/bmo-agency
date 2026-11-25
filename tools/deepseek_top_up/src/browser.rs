@@ -219,8 +219,14 @@ pub fn launch_line(place: &Place, folder: &Path, profile: &Path, unique: &str) -
   line
 }
 
+/// How long the members of a killed group are given to be gone: a killed process ends only once the kernel has
+/// freed what it held, which for a browser on a loaded machine takes a moment.
+const KILLED_GONE: Duration = Duration::from_secs(5);
+
 /// Ends a process group: asked to end first, so `xvfb-run` clears its screen's files, then killed with whatever
-/// is left, the group's leader waited on.
+/// is left, the group's leader waited on and every other member waited for, within a bound, until none still
+/// runs. The leader can end first, the browser's own processes and the screen still ending behind it, and the
+/// owner's session is given back only once nothing of the call's browser runs on his profile.
 fn end_group(child: &mut Child) {
   let Ok(group) = libc::pid_t::try_from(child.id()) else {
     return;
@@ -240,6 +246,22 @@ fn end_group(child: &mut Child) {
   // SAFETY: as above.
   unsafe { libc::kill(-group, libc::SIGKILL) };
   let _ = child.wait();
+
+  let gone_by = std::time::Instant::now() + KILLED_GONE;
+
+  while group_runs(group) && std::time::Instant::now() < gone_by {
+    std::thread::sleep(Duration::from_millis(20));
+  }
+}
+
+/// Whether any member of the process group `group` still runs. A zombie runs nothing, and reaping it is its new
+/// parent's business, so it counts as gone.
+fn group_runs(group: libc::pid_t) -> bool {
+  procfs::process::all_processes().is_ok_and(|all| {
+    all.flatten().any(|process| {
+      process.stat().is_ok_and(|stat| stat.pgrp == group && !matches!(stat.state, 'Z' | 'X'))
+    })
+  })
 }
 
 /// One browser on the owner's profile, its virtual screen and the one tab a call drives. The profile is held, and

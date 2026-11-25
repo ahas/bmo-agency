@@ -1002,6 +1002,7 @@ dependencies = [
  "harness-providers",
  "libc",
  "policy",
+ "procfs",
  "reqwest",
  "rust-ini",
  "serde",

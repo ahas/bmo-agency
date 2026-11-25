@@ -24,6 +24,7 @@ futures-util.workspace = true
 libc.workspace = true
 harness-providers = { path = "../../crates/harness-providers" }
 policy = { path = "../../crates/policy" }
+procfs.workspace = true
 reqwest.workspace = true
 rust-ini.workspace = true
 serde.workspace = true
