@@ -583,30 +583,23 @@ async fn a_kept_wait_goes_on_and_is_asked_about_again_once_its_keep_runs_out() {
   assert!(gone(pid_of(line)).await, "the cut call's process is gone: {line}");
 }
 
-// The processes of the machine whose command line is `line`.
-fn running(line: &str) -> Vec<i32> {
-  std::fs::read_dir("/proc")
-    .unwrap()
-    .flatten()
-    .filter_map(|entry| entry.file_name().to_str()?.parse::<i32>().ok())
-    .filter(|pid| {
-      std::fs::read(format!("/proc/{pid}/cmdline")).is_ok_and(|read| {
-        let args: Vec<String> = read
-          .split(|byte| *byte == 0)
-          .filter(|arg| !arg.is_empty())
-          .map(|arg| String::from_utf8_lossy(arg).into_owned())
-          .collect();
+// The processes of the program's own tree whose command line is `line`. The tree is the program's process group:
+// another run of the suite on the machine starts processes of the same command lines, which are not this test's.
+fn running(program: &Program, line: &str) -> Vec<i32> {
+  let Ok(all) = procfs::process::all_processes() else { return vec![] };
 
-        args.join(" ") == line
-      })
-    })
+  all
+    .flatten()
+    .filter(|process| process.stat().is_ok_and(|stat| stat.pgrp == program.pid))
+    .filter(|process| process.cmdline().is_ok_and(|args| args.join(" ") == line))
+    .map(|process| process.pid)
     .collect()
 }
 
-// Waits, a bounded while, for the process whose command line is `line`.
-async fn started(line: &str) -> i32 {
+// Waits, a bounded while, for the program's process whose command line is `line`.
+async fn started(program: &Program, line: &str) -> i32 {
   for _ in 0..100 {
-    if let Some(pid) = running(line).first() {
+    if let Some(pid) = running(program, line).first() {
       return *pid;
     }
 
@@ -635,6 +628,10 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
   // The job's own work, put in the background before the call: a process of the program's tree, not the
   // call's, holding the log open as a check's output; and the call polling that log, writing nothing.
   let poll = format!("while :; do sleep 0.05; done; cat {log}");
+  // The call's record is written before its process starts, as a program writes it: a moment taken once the
+  // processes stood would leave the call's own shell older than the call by however long a loaded machine took
+  // to show it, past the slack a call's processes are read within.
+  let began = agency_server::now_ms();
   let program = Program::spawn_args(&[
     "bash",
     "-c",
@@ -642,13 +639,12 @@ async fn a_call_polling_the_log_of_the_job_s_own_work_is_asked_about_only_once_t
     &log,
     &poll,
   ]);
-  let writer = started("held-log 1000").await;
-  started(&format!("bash -c {poll}")).await;
+  let writer = started(&program, "held-log 1000").await;
+  started(&program, &format!("bash -c {poll}")).await;
   let mut watch = ToolWatch::new(ToolClock {
     in_process_ms: 60_000,
     ..asking(1_000, 2_000)
   });
-  let began = agency_server::now_ms();
   let records = vec![used("t1", &poll, began)];
   let mut said = vec![];
   let mut now = began;
@@ -745,6 +741,8 @@ async fn a_wait_on_the_job_s_own_work_that_stands_still_is_told_once_as_a_stall_
   // The job's own work in the background, alive and holding its log open, writing nothing more; and the call
   // polling that log, which the call clock holds as a wait on moving work for as long as the writer lives.
   let poll = format!("until rg -q '^exit ' {log}; do sleep 30; done");
+  // The call's record is written before its process starts, as a program writes it.
+  let began = agency_server::now_ms();
   let program = Program::spawn_args(&[
     "bash",
     "-c",
@@ -753,8 +751,8 @@ async fn a_wait_on_the_job_s_own_work_that_stands_still_is_told_once_as_a_stall_
     &poll,
   ]);
 
-  started("held-clip 1000").await;
-  started(&format!("bash -c {poll}")).await;
+  started(&program, "held-clip 1000").await;
+  started(&program, &format!("bash -c {poll}")).await;
 
   let mut watch = ToolWatch::stalling(
     ToolClock {
@@ -763,7 +761,6 @@ async fn a_wait_on_the_job_s_own_work_that_stands_still_is_told_once_as_a_stall_
     },
     stalling(),
   );
-  let began = agency_server::now_ms();
   let records = vec![used("t1", &poll, began)];
   let mut said = vec![];
   let mut changes = vec![];
