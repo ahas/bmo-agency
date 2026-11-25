@@ -8,8 +8,9 @@
 //! lowest-numbered comes first, which is the order every reader of the same picture agrees on.
 
 use std::collections::{BTreeMap, HashSet};
+use std::path::Path;
 
-use herdr::{Fault, Herdr, Snapshot};
+use herdr::{Fault, Herdr, Pane, Snapshot};
 use policy::place_words::PLACE_WORDS;
 use serde_json::{Value, json};
 
@@ -103,6 +104,15 @@ pub struct Launch {
 impl Launch {
   fn node(&self, label: &str) -> Value {
     json!({ "type": "pane", "label": label, "command": self.command, "cwd": self.cwd, "env": self.env })
+  }
+
+  /// Whether a pane stands in the folder this launch starts it in, as it is written or by its real path;
+  /// a pane herdr reads no folder of stands where it stands.
+  pub fn stands_in(&self, pane: &Pane) -> bool {
+    let Some(cwd) = pane.cwd.as_deref() else { return true };
+    let real = std::fs::canonicalize(&self.cwd).ok();
+
+    cwd == self.cwd || real.is_some_and(|real| Path::new(cwd) == real)
   }
 }
 
@@ -428,7 +438,9 @@ impl Home {
       };
       let command = self.herdr.command_of(pane_id).await;
 
-      if is_head(&command) && runs_pane_head(&command) != wanted {
+      // A head started in another folder than its launch names — a release an earlier deployment
+      // started it in — is of the other kind too, so the release goes once nothing runs on the head.
+      if is_head(&command) && (runs_pane_head(&command) != wanted || !self.head.stands_in(pane)) {
         other.push(pane_id.to_owned());
       }
     }
@@ -493,7 +505,7 @@ impl Home {
       match wanted
         .iter()
         .enumerate()
-        .position(|(at, (_, tab))| !kept.contains(&at) && tab.command == command)
+        .position(|(at, (_, tab))| !kept.contains(&at) && tab.command == command && tab.stands_in(pane))
       {
         Some(at) => {
           kept.insert(at);

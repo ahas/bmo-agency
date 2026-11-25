@@ -141,6 +141,25 @@ impl Bench {
 
     format!("{:x}", hash.finalize())[..12].to_owned()
   }
+
+  /// The deploy tree laid out as a deployment lays it: the tree moved into a release beside it and the
+  /// deploy path a link onto that release. Answers the release.
+  fn release(&self) -> PathBuf {
+    let release = self.home.path().join("deploy-releases").join("r1");
+
+    std::fs::create_dir_all(release.parent().unwrap()).unwrap();
+    std::fs::rename(self.deploy(), &release).unwrap();
+    std::os::unix::fs::symlink(&release, self.deploy()).unwrap();
+    std::fs::create_dir_all(self.data()).unwrap();
+    release
+  }
+}
+
+// Whether a folder lies inside a release, by its real path as a process entering it would stand there.
+fn inside(folder: &str, release: &Path) -> bool {
+  let real = std::fs::canonicalize(folder).unwrap_or_else(|_| PathBuf::from(folder));
+
+  real.starts_with(std::fs::canonicalize(release).unwrap())
 }
 
 fn words(parts: &[&str]) -> Vec<String> {
@@ -430,6 +449,105 @@ async fn the_nodes_workspaces_stand_last_in_the_lists_order_and_a_list_that_move
   // A list that stood still publishes nothing.
   nodes::settle(bench.ground(), &list).await;
   assert_eq!(moved.ready(), None);
+}
+
+// Where the panes agency stands start: the data root, never the release the deploy link names, so a
+// loop that runs on keeps no release from the deployment's prune.
+#[tokio::test]
+async fn every_pane_starts_in_the_data_root_and_none_in_the_release_the_deploy_link_names() {
+  let bench = Bench::new().await;
+  let herdr = &bench.herdr;
+  let release = bench.release();
+  let data = bench.data().to_string_lossy().into_owned();
+
+  bench.supervisor("pal", "Pal").await;
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at") VALUES ('pal', 7, 1, 1)"#,
+      vec![],
+    )
+    .await;
+  *bench.listed.0.lock().unwrap() = vec![node("pc", "home pc", "connected")];
+
+  heads::stand_all(&bench.places).await;
+  follow::stand_all(bench.ground(), &FollowTurns::default()).await;
+  nodes::settle(bench.ground(), &NodeList::default()).await;
+
+  let pal = herdr.folders_of("agent", "pal");
+  let pc = herdr.folders_of("node", "pc");
+
+  assert_eq!(pal.len(), 2, "the head and the room's follow pane");
+  assert_eq!(pc.len(), 1, "the node's pane");
+
+  for folder in pal.iter().chain(&pc) {
+    let folder = folder.as_deref().expect("every pane is started in a folder named for it");
+
+    assert_eq!(folder, data);
+    assert!(!inside(folder, &release), "{folder} lies in the release");
+  }
+}
+
+// A head and a follow pane an earlier deployment started inside its release are replaced, the head once
+// nothing runs on it; one at work keeps its pane.
+#[tokio::test]
+async fn a_pane_standing_in_a_release_is_replaced_and_a_head_at_work_keeps_its_pane() {
+  let bench = Bench::new().await;
+  let herdr = &bench.herdr;
+  let release = bench.release();
+  let data = bench.data().to_string_lossy().into_owned();
+
+  bench.supervisor("pal", "Pal").await;
+  bench.supervisor("busy", "Busy").await;
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "room_sessions" ("agent", "chat_id", "generation", "opened_at") VALUES ('pal', 7, 1, 1)"#,
+      vec![],
+    )
+    .await;
+  heads::stand_all(&bench.places).await;
+  follow::stand_all(bench.ground(), &FollowTurns::default()).await;
+
+  let in_workspace = |agent: &str| {
+    let workspace = herdr
+      .workspaces()
+      .into_iter()
+      .find(|one| one.tokens.as_ref().is_some_and(|tokens| tokens["agent"] == agent))
+      .unwrap();
+
+    herdr
+      .panes()
+      .into_iter()
+      .filter(|pane| pane.workspace == workspace.id)
+      .collect::<Vec<_>>()
+  };
+  let old: Vec<String> = in_workspace("pal").into_iter().map(|pane| pane.id).collect();
+  let busy = in_workspace("busy")[0].id.clone();
+
+  for pane in old.iter().chain([&busy]) {
+    herdr.stands_in(pane, &release);
+  }
+
+  bench
+    .scratch
+    .run(
+      r#"INSERT INTO "agent_executions" ("id", "body") VALUES ('e1', $1)"#,
+      vec![json!({ "paneId": busy }).to_string().into()],
+    )
+    .await;
+  heads::stand_all(&bench.places).await;
+  follow::stand_all(bench.ground(), &FollowTurns::default()).await;
+
+  let now = in_workspace("pal");
+
+  assert_eq!(now.len(), 2);
+  assert!(
+    now.iter().all(|pane| !old.contains(&pane.id)),
+    "both of the release's panes are replaced"
+  );
+  assert!(now.iter().all(|pane| pane.cwd.as_deref() == Some(data.as_str())));
+  assert_eq!(in_workspace("busy").iter().map(|pane| pane.id.clone()).collect::<Vec<_>>(), [busy]);
 }
 
 // A renamed repository's checkout.

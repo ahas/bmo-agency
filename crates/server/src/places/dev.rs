@@ -91,7 +91,7 @@ fn dev_launch(ground: &Ground, worker: &str) -> Launch {
       worker.to_owned(),
       format!("--version={}", binary_version(ground)),
     ],
-    cwd: ground.code_root().to_string_lossy().into_owned(),
+    cwd: ground.pane_dir(),
     env: ground.run_env(&format!("bmo-dev-{worker}")),
   }
 }

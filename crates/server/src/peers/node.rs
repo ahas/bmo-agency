@@ -183,6 +183,10 @@ pub trait NodeService: Send + Sync {
   fn pressures(&self) -> Asking<'_, Pressures> {
     Box::pin(async { Ok(futures_util::stream::pending().boxed()) })
   }
+  /// A node taken off the service's list, answering whether it stood there; nothing taken by default.
+  fn remove_node<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
+    Box::pin(async { Ok(false) })
+  }
 }
 
 /// No node service deployed: no link stands, no node is kept, none is logged in to, this machine is
@@ -251,6 +255,16 @@ impl PublishedNode {
 }
 
 impl NodeService for PublishedNode {
+  fn remove_node<'a>(&'a self, node: &'a str) -> Asking<'a, bool> {
+    Box::pin(async move {
+      match self.calls.delete_node(node).await {
+        Ok(()) => Ok(true),
+        Err(CallError::Answered { status: 404, .. }) => Ok(false),
+        Err(why) => Err(fault(why)),
+      }
+    })
+  }
+
   fn link_up<'a>(&'a self, node: &'a str) -> Asking<'a, bool> {
     Box::pin(async move {
       match self.calls.node(node).await {

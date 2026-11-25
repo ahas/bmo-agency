@@ -561,6 +561,9 @@ impl Removal {
         .await
         .map_err(|why| failed(why.to_string()))?;
 
+      // Off the node service's list too, before the record that names it goes, so a removal broken here
+      // finds the PC again; the node's workspace and its pane end on the next pass over the list.
+      ground.peers.node.remove_node(&pc).await.map_err(|fault| failed(fault.to_string()))?;
       removed.add("workplaces", i64::from(gone));
     }
 

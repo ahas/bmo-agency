@@ -88,7 +88,7 @@ fn pane(ground: &Ground, node: &NodeRow) -> Launch {
       NODE_PANE_VERB.to_owned(),
       node.node.clone(),
     ],
-    cwd: root.to_string_lossy().into_owned(),
+    cwd: ground.pane_dir(),
     env,
   }
 }

@@ -6,7 +6,7 @@
 //! with a new one, and a layout named by its workspace adds a tab; a tab with no pane left closes, and a
 //! workspace with no tab left is gone. What runs in a pane is not modelled beyond its command.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Map, Value, json};
@@ -29,6 +29,8 @@ pub struct ModelPane {
   pub label: Option<String>,
   pub command: Option<Vec<String>>,
   pub tokens: Option<Map<String, Value>>,
+  /// The folder the pane's process stands in: the one it was started in, as herdr reads it off the process.
+  pub cwd: Option<String>,
 }
 
 #[derive(Default)]
@@ -70,7 +72,13 @@ impl Arrangement {
     tab
   }
 
-  fn new_pane(&mut self, tab: &str, label: Option<String>, command: Option<Vec<String>>) -> String {
+  fn new_pane(
+    &mut self,
+    tab: &str,
+    label: Option<String>,
+    command: Option<Vec<String>>,
+    cwd: Option<String>,
+  ) -> String {
     let Some(workspace) = self.tabs.iter().find(|held| held.0 == tab).map(|held| held.1.clone()) else {
       return String::new();
     };
@@ -87,6 +95,7 @@ impl Arrangement {
       label,
       command,
       tokens: None,
+      cwd,
     });
     pane
   }
@@ -108,6 +117,7 @@ impl Arrangement {
       })).collect::<Vec<_>>(),
       "panes": self.panes.iter().map(|pane| json!({
         "pane_id": pane.id, "workspace_id": pane.workspace, "tab_id": pane.tab, "label": pane.label, "tokens": pane.tokens,
+        "cwd": pane.cwd,
       })).collect::<Vec<_>>(),
     })
   }
@@ -130,7 +140,8 @@ impl Arrangement {
         });
 
         let tab = self.new_tab(&id, None);
-        let pane = self.new_pane(&tab, None, None);
+        let cwd = params.get("cwd").and_then(Value::as_str).map(str::to_owned);
+        let pane = self.new_pane(&tab, None, None, cwd);
 
         json!({ "workspace": { "workspace_id": id }, "tab": { "tab_id": tab }, "root_pane": { "pane_id": pane } })
       }
@@ -159,6 +170,7 @@ impl Arrangement {
           &tab,
           root.get("label").and_then(Value::as_str).map(str::to_owned),
           command.clone(),
+          root.get("cwd").and_then(Value::as_str).map(str::to_owned),
         );
 
         json!({ "layout": { "workspace_id": workspace, "tab_id": tab, "root": { "type": "pane", "pane_id": pane, "command": command } } })
@@ -386,6 +398,32 @@ impl HerdrModel {
       .as_str()
       .unwrap()
       .to_owned()
+  }
+
+  /// A pane's process standing in another folder from here on, as one an earlier deployment started.
+  pub fn stands_in(&self, pane: &str, cwd: &Path) {
+    let mut held = self.held.lock().unwrap();
+
+    if let Some(one) = held.panes.iter_mut().find(|one| one.id == pane) {
+      one.cwd = Some(cwd.to_string_lossy().into_owned());
+    }
+  }
+
+  /// The folder each pane of the workspace carrying this token was started in.
+  pub fn folders_of(&self, token: &str, value: &str) -> Vec<Option<String>> {
+    let held = self.held.lock().unwrap();
+    let Some(workspace) = held.workspaces.iter().find(|workspace| {
+      workspace.tokens.as_ref().and_then(|tokens| tokens.get(token)).and_then(Value::as_str) == Some(value)
+    }) else {
+      return vec![];
+    };
+
+    held
+      .panes
+      .iter()
+      .filter(|pane| pane.workspace == workspace.id)
+      .map(|pane| pane.cwd.clone())
+      .collect()
   }
 
   pub fn workspaces(&self) -> Vec<ModelWorkspace> {

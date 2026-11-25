@@ -251,6 +251,20 @@ The owner's words:
     marked (`docs/api.md`, 「Events」). An unmarked workspace may be a person's own terminal, so closing it
     is the call of whoever the consumer tells, after asking. The same picture is published once.
 
+### Where a pane stands
+
+- **Every pane agency stands starts in the data root,** never in the code tree: an agent's head, its room
+  sessions' follow panes, a worker's dev server and a node's pane (`docs/work-nodes.md`, 「In herdr」). On a
+  work node a head starts in the node's own data root. The program a head becomes starts in the folder its
+  place names, and what a pane's loop starts inherits the loop's folder.
+- **The reason is the deployment's prune.** A process enters a folder by its real path, so a loop started in
+  the deploy tree's link stands in the release that was live at its start for as long as it runs, and the
+  prune keeps every release a process stands in (the testbed's `docs/deploy.md`, 「Retention」). The data
+  root moves with no deployment.
+- **A pane standing elsewhere than its launch names is replaced:** a head as a head of the other kind is,
+  once no open execution names its pane, and a follow pane as one of an older version is. Herdr reads the
+  folder off the pane's process; a pane it reads none of stands where it stands.
+
 ### Which agents are resident
 
 - **Every agent runs as an interactive program in a pane; none runs in print mode**

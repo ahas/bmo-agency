@@ -24,7 +24,7 @@ import { JOB_RUNNER_MARKER } from "./live-claude-guard";
 import { nodeHeadEnv, nodeHerdrSocket, nodeRootsOf } from "./work-node";
 import { processAlive } from "@agency/archive/process-mark";
 import type { RunProcess } from "@agency/archive/run-store";
-import { dataRootCopy } from "@agency/support/roots";
+import { dataRoot, dataRootCopy } from "@agency/support/roots";
 import { runPath } from "@agency/support/service-path";
 import { userBus } from "@agency/support/user-bus";
 
@@ -312,7 +312,7 @@ async function nodeHome(archive: Archive, home: AgentHome, node: string): Promis
 
   const code = join(roots.root, "deploy");
 
-  return { ...home, socket, head: { command: headCommand(home.agent, code), cwd: code, env: nodeHeadEnv(roots, `${HEAD_MARK}${home.agent}`) } };
+  return { ...home, socket, head: { command: headCommand(home.agent, code), cwd: join(roots.root, "data"), env: nodeHeadEnv(roots, `${HEAD_MARK}${home.agent}`) } };
 }
 
 // The home a host is started in. A name with no row — a co-work role, message sending — still has
@@ -349,7 +349,7 @@ export function homeOf(agent: string, label: string): AgentHome {
     agent,
     label: copy === null ? label : `${label} · copy ${copy.name}`,
     ...(copy === null ? {} : { data: copy.root }),
-    head: { command: headCommand(agent, hostCodeRoot()), cwd: hostCodeRoot(), env: runEnvironment(process.env, `${HEAD_MARK}${agent}`) },
+    head: { command: headCommand(agent, hostCodeRoot()), cwd: dataRoot(), env: runEnvironment(process.env, `${HEAD_MARK}${agent}`) },
   };
 }
 

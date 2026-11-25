@@ -99,7 +99,7 @@ async fn tabs(ground: &Ground, agent: &str) -> Result<Vec<(String, Launch)>, Ref
       title.unwrap_or_else(|| chat_id.to_string()),
       Launch {
         command: standing_command(FOLLOW_NAME, &follow_verb(&binary, chat_id, agent, &version)),
-        cwd: root.to_string_lossy().into_owned(),
+        cwd: ground.pane_dir(),
         env: ground.run_env(&format!("bmo-follow-{agent}")),
       },
     ));

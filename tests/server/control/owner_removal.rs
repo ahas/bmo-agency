@@ -6,7 +6,10 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
+use agency_server::peers::Asking;
+use agency_server::peers::node::{NodeRow, NodeService};
 use bmo_agency_client::{AgencyClient, OrgUnitRemovalQuery};
 use sea_orm::Value;
 
@@ -25,6 +28,30 @@ fn kinds(pairs: &[(&str, i64)]) -> BTreeMap<String, i64> {
 
 fn zeros(of: &BTreeMap<String, i64>) -> BTreeMap<String, i64> {
   of.keys().map(|kind| (kind.clone(), 0)).collect()
+}
+
+/// A node service that lists nothing and keeps the names it was asked to take off its list.
+#[derive(Default)]
+struct Removals(Mutex<Vec<String>>);
+
+impl NodeService for Removals {
+  fn link_up<'a>(&'a self, _node: &'a str) -> Asking<'a, bool> {
+    Box::pin(async { Ok(false) })
+  }
+
+  fn node_rows(&self) -> Asking<'_, Vec<NodeRow>> {
+    Box::pin(async { Ok(vec![]) })
+  }
+
+  fn ssh_login<'a>(&'a self, _node: &'a str) -> Asking<'a, Option<Vec<String>>> {
+    Box::pin(async { Ok(None) })
+  }
+
+  fn remove_node<'a>(&'a self, node: &'a str) -> Asking<'a, bool> {
+    self.0.lock().unwrap().push(node.to_owned());
+
+    Box::pin(async { Ok(true) })
+  }
 }
 
 async fn rows_of(scratch: &Scratch, sql: &str) -> i64 {
@@ -223,7 +250,12 @@ async fn an_owner_s_count_is_what_its_removal_takes_and_another_s_and_the_platfo
 
   three_owners(&scratch, &data).await;
 
-  let port = front(ground_on(scratch.db().clone(), home.path())).await;
+  let removals = Arc::new(Removals::default());
+  let mut ground = ground_on(scratch.db().clone(), home.path());
+
+  ground.peers.node = removals.clone();
+
+  let port = front(ground).await;
   let owner = administrator(port);
   let expected = kinds(&[
     ("supervisors", 1),
@@ -247,7 +279,13 @@ async fn an_owner_s_count_is_what_its_removal_takes_and_another_s_and_the_platfo
 
   assert_eq!(owner.count_owner_removal(7).await.unwrap().counts, expected);
   assert_eq!(owner.count_owner_removal(7).await.unwrap().counts, expected, "a count changes nothing");
+  assert!(
+    removals.0.lock().unwrap().is_empty(),
+    "a count takes no node off the node service's list"
+  );
   assert_eq!(owner.remove_owner(7).await.unwrap().removed, expected);
+  // The PC the account's record named alone is off the node service's list, so its herdr pane ends.
+  assert_eq!(*removals.0.lock().unwrap(), ["u7pc"]);
   assert_eq!(owner.count_owner_removal(7).await.unwrap().counts, zeros(&expected));
   assert_eq!(
     owner.remove_owner(7).await.unwrap().removed,

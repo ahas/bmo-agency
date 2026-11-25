@@ -382,6 +382,14 @@ impl Ground {
     first_code_tree(named, self.config.trees.code.clone(), &self.roots.deploy)
   }
 
+  /// The folder every pane agency stands on this machine starts in: the data root, never the code tree.
+  /// A folder is resolved by its real path as a process enters it, so a pane started in the deploy link
+  /// would stand in the release live at its start for as long as its loop runs, and the deployment's prune
+  /// keeps every release a process stands in (docs/agent-control.md, 「Where a pane stands」).
+  pub fn pane_dir(&self) -> String {
+    self.roots.data.to_string_lossy().into_owned()
+  }
+
   /// The code tree as text a person or an agent reads names it: the deploy link wherever the link holds
   /// code, so no release path enters what is cached across a deployment.
   pub fn shown_code_root(&self) -> PathBuf {
@@ -498,7 +506,7 @@ impl Ground {
       data: copy.map(|_| self.roots.data.to_string_lossy().into_owned()),
       head: Launch {
         command: self.head_command(agent, &root),
-        cwd: root.to_string_lossy().into_owned(),
+        cwd: self.pane_dir(),
         env: self.run_env(&format!("{HEAD_MARK}{agent}")),
       },
       herdr: self.herdr.clone()?,
@@ -543,7 +551,7 @@ impl Ground {
 
     home.head = Launch {
       command: self.head_command(agent, &code),
-      cwd: at(&code),
+      cwd: at(&node_root.join("data")),
       env: BTreeMap::from([
         ("HOME".to_owned(), node_home.clone()),
         (

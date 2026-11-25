@@ -1555,6 +1555,10 @@ new login the same way where it names neither, a name another account holds 409 
   - `person-nodes`: the account's node record;
   - `workplaces`: the workplace of the account's isolation node, and of the PC its record names where no other
     account's record names that node, each with its units stopped and its folder under the data root's `nodes/`;
+    that PC is also taken off the node service's list (its `DELETE /nodes/{nodeName}`, with no leave), before the
+    record goes, so its workspace in herdr and the pane in it end on the next pass over the list
+    (`docs/work-nodes.md`, 「In herdr」); a PC whose hub agent is still attached comes back on the node service's
+    next pass as a node of no account;
   - `isolation-users`: the system user of the account's isolation node, taken away with its home and its
     firewall table by the isolation node's teardown (`docs/account-isolation.md`, 「Taking it down」).
 - **An organisation unit's kinds:**

@@ -53,6 +53,27 @@ async fn login(nodes: &dyn NodeService, node: &NodeRow) -> Option<Vec<String>> {
   nodes.ssh_login(&node.node).await.ok().flatten()
 }
 
+/// Whether a binary run from one release tree is retired by the deploy link's binary: the link names
+/// another release beside it, of the same deploy tree. A binary that runs from no release — a test, a
+/// build of a checkout — is retired by nothing.
+pub fn retired_by(own: &Path, live: &Path) -> bool {
+  let tree = |binary: &Path| binary.parent().and_then(Path::parent).map(Path::to_path_buf);
+  let (Some(own), Some(live)) = (tree(own), tree(live)) else { return false };
+
+  own != live && own.parent().is_some() && own.parent() == live.parent()
+}
+
+// Whether a deployment retired this verb: the deploy link now names another release than the one it runs
+// from, so the loop starts the link's and no node's pane keeps an old release from the deployment's prune.
+fn retired() -> bool {
+  let live = super::deploy_link().join("bin").join(crate::places::VERBS_BINARY);
+  let (Ok(own), Ok(live)) = (std::env::current_exe(), std::fs::canonicalize(live)) else {
+    return false;
+  };
+
+  retired_by(&own, &live)
+}
+
 fn draw(node: &NodeRow) {
   println!("\x1b[2J\x1b[H{}", node_pane_text(node));
   let _ = std::io::stdout().flush();
@@ -113,6 +134,11 @@ pub async fn node_pane(data_root: &Path, name: &str) -> Result<Answer, VerbError
   loop {
     tokio::select! {
       _ = redraw.tick() => {
+        // Only between logins: a login holds this arm back until it ends.
+        if retired() {
+          return Ok(Answer { lines: vec![], code: 0 });
+        }
+
         let Some(now) = current(nodes.as_ref(), name).await? else { return Ok(gone()) };
 
         node = now;

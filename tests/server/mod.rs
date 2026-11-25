@@ -254,6 +254,7 @@ mod run_log {
 
 mod verbs {
   mod claude_batch;
+  mod node_pane;
   mod node_service;
   mod quiet;
   mod reload;
