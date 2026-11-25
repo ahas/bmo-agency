@@ -897,6 +897,11 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   and agency plugins as `bmo-artifact mcp` and `bmo-explorer mcp`. They are not reached through the tool
   host's pocket entries; where the tool host carries an entry of the same tool name, the main server's
   tool is the one the chat sees and calls, and the pocket copy is reached with `bmo use` alone.
+- **The agency plugin is named through the deploy link.** Its command is the deploy tree's `bin/bmo-agency`
+  under the link wherever the link holds code, and the binary beside the server only where it holds none,
+  never a release by its real path: the configuration outlives a deployment, and a session started on it
+  would otherwise run, and stand in, the release that was live when it was written, which the deployment's
+  prune then keeps (「Where a pane stands」).
 - **A newly named server becomes reachable when the chat program is stood again.** A console session
   reset closes the conversation but the running dsh program keeps its MCP list; the program must be
   replaced for the new server to appear. Where the deployment names no artifact address or token, or no

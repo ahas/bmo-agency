@@ -1515,3 +1515,46 @@ fn the_fast_track_has_a_repeated_need_made_a_hosted_tool_the_supervisor_puts_wit
     assert!(keeping.contains(said), "{said}: {keeping}");
   }
 }
+
+// The agency plugin a chat's configuration names is the deploy link's binary, never the release the server
+// runs from, so a session started on the configuration after a deployment stands in no older release
+// (docs/agent-control.md, 「The chat line's main tools」).
+#[tokio::test]
+async fn the_chat_s_agency_plugin_is_named_through_the_deploy_link_and_never_a_release() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let at = |path: &Path| path.to_string_lossy().into_owned();
+  let release = home.path().join("deploy-releases").join("r1");
+  let link = home.path().join("deploy");
+
+  for binary in ["pane-head", "bmo-agency"] {
+    std::fs::create_dir_all(release.join("bin")).unwrap();
+    std::fs::write(release.join("bin").join(binary), "").unwrap();
+  }
+
+  std::os::unix::fs::symlink(&release, &link).unwrap();
+
+  let machine = Machine::with_env(
+    [
+      ("HOME".to_owned(), at(home.path())),
+      ("BMO_AGENTS_DIR".to_owned(), at(&home.path().join("agents"))),
+      ("BMO_AGENCY_URL".to_owned(), "http://[::1]:2".to_owned()),
+      ("BMO_DATA_DIR".to_owned(), at(&home.path().join("data"))),
+    ],
+    home.path().join("data"),
+  );
+  let variables: HashMap<String, String> = [
+    ("AGENCY_DEPLOY_DIR".to_owned(), at(&link)),
+    ("AGENCY_CODE_DIR".to_owned(), at(&release)),
+  ]
+  .into();
+  let service =
+    Service::new(scratch.db().clone(), Config::read(|name| variables.get(name).cloned()).unwrap());
+  let ground = Ground::new(&service, &machine, None);
+  let path = mcp_config(&ground, &Trees::of(&ground), "chat-agent", &Limits::open()).unwrap();
+  let config: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+  let command = config["mcpServers"]["agency"]["command"].as_str().unwrap_or_else(|| panic!("{config}"));
+
+  assert_eq!(command, at(&link.join("bin").join("bmo-agency")));
+  assert!(!command.contains("deploy-releases"), "{command}");
+}

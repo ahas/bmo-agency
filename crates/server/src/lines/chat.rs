@@ -546,12 +546,17 @@ fn harness_servers(ground: &Ground, agent: &str, limits: &Limits) -> Ordered {
   }
 
   if let (Ok(server), Some(url)) = (std::env::current_exe(), env.get("BMO_AGENCY_URL")) {
-    // The MCP server is the repository's CLI, which stands beside the server in the release's bin.
-    let program = server
-      .parent()
-      .map(|bin| bin.join("bmo-agency"))
-      .filter(|cli| cli.exists())
-      .unwrap_or(server);
+    // The MCP server is the repository's CLI: the deploy link's, so a session started on this configuration
+    // after a deployment runs the live release rather than the one it was written under
+    // (docs/agent-control.md, 「The chat line's main tools」); the one beside the server where the link holds
+    // none.
+    let linked = ground.roots.deploy.join("bin").join(crate::places::VERBS_BINARY);
+    let beside = server.parent().map(|bin| bin.join(crate::places::VERBS_BINARY));
+    let program = if ground.shown_code_root() == ground.roots.deploy && linked.exists() {
+      linked
+    } else {
+      beside.filter(|cli| cli.exists()).unwrap_or(server)
+    };
 
     let mut fields = vec![
       ("type", Ordered::text("stdio")),
