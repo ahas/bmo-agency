@@ -149,6 +149,44 @@ fn a_newer_mirror_session_ends_its_node_s_one_before_it_and_leaves_another_node_
   assert!(other.try_recv().is_err(), "a node's sessions end no other node's");
 }
 
+/// A far end serving `root` on the loopback, the port it listens on, and the first near end's stream to it, the
+/// socket `socket` makes. The port is found free and let go for the far end to bind, so another process may take
+/// it meanwhile; a far end that could not bind its port has ended, and it is served again on another. Every wait
+/// is a timer's, so the far end's task runs between tries, and the whole is bounded.
+async fn served(
+  root: &std::path::Path,
+  socket: impl Fn() -> tokio::net::TcpSocket,
+) -> (u16, tokio::task::JoinHandle<std::io::Result<()>>, tokio::net::TcpStream) {
+  for _ in 0..20 {
+    let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+    let serving = tokio::spawn(serve(Serve {
+      root: root.to_path_buf(),
+      bridge: None,
+      herdr_session: None,
+      herdr_socket: None,
+      listen: Some(format!("127.0.0.1:{port}")),
+      herdr_listen: None,
+      herdr_unix: None,
+    }));
+
+    for _ in 0..500 {
+      if serving.is_finished() {
+        break;
+      }
+
+      if let Ok(stream) = socket().connect(([127, 0, 0, 1], port).into()).await {
+        return (port, serving, stream);
+      }
+
+      tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    serving.abort();
+  }
+
+  panic!("the far end listened on no port of the loopback");
+}
+
 // "on a person's PC a near end that connects closes the mirror an earlier near end left standing"
 #[tokio::test]
 async fn on_a_person_s_pc_a_near_end_that_connects_closes_the_mirror_an_earlier_near_end_left_standing() {
@@ -156,36 +194,29 @@ async fn on_a_person_s_pc_a_near_end_that_connects_closes_the_mirror_an_earlier_
   use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
   let root = tempfile::tempdir().unwrap();
-  let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-  let serving = tokio::spawn(serve(Serve {
-    root: root.path().to_path_buf(),
-    bridge: None,
-    herdr_session: None,
-    herdr_socket: None,
-    listen: Some(format!("127.0.0.1:{port}")),
-    herdr_listen: None,
-    herdr_unix: None,
-  }));
-  // A near end that is greeted and opens a mirror session, as a link does.
-  let near_end = || async move {
-    let stream = loop {
-      match tokio::net::TcpStream::connect(("127.0.0.1", port)).await {
-        Ok(stream) => break stream,
-        Err(_) => tokio::task::yield_now().await,
-      }
+  let (port, serving, first) = served(root.path(), || tokio::net::TcpSocket::new_v4().unwrap()).await;
+  // A near end that is greeted and opens a mirror session, as a link does: the first one's stream, then one of
+  // its own to the far end already listening.
+  let near_end = |stream: Option<tokio::net::TcpStream>| async move {
+    let stream = match stream {
+      Some(stream) => stream,
+      None => tokio::net::TcpStream::connect(("127.0.0.1", port)).await.unwrap(),
     };
     let (reader, mut writer) = stream.into_split();
     let mut reader = BufReader::new(reader);
     let mut hello = String::new();
 
-    reader.read_line(&mut hello).await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(30), reader.read_line(&mut hello))
+      .await
+      .expect("the far end greets in time")
+      .unwrap();
     assert!(hello.contains("hello"), "{hello}");
     writer.write_all(Frame::Carry { ports: vec![] }.line().as_bytes()).await.unwrap();
     (reader, writer)
   };
 
-  let (mut left, _left_open) = near_end().await;
-  let (_now, _now_open) = near_end().await;
+  let (mut left, _left_open) = near_end(Some(first)).await;
+  let (_now, _now_open) = near_end(None).await;
   let mut rest = Vec::new();
   let closed = tokio::time::timeout(
     std::time::Duration::from_secs(10),
@@ -209,34 +240,22 @@ async fn pc_far_end() -> (
   use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
   let root = tempfile::tempdir().unwrap();
-  let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-
-  tokio::spawn(serve(Serve {
-    root: root.path().to_path_buf(),
-    bridge: None,
-    herdr_session: None,
-    herdr_socket: None,
-    listen: Some(format!("127.0.0.1:{port}")),
-    herdr_listen: None,
-    herdr_unix: None,
-  }));
-
-  let stream = loop {
-    // The near end reads slowly, as a hub's stream carries the mirror: little of it is held ahead of the reader.
+  // The near end reads slowly, as a hub's stream carries the mirror: little of it is held ahead of the reader.
+  let (_, _, stream) = served(root.path(), || {
     let socket = tokio::net::TcpSocket::new_v4().unwrap();
 
     socket.set_recv_buffer_size(16 * 1024).unwrap();
-
-    match socket.connect(([127, 0, 0, 1], port).into()).await {
-      Ok(stream) => break stream,
-      Err(_) => tokio::task::yield_now().await,
-    }
-  };
+    socket
+  })
+  .await;
   let (reader, mut writer) = stream.into_split();
   let mut reader = BufReader::new(reader);
   let mut hello = String::new();
 
-  reader.read_line(&mut hello).await.unwrap();
+  tokio::time::timeout(std::time::Duration::from_secs(30), reader.read_line(&mut hello))
+    .await
+    .expect("the far end greets in time")
+    .unwrap();
   assert!(hello.contains("hello"), "{hello}");
   writer.write_all(Frame::Near { node: "u7".into() }.line().as_bytes()).await.unwrap();
 
