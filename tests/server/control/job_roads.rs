@@ -23,6 +23,8 @@ use agency_server::job_run::claude::turn::{Beside, JobMoves, ended};
 use agency_server::job_run::claude::walk::{Attempt, PassedOver, Walking, on_accounts};
 use agency_server::order::Entry;
 use agency_server::places::Ground;
+use agency_server::queue::routes::{clear_block_by_id, kept_blocks};
+use agency_server::rest::{DeploymentResting, RestKind};
 use agency_server::road::Road;
 use agency_server::run_log::{RunLog, Target};
 use agency_server::seeds::deployment;
@@ -851,6 +853,104 @@ fn a_reported_api_failure_moves_the_road_on_a_server_error_and_never_on_the_requ
   assert!(road_stopped(&TurnEnd::failed("r", "API Error: 400 the request is malformed", None)).is_none());
   assert!(road_stopped(&reported("API Error: 413 request too large", "server_error")).is_none());
   assert!(road_stopped(&reported("the answer ran past its ceiling", "max_output_tokens")).is_none());
+}
+
+// A job on a registered model whose turn answers the bench-lock 503 holds rather than ending: the provider's
+// sentence stands as its `heldFor`, its item's lease is renewed while it holds, and once the answer's block
+// opens it goes out again on the same road and the same session, opening on the line that it continues its
+// work, and answers (docs/cache-fallback.md, 「Who receives that failure」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_registered_road_answers_503_holds_and_goes_out_again_on_it() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = standing_naming(&scratch, home.path(), &vars).await;
+  let busy = "API Error: 503 litellm.ServiceUnavailableError: DeepseekException - Service is too busy.";
+
+  peers
+    .lock()
+    .unwrap()
+    .items
+    .insert(70, crate::support::peers::item(70, "leased", json!({ "scope": "-400" })));
+  peers.lock().unwrap().leases.insert(1);
+  registered(&scratch, &home.path().join("data"), "a-registration").await;
+  item_names(&scratch, "registered", "a-registration").await;
+
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::failed("job-7", busy, None), TurnEnd::answered("job-7", "Done.")]),
+    turns: vec![],
+  };
+
+  let carried_job = job();
+
+  let (carried, held) = tokio::join!(carry_job(&ground, &carried_job, &mut carrier), async {
+    while job_column(&scratch, "held_for").await.is_none() {
+      tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+
+    let held = job_column(&scratch, "held_for").await.unwrap_or_default();
+
+    // The item's lease is renewed while the job holds, as the pass does on its clock.
+    let renewed = agency_server::job_leases::pass(scratch.db(), &vars).await.unwrap();
+
+    assert_eq!(renewed, vec![(7, agency_server::job_leases::Kept::Renewed)]);
+    assert!(
+      peers
+        .lock()
+        .unwrap()
+        .calls
+        .iter()
+        .any(|call| call.method.as_str() == "PATCH" && call.path == "/leases/1"),
+      "the lease on the item stands through the wait"
+    );
+
+    // The provider answers again: the block its answer wrote is opened, and the road fact wakes the wait.
+    for block in kept_blocks(scratch.db()).await.unwrap() {
+      clear_block_by_id(scratch.db(), block.id).await.unwrap();
+    }
+
+    ground.events.publish(DeploymentResting::of(RestKind::Limit, "login-a", 0));
+    held
+  });
+
+  let (_, outcome, report, _) = carried.unwrap().expect("an end");
+
+  assert!(held.contains("registered"), "the wait names the provider's road: {held}");
+  assert!(held.contains("503"), "the wait names the provider's sentence: {held}");
+  assert_eq!(outcome, None, "the job went on and answered: {:?}", carrier.turns);
+  assert_eq!(report.as_deref(), Some("Done."));
+  assert_eq!(
+    carrier
+      .turns
+      .iter()
+      .map(|(road, _, _)| (road.provider.as_str(), road.model.as_str()))
+      .collect::<Vec<_>>(),
+    vec![("registered", "a-registration"), ("registered", "a-registration")],
+    "the same road twice: the job never moved"
+  );
+  assert!(
+    carrier.turns[1].2.contains("already ran on registered"),
+    "the turn it goes on with continues the work in the checkout: {}",
+    carrier.turns[1].2
+  );
+  assert!(carrier.turns[1].2.ends_with(carried_job.prompt));
+  assert_eq!(job_column(&scratch, "held_for").await, None);
+}
+
+// The registration a job's item names, with an address, so its provider offers it.
+async fn registered(scratch: &Scratch, data: &Path, name: &str) {
+  use agency_server::control::registry::change;
+
+  let save = json!({
+    "action": "save", "name": name, "model": "m", "contextTokens": 32_768, "answerTokens": 4_096,
+  });
+  let address = json!({
+    "action": "set-address", "name": name, "node": "alpha",
+    "url": "http://[::1]:9/v1/chat/completions", "key": null,
+  });
+
+  change(scratch.db(), data, &save).await.unwrap().unwrap();
+  change(scratch.db(), data, &address).await.unwrap().unwrap();
 }
 
 #[test]

@@ -118,6 +118,48 @@ async fn a_session_past_its_cache_lifetime_or_its_window_is_not_resumed_and_is_d
   );
 }
 
+// A provider that declares no cache lifetime — a registered model on this machine — leaves its kept session
+// nothing to outlive, so the next run of its key resumes it however long the wait before it, a job's wait for
+// its road included, while a provider that declares a lifetime stops being resumed past it
+// (docs/sessions.md, 「The warm/cold criterion」).
+#[tokio::test]
+async fn a_registered_road_s_kept_session_is_resumed_however_long_the_wait() {
+  let scratch = Scratch::new().await;
+  let db = scratch.db();
+  let now = now_ms();
+  let local = SessionKey {
+    provider: "registered".into(),
+    model: "a-registration".into(),
+    account: None,
+    ..key("worker", "/checkouts/local", "a-registration")
+  };
+  let claude = key("worker", "/checkouts/one", "claude-opus-5");
+
+  keep(db, &local, "session-local", answered_at(now - 24 * 3_600_000)).await.unwrap();
+  keep(db, &claude, "session-claude", answered_at(now - 2 * 3_600_000)).await.unwrap();
+
+  let local_row =
+    store::one(db, r#"SELECT * FROM "role_sessions" WHERE "session" = 'session-local'"#, vec![])
+      .await
+      .unwrap()
+      .unwrap();
+  let claude_row =
+    store::one(db, r#"SELECT * FROM "role_sessions" WHERE "session" = 'session-claude'"#, vec![])
+      .await
+      .unwrap()
+      .unwrap();
+
+  assert!(
+    valid(&Kept::of(&local_row).unwrap(), now),
+    "a local model's session has nothing to outlive"
+  );
+  assert!(
+    !valid(&Kept::of(&claude_row).unwrap(), now),
+    "a declared lifetime still ends the session"
+  );
+  assert_eq!(take(db, &local, now).await.unwrap(), Some("session-local".to_owned()));
+}
+
 #[tokio::test]
 async fn a_resumed_session_counts_its_runs_and_stays_one_row_of_the_roles_history() {
   let scratch = Scratch::new().await;

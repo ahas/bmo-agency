@@ -862,6 +862,10 @@ never the model's name.
 - **A run on the registry's provider that does not answer fails on its road,** as on any provider: no other
   provider or model is tried (`docs/provider-order.md`, 「A road that fails」, `docs/cache-fallback.md`,
   「Automatic walks only on providers, in order」).
+- **A registration that answers it cannot serve now holds the job.** A 5xx from its gateway, a service bench's
+  503 among them, or a refused connection is the registration's answer for the turn: the job waits on its
+  road, its `heldFor` naming the answer, until the block that answer wrote opens, and goes out again keeping
+  the session it had; nothing moves to another registration or provider.
 - **A job in a repository that pins a registration does not move:** it waits until the registration can
   answer again (`docs/repositories.md`, 「A pinned model」).
 - **A session whose caller named the registration** never moves off it; a run that does not answer there

@@ -676,8 +676,11 @@ When a demotion first catches — when a healthy session first drops — two thi
     the provider refusing its quota, its window, its balance or its credential, its last open login closing
     under it, or the provider it went out on found unable to answer as the turn ends — waits for its agent's
     road, held with the reason, and goes out again on it once it can: the same job, item and lease, in the same
-    checkout, its prompt opened with a line saying it continues work already in the checkout. It is never
-    failed for that. A failure of the work itself moves nothing and ends the job as it stands.
+    checkout, its prompt opened with a line saying it continues work already in the checkout. A provider that
+    answered it cannot serve now — a 5xx such as a service bench's 503, or a refused connection — has its
+    answer kept as the road's block, and the job waits for that block to open, its sentence in `heldFor`,
+    however long that takes, then goes out again, keeping the session it had, and no other provider or model is
+    tried. It is never failed for that. A failure of the work itself moves nothing and ends the job as it stands.
   - **A job every account of which refused it ends on that refusal.** Where its turn ended on the login
     failure of every account of the Claude Code walk refusing it, the job ends failed with that failure,
     naming each account a person must sign in to, rather than holding its seat and its checkout until the

@@ -2136,12 +2136,14 @@ pub(crate) async fn called_off(ground: &Ground, id: i64) -> bool {
 }
 
 // A job waiting for a road: held with the closed road's sentence and asked again as quota or a road moves, and
-// on the policy's clock, until a provider of its walk can answer. False where the job was ended from outside,
-// or asked to stop, while it waited.
+// on the policy's clock, until a provider of its walk can answer. Where `blocked` names the road whose provider
+// answered that it cannot serve now, the wait holds while that answer's block stands, since no other reading of
+// the road sees the answer. False where the job was ended from outside, or asked to stop, while it waited.
 async fn wait_for_road(
   ground: &Ground,
   job: &Carried<'_>,
   resolution: &road::Resolution,
+  blocked: Option<&Road>,
 ) -> Result<bool, String> {
   // Asked again as each usage reading, account change, rest or road fact comes in, and on the policy's clock
   // where none does.
@@ -2166,6 +2168,14 @@ async fn wait_for_road(
       held_for(ground, job.id, None).await;
 
       return Ok(false);
+    }
+
+    // The road a provider answered it cannot serve now stays closed while the block that answer wrote stands:
+    // the road's own availability says it answers, so only its block holds the job.
+    if let Some(road) = blocked
+      && road::block_until(ground, road).await.is_some()
+    {
+      continue;
     }
 
     let item = item_model_of_job(ground, job.id).await;
@@ -2194,8 +2204,10 @@ async fn wait_for_road(
 /// A job carried across its roads (docs/cache-fallback.md, 「One road resolution」): each turn goes out on
 /// the road the resolution answers for the job's worker now; a turn whose road stopped answering is carried
 /// again on the next road, the same job in the same checkout, at most once on each provider, its prompt
-/// opened with the line saying it continues the work; and where nothing in the order can answer, the job
-/// waits, held with the reason, until a provider can — unless its last turn ended on every Claude account
+/// opened with the line saying it continues the work; where nothing in the order can answer, the job
+/// waits, held with the reason, until a provider can; and where the provider answered that it cannot serve
+/// now — a 5xx, a refused connection — the job waits for that answer's block to open, its sentence in
+/// `heldFor`, rather than ending as the turn did — unless its last turn ended on every Claude account
 /// refusing it, which ends the job on that login failure. The end it answers carries every road's spending
 /// and, in its report, where the job ran and why it moved, the Claude accounts its turns moved across among
 /// them; none where the job was ended from outside.
@@ -2220,6 +2232,8 @@ pub async fn carry_job<C: Carrier>(
   let mut spent: Option<Spent> = None;
   let mut prompt = job.prompt.to_owned();
   let mut last: Option<Ended> = None;
+  // The kind of failure the last turn left its road for, where it left one.
+  let mut last_stop: Option<road::BlockKind> = None;
   // Whether the last turn ended on every Claude account of its walk refusing it.
   let mut refused_everywhere = false;
   // Whether the job waits for supply, told once for the wait (docs/supply.md, 「Running out mid-turn」).
@@ -2233,9 +2247,15 @@ pub async fn carry_job<C: Carrier>(
   loop {
     let resolution = road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?;
     let Some((taken, entry)) = resolution.going().map(|(road, entry)| (road.clone(), entry.clone())) else {
+      // A provider that answered it cannot serve now — a 5xx, a refused connection — is waited for rather
+      // than ended as that turn's failure: the road's own availability does not read that answer, so the
+      // answer's block is what holds the job (docs/cache-fallback.md, 「Who receives that failure」).
+      let answered_it_cannot_serve = last_stop == Some(road::BlockKind::Outage);
+
       // Every road that can answer now was already tried in this job, or every account of the last refused
       // it, which only a person settles: it ends as its last turn did.
-      if let Some((state, outcome, report, _)) = last.take()
+      if !answered_it_cannot_serve
+        && let Some((state, outcome, report, _)) = last.take()
         && (refused_everywhere
           || road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
             .await?
@@ -2245,11 +2265,15 @@ pub async fn carry_job<C: Carrier>(
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
 
-      if !wait_for_road(ground, job, &resolution).await? {
+      let blocked = if answered_it_cannot_serve { roads.last().map(|(road, _)| road) } else { None };
+
+      if !wait_for_road(ground, job, &resolution, blocked).await? {
         return Ok(None);
       }
 
       left.clear();
+      last = None;
+      last_stop = None;
       continue;
     };
     // The supply the turn goes out on inside its road: a person's job waits, holding no slot, where none is
@@ -2276,11 +2300,17 @@ pub async fn carry_job<C: Carrier>(
     }
 
     let why = roads.last().and_then(|_| left.last().map(|left| left.reason.clone()));
+    // A turn that goes out again on the road the last one left, its provider having answered it cannot serve
+    // now, has not moved: the road is written once, and the job's report names no move.
+    let moved = roads.last().is_none_or(|(last, _)| last != &taken);
 
     road::went(ground, &resolution, Some(&taken), &[]).await;
-    values.push(road_value(&taken, why.as_deref()));
-    roads.push((taken.clone(), why));
-    kept_roads(ground, job.id, &roads, &values, resolution.chosen_by).await;
+
+    if moved {
+      values.push(road_value(&taken, why.as_deref()));
+      roads.push((taken.clone(), why));
+      kept_roads(ground, job.id, &roads, &values, resolution.chosen_by).await;
+    }
 
     let carried = Box::pin(carrier.carry(&taken, &entry, &prompt));
     let (end, ran_out) = Box::pin(metered_carry(ground, job, &taken, &chosen, carried)).await?;
@@ -2357,6 +2387,7 @@ pub async fn carry_job<C: Carrier>(
       prompt = crate::job_handoff::ahead(&handoff.text, &continued(&ended_on, &stopped, job.prompt));
       keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
       refused_everywhere = false;
+      last_stop = road::BlockKind::of_words(&stopped);
       last = Some(("ended".to_owned(), outcome, report, None));
       continue;
     }
@@ -2376,6 +2407,7 @@ pub async fn carry_job<C: Carrier>(
 
     prompt = crate::job_handoff::ahead(&handoff.text, &continued(&ended_on, &stopped, job.prompt));
     keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
+    last_stop = road::BlockKind::of_words(&stopped);
     left.push(Closed::plain(&taken.provider, stopped));
     refused_everywhere = matches!(
       &end.failure,

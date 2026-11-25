@@ -463,7 +463,8 @@ statements below about either are kept for a rollback to the road a deployment l
   (`docs/provider-order.md`, 「The advisor」); the prefix digest a job's change is read by leaves it out too.
 - **A session is valid while all of these hold:**
   - its cache is warm: the time since its last answer is under the cache lifetime the provider declares for
-    the model (the criterion below);
+    the model (the criterion below); a provider that declares none leaves it nothing to outlive, so it stays
+    valid however long ago it answered;
   - its last answered turn stayed under the model's context limit;
   - its record still stands: no reset, lost session or hand-over has taken it away, and the session's own
     record file is still there.
@@ -515,12 +516,14 @@ statements below about either are kept for a rollback to the road a deployment l
 - **The lifetime is the one the provider declares for the model,** each provider answering for its own
   models out of its policy file: Claude Code's is 60 minutes for every model, the subscription's one-hour
   lifetime, and Codex and OpenRouter name theirs per model and per answering upstream; agency keeps no cache
-  measurement of its own. A provider that declares none reads one hour.
+  measurement of its own. A provider that declares none, a registered model on this machine among them,
+  leaves a kept session nothing to outlive: the next run of its key resumes it however long the wait before
+  it, a job's wait for its road included.
 - **The judgement itself,** the lifetime in milliseconds, the warm/cold line and a record's own life, is the
   `cache-siren` crate's, which is handed the declared lifetime and knows no provider.
-- **A kept session's record goes cold with its cache.** A record whose last answer is past the lifetime is
-  retired as it is read. `BMO_WORKER_SESSION_TTL_MINUTES`, where the deployment sets it, retires a record
-  sooner, never later.
+- **A kept session's record goes cold with its cache.** A record whose last answer is past the cache lifetime
+  its provider declares, where it declares one, is retired as it is read;
+  `BMO_WORKER_SESSION_TTL_MINUTES`, where the deployment sets it, retires a record sooner, never later.
 
 ### The session history of a role
 

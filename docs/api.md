@@ -2330,10 +2330,15 @@ service.
   the time the turn asks and lets it in, its `heldFor` is cleared as the turn goes out.
 - **A job never moves to another road.** A turn that fails for its provider's availability — its quota,
   window, balance or credential refused, its last login closing under it, or its road found unable to answer
-  as the turn ends — holds the job waiting for its agent's road with the reason while the road cannot answer,
-  and is launched again on it once it can: the same job, item, lease and checkout, its prompt opened with a
-  line saying it continues work already in the checkout; where the road answers again at once, the job ends
-  as that turn ended. A job answers `roads`, every road its turns went out on in
+  as the turn ends, a provider that answers it cannot serve now (a 5xx such as a service bench's 503, or a
+  refused connection) among them — holds the job waiting for its agent's road with the reason while the road
+  cannot answer, and is launched again on it once it can: the same job, item, lease and checkout, its prompt
+  opened with a line saying it continues work already in the checkout; where the road answers again at once,
+  the job ends as that turn ended, but a provider that answered it cannot serve now is waited for, its
+  sentence in the job's `heldFor`, until the block that answer wrote opens, however long that takes, and the
+  job goes out again on that road, its session kept across the wait where it had one
+  (`docs/sessions.md`, 「The warm/cold criterion」).
+  A job answers `roads`, every road its turns went out on in
   order — each `provider`, `model`, `account` (null off a provider that holds logins), `at` in epoch
   milliseconds and `reason`, why the road before it was left, null on the first — and its report ends
   saying where it ran and why it moved. A turn the Claude Code walk carried to the next account because

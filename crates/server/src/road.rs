@@ -614,6 +614,17 @@ async fn blocked_now(ground: &Ground, road: &Road, now: i64) -> Option<Closed> {
   })
 }
 
+/// The moment the block a turn's answer wrote on a road opens, where one stands now: the provider answered that
+/// it cannot serve now, and no other reading of the road sees that answer. A road a job's own turn closed is
+/// waited for while its block stands, never passed over (docs/provider-order.md, 「A road that fails」).
+pub async fn block_until(ground: &Ground, road: &Road) -> Option<i64> {
+  crate::queue::routes::standing_block(&ground.db, &selection_of(road), now_ms())
+    .await
+    .ok()
+    .flatten()
+    .map(|standing| standing.until)
+}
+
 // A road as a block's selection names it.
 fn selection_of(road: &Road) -> String {
   format!("{}::{}", road.provider, road.model)

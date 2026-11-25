@@ -13,7 +13,7 @@ use store::{Fault, one, run};
 
 use crate::agent_roles;
 use crate::lines::claude::Command;
-use crate::worker_session::warmth::{set_aside_lifetime_ms, warm};
+use crate::worker_session::warmth::{lifetime_ms, warm};
 
 // The flag a command names the session it opens with, and the one its system prompt's file is handed by.
 const OPENS: &str = "--session-id";
@@ -157,14 +157,18 @@ impl Kept {
 }
 
 /// Whether the next run of a kept session's key would resume it at `now`: not dropped, held by no run, its
-/// cache still warm for its provider's model and its last turn under the model's window.
+/// last turn under the model's window, and its cache still warm — or its provider declaring no cache lifetime,
+/// which leaves the session nothing to outlive, so a local road's session is resumed however long the wait
+/// before it (docs/sessions.md, 「The warm/cold criterion」).
 pub fn valid(kept: &Kept, now: i64) -> bool {
+  let lifetime = lifetime_ms(&kept.provider, &kept.model);
+
   !kept.dropped
     && !kept.held
     && kept.context_share.is_none_or(|share| share < 1.0)
     && kept
       .answered_at
-      .is_some_and(|answered| warm(answered, now, set_aside_lifetime_ms(&kept.provider, &kept.model)))
+      .is_some_and(|answered| lifetime.is_none_or(|lifetime| warm(answered, now, lifetime)))
 }
 
 /// The session a key's last answered run left, taken so no other run resumes it meanwhile, where it is still

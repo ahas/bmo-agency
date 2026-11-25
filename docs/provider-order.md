@@ -100,8 +100,10 @@ person's run goes out inside its road is `docs/supply.md`.
   to answer as the turn ends; it is read off the run's ending by the one failure reading every run asks
   (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」). A supervisor's turn ends failed
   with it, naming the road and the failure; a job's turn on its agent's road ends, and the job waits for the
-  road to answer again before its next turn (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」). Nothing
-  moves to another provider or another model.
+  road to answer again before its next turn (`docs/cache-fallback.md`, 「Automatic walks only on providers, in order」). A provider
+  that answered it cannot serve now has that answer kept as its block, and a job on that road waits for the
+  block to open, its `heldFor` naming the answer, rather than ending on it. Nothing moves to another provider
+  or another model.
 - **A request failure the run's program reports is one of these.** A program that gives a turn up on a
   failed request says so itself — Claude Code through its `StopFailure` hook, with the error's kind — and
   the turn ends `errored` on it at once (`docs/agent-control.md`, 「Telling that a turn's program is
