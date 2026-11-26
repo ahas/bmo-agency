@@ -17,6 +17,10 @@ pub struct RoleAgent {
   pub role: String,
   /// The login account whose seat it is, none for the deployment's own (docs/role-agents.md).
   pub owner_account: Option<String>,
+  /// The node its runs stand on, its home node (docs/role-agents.md, 「What an agent is」): none for this
+  /// machine, the deployment's default; else a hub node the node service keeps, which no other account owns
+  /// alone or which this agent's account stands on.
+  pub home_node: Option<String>,
   /// Its road: the provider and model its runs go out on, both or neither. An agent naming neither follows
   /// the supervisor that asks it.
   pub provider: Option<String>,
@@ -83,6 +87,7 @@ impl RoleAgent {
       skills: list(row, "skills")?,
       added_at: row.try_get("", "added_at")?,
       owner_account: row.try_get("", "owner_account")?,
+      home_node: row.try_get("", "home_node")?,
       follows_asker: row.try_get::<Option<i64>>("", "follows_asker")?.map(|on| on != 0),
     })
   }
@@ -229,8 +234,8 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
     r#"INSERT INTO "role_agents"
          ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled",
           "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions",
-          "owner_account", "advisor", "follows_asker")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+          "owner_account", "home_node", "advisor", "follows_asker")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
@@ -238,7 +243,8 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
          "keeps_cache" = excluded."keeps_cache",
          "fold_ratio" = excluded."fold_ratio", "prompt" = excluded."prompt", "bundles" = excluded."bundles",
          "skills" = excluded."skills", "sessions" = excluded."sessions",
-         "owner_account" = excluded."owner_account", "advisor" = excluded."advisor",
+         "owner_account" = excluded."owner_account", "home_node" = excluded."home_node",
+         "advisor" = excluded."advisor",
          "follows_asker" = excluded."follows_asker""#,
     vec![
       agent.name.clone().into(),
@@ -257,6 +263,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       agent.added_at.into(),
       agent.sessions.word().into(),
       agent.owner_account.clone().into(),
+      agent.home_node.clone().into(),
       agent.advisor.clone().into(),
       agent.follows_asker.map(i64::from).into(),
     ],

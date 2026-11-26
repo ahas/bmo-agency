@@ -285,6 +285,10 @@ pub struct Asked<'a> {
   pub session: Option<&'a str>,
   pub title: Option<&'a str>,
   pub asked_by: Option<&'a str>,
+  /// The account the slot belongs to where the ask names one directly rather than through a supervisor: a
+  /// job's ask belongs to the account of the agent its item named. None leaves the ask's supervisor to answer
+  /// it (docs/role-slots.md, 「Accounts」).
+  pub account: Option<&'a str>,
 }
 
 /// The road a caller names for its slot: the provider and model, at the effort and thinking the role's agent
@@ -471,7 +475,7 @@ pub async fn enqueue(
     }
   }
 
-  let account = account_of(db, asked.asked_by).await?;
+  let account = asked_account(db, asked).await?;
   let written = db.begin().await.map_err(faulted)?;
 
   let opened = run(
@@ -980,7 +984,7 @@ async fn judge<C: ConnectionTrait>(
 /// asked before, with nothing written.
 pub async fn first_ask_waits(ground: &Ground, asked: &Asked<'_>, source: &str) -> Result<bool, Fault> {
   let role = role_of(&ground.db, asked.wanted.role).await?;
-  let account = account_of(&ground.db, asked.asked_by).await?;
+  let account = asked_account(&ground.db, asked).await?;
   let unasked = unasked(asked, source, &role, account);
   let seats = seats_for(ground, &unasked, &role).await?;
 
@@ -1023,6 +1027,16 @@ fn unasked(asked: &Asked<'_>, source: &str, role: &AgentRole, account: Option<St
     held_for: None,
     ended_by: None,
   }
+}
+
+// The account a request belongs to: the one its ask names, else its asking supervisor's, none where neither
+// names one.
+async fn asked_account<C: ConnectionTrait>(db: &C, asked: &Asked<'_>) -> Result<Option<String>, Fault> {
+  if let Some(account) = asked.account {
+    return Ok(Some(account.to_owned()));
+  }
+
+  account_of(db, asked.asked_by).await
 }
 
 // The account a request belongs to: its asking supervisor's (docs/role-slots.md, 「Accounts」), none where no

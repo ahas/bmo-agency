@@ -178,6 +178,7 @@ pub(crate) fn fresh(role: &str, name: Option<String>) -> RoleAgent {
     skills: None,
     added_at: crate::now_ms(),
     owner_account: None,
+    home_node: None,
     follows_asker: None,
   }
 }
