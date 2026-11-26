@@ -4,7 +4,7 @@
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::MigratorTrait;
-use store::migration::{BASELINE, BEFORE, MIGRATIONS_TABLE, Migrator, OWN_TABLES};
+use store::migration::{BASELINE, BEFORE, MIGRATIONS_TABLE, Migrator, OWN_TABLES, POST_BASELINE};
 
 use crate::support::scratch::Scratch;
 
@@ -199,6 +199,13 @@ async fn recorded(db: &DatabaseConnection) -> Vec<String> {
   texts(db, &format!(r#"SELECT "version" FROM "{MIGRATIONS_TABLE}" ORDER BY "version""#)).await
 }
 
+// Every migration this build carries, the baseline first and the ones that ran after it.
+fn every_run() -> Vec<String> {
+  std::iter::once(BASELINE.to_owned())
+    .chain(POST_BASELINE.iter().map(|name| (*name).to_owned()))
+    .collect()
+}
+
 // A blank database holding the baseline's schema and a row, recorded as an install from before 1.0.0 that ran
 // the first `through` migrations of its last release.
 async fn installed(through: usize) -> Scratch {
@@ -233,7 +240,7 @@ async fn a_blank_database_gets_the_baseline_whole() {
   laid.db().execute_unprepared(SCHEMA).await.unwrap();
 
   assert_eq!(shape(migrated.db()).await, shape(laid.db()).await);
-  assert_eq!(recorded(migrated.db()).await, [BASELINE]);
+  assert_eq!(recorded(migrated.db()).await, every_run());
   assert!(!store::migration::up(migrated.db()).await.unwrap());
 }
 
@@ -241,17 +248,25 @@ async fn a_blank_database_gets_the_baseline_whole() {
 async fn an_install_at_the_last_release_before_the_baseline_only_has_its_record_rewritten() {
   let scratch = installed(BEFORE.len()).await;
   let db = scratch.db();
-  let before = shape(db).await;
+  let current = {
+    let fresh = Scratch::blank().await;
+    store::migration::up(fresh.db()).await.unwrap();
+    shape(fresh.db()).await
+  };
 
   assert!(!store::migration::up(db).await.unwrap());
-  assert_eq!(recorded(db).await, [BASELINE]);
-  assert_eq!(shape(db).await, before);
+  assert_eq!(recorded(db).await, every_run());
+  assert_eq!(
+    shape(db).await,
+    current,
+    "the carried migrations bring the laid baseline to this build's shape"
+  );
   assert_eq!(texts(db, r#"SELECT "key" || '=' || "value" FROM "settings""#).await, ["rest_kind=day"]);
 
-  // A second start finds the baseline recorded and changes nothing.
+  // A second start finds every migration recorded and changes nothing.
   assert!(!store::migration::up(db).await.unwrap());
-  assert_eq!(recorded(db).await, [BASELINE]);
-  assert_eq!(shape(db).await, before);
+  assert_eq!(recorded(db).await, every_run());
+  assert_eq!(shape(db).await, current);
 }
 
 #[tokio::test]
