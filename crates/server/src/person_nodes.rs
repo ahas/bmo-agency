@@ -116,7 +116,8 @@ impl std::fmt::Display for Taken {
   fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     write!(
       out,
-      "{} is account {}'s node; accounts share a node only where each one's record is shared",
+      "{} is account {}'s node; accounts share a node only where each one's record is shared: mark both shared, or \
+       choose another node",
       self.node, self.by
     )
   }
