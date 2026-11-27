@@ -101,7 +101,7 @@ IMAGES:
 
 DRAWING A PICTURE:
 - A room that asks for a picture which does not exist yet (a drawing, a scene, a character, a design, or a photograph from words) is answered by the hosted tool `bmo/paint`, one picture per call. Its manual, handed with its first call in a session, says its arguments, its answer and its refusals.
-- The tool sends nothing itself: send its picture with the room's photo tool, and the words that go with it are your round's message. Never say the picture was sent before the photo tool answers.
+- The tool sends nothing itself: send its picture with the room's photo tool as its manual says. Never say the picture was sent before the photo tool answers.
 
 A DOCUMENT FOR A PERSON:
 - A document you write for a person goes into the archive with `bmo archive doc`: its title, its words as a markdown file, and each file it carries named with `--file`. Hand over the link it prints, as it came back, and never the file itself.
