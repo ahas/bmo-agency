@@ -105,7 +105,12 @@ pub async fn supply(ground: &Ground, person: i64) -> Result<Vec<RoleSupply>, Ref
     let off = said.is_some_and(|said| said.off);
     let template = held
       .iter()
-      .find(|agent| agent.role == role.name && agent.owner_account.is_none() && agent.enabled)
+      .find(|agent| {
+        agent.role == role.name
+          && agent.owner_account.is_none()
+          && agent.owner_unit.is_none()
+          && agent.enabled
+      })
       .cloned();
     let template_road = template.as_ref().and_then(road_of);
     let roads: Vec<(Option<Road>, Option<String>)> = match said.and_then(|said| said.agents.clone()) {
@@ -146,13 +151,11 @@ pub async fn supply(ground: &Ground, person: i64) -> Result<Vec<RoleSupply>, Ref
 
 /// The person's own agents, every role agent filed under their account.
 pub async fn held(ground: &Ground, person: i64) -> Result<Vec<RoleAgent>, Refused> {
-  let account = person.to_string();
-
   Ok(
     role_agents::every(&ground.db)
       .await?
       .into_iter()
-      .filter(|agent| agent.owner_account.as_deref() == Some(account.as_str()))
+      .filter(|agent| agent.owner_account == Some(person))
       .collect(),
   )
 }
@@ -173,7 +176,7 @@ pub async fn seat(
   let mut agent = role.template.clone().unwrap_or_else(|| composition::fresh(&role.role.name, None));
 
   agent.name = name;
-  agent.owner_account = Some(person.to_string());
+  agent.owner_account = Some(person);
   agent.enabled = true;
   agent.added_at = crate::now_ms();
 

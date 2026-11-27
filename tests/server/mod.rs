@@ -84,6 +84,7 @@ mod control {
   mod loans;
   mod mcp;
   mod models;
+  mod own_agents_view;
   mod own_llm;
   mod owned_accounts;
   mod owner_removal;
@@ -108,6 +109,7 @@ mod control {
   mod supply_test;
   mod support_growth;
   mod turn_restart;
+  mod unit_resources;
   mod worker_runtime;
 }
 mod conversational;

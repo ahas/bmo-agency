@@ -443,7 +443,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Runs newest first: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. */
+        /** Runs newest first, of the owners the caller reaches: open or closed, by agent, room, round, names or the search they carried; with the tokens spent so far. */
         get: operations["listRuns"];
         put?: never;
         /** Open a run in the ledger. */
@@ -760,7 +760,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Registered models, by provider or tier. */
+        /** Registered models the caller reaches, by provider or tier. */
         get: operations["listModels"];
         put?: never;
         /** Register a model. */
@@ -1686,7 +1686,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every supervisor, each with the login account that owns it. */
+        /** Every supervisor the caller reaches, each with the account or unit that owns it. */
         get: operations["listSupervisors"];
         put?: never;
         /** Register a supervisor; it is given its brain. */
@@ -1916,7 +1916,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every agent of every role, by role and name, or one role's. */
+        /** Every agent of every role the caller reaches, by role and name, or one role's. */
         get: operations["listRoleAgents"];
         put?: never;
         /** Add an agent to a role. */
@@ -2091,7 +2091,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Every repository. */
+        /** Every repository the caller reaches. */
         get: operations["listRepositories"];
         put?: never;
         /** Add a repository. */
@@ -3270,6 +3270,18 @@ export interface components {
             agentName: string;
             unitName: string;
             /**
+             * Format: int64
+             * @description the account the run's agent was seated on when it opened; null where it is none's or predates the column
+             * @default null
+             */
+            ownerAccount: number | null;
+            /**
+             * Format: int64
+             * @description the organisation unit the run's agent was seated on when it opened; null where it is none's
+             * @default null
+             */
+            ownerUnit: number | null;
+            /**
              * @description What the run was asked to do: a role session's turn's title, or the title the body opening it named.
              * @default null
              */
@@ -3770,17 +3782,33 @@ export interface components {
             provider: string;
             /**
              * Format: int64
-             * @description The user id it belongs to; null for the platform's.
+             * @description The user id it belongs to; null where it is no person's.
              */
             account: number | null;
+            /**
+             * Format: int64
+             * @description The organisation unit it is filed under; null where it is no unit's. At most one of `account` and
+             *     `unit` stands, and neither for the platform's.
+             * @default null
+             */
+            unit: number | null;
         };
-        /** @description A change of a gateway member's owner. */
+        /**
+         * @description A change of a gateway member's owner: exactly one of the two fields is named; whichever it is, the other
+         *     owner is given back at the same write, and null gives the named one back too — the member then stands the
+         *     platform's (docs/own-llm.md, 「The gateway's members」).
+         */
         GatewayMemberChange: {
             /**
              * Format: int64
-             * @description The user id the member belongs to, or null to give it back to the platform.
+             * @description The user id the member belongs to, or null for no account's.
              */
-            account: number | null;
+            account?: number | null;
+            /**
+             * Format: int64
+             * @description The organisation unit the member is filed under, or null for no unit's.
+             */
+            unit?: number | null;
         };
         /** @description ModelPage: */
         ModelPage: {
@@ -3843,6 +3871,12 @@ export interface components {
              * @default null
              */
             account: number | null;
+            /**
+             * Format: int64
+             * @description the organisation unit the registration is filed under; null where it is no unit's
+             * @default null
+             */
+            unit: number | null;
         };
         /** @description The body that saves or removes a registration, or sets or removes one of its addresses. */
         ModelChange: {
@@ -4680,6 +4714,22 @@ export interface components {
              * @default false
              */
             localAi: boolean;
+            /**
+             * @description Every provider the build carries as it stands for the person, closed ones named with what closed them.
+             * @default []
+             */
+            providers: components["schemas"]["SupplyProvider"][];
+        };
+        /** @description One provider the build carries, as a person's supply reads leave it. */
+        SupplyProvider: {
+            provider: string;
+            /**
+             * @description null while its sources stand open for the person; `owner` where the owner's switch stands it off,
+             *     `chain` where the person's chain holds `provider.<code>.offered` off.
+             */
+            off: string | null;
+            /** @description The link that closed it, where the chain did. */
+            from: string | null;
         };
         /** @description Whether a source of a road answers now, and where it does not, why. */
         SupplyTested: {
@@ -5147,6 +5197,12 @@ export interface components {
             label: string | null;
             /** Format: int64 */
             ownerAccount: number | null;
+            /**
+             * Format: int64
+             * @description the organisation unit it is filed under; null where it is no unit's
+             * @default null
+             */
+            ownerUnit: number | null;
             /** @description its call names as one line, joined by a comma and a space; null for none */
             aliases: string | null;
             icon: string | null;
@@ -5562,6 +5618,18 @@ export interface components {
         RoleAgent: {
             name: string;
             role: string;
+            /**
+             * Format: int64
+             * @description the login account whose seat it is; null for the deployment's own
+             * @default null
+             */
+            ownerAccount: number | null;
+            /**
+             * Format: int64
+             * @description the organisation unit whose seat it is; null where it is no unit's
+             * @default null
+             */
+            ownerUnit: number | null;
             /** @description its road's provider, or null where it follows the supervisor that asks it */
             provider: string | null;
             model: string | null;
@@ -5753,11 +5821,25 @@ export interface components {
             /** @description Whether the agent stands otherwise than supplied: on another road, or switched off. */
             changed: boolean;
         };
-        /** @description A provider a person's road may name. */
+        /**
+         * @description A provider a person's road may name: every provider the build carries, each standing off for the person
+         *     where the owner's switch or their chain says so.
+         */
         OwnProvider: {
             name: string;
             label: string;
             lines: string[];
+            /**
+             * @description null while its sources stand open for the person; `owner` where the owner's switch stands it off,
+             *     `chain` where the person's chain holds `provider.<code>.offered` off.
+             * @default null
+             */
+            off: string | null;
+            /**
+             * @description The link that closed it, where the chain did.
+             * @default null
+             */
+            from: string | null;
         };
         /** @description The models of a provider a person may stand an agent on. */
         OwnModels: {
@@ -8519,6 +8601,9 @@ export interface operations {
                 after?: number;
                 before?: number;
                 limit?: number;
+                ownerAccount?: number;
+                unit?: number;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -9268,6 +9353,9 @@ export interface operations {
             query?: {
                 provider?: string;
                 tier?: string;
+                ownerAccount?: number;
+                unit?: number;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -11310,7 +11398,11 @@ export interface operations {
     };
     listSupervisors: {
         parameters: {
-            query?: never;
+            query?: {
+                ownerAccount?: number;
+                unit?: number;
+                unitSubtree?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -11878,6 +11970,9 @@ export interface operations {
         parameters: {
             query?: {
                 role?: string;
+                ownerAccount?: number;
+                unit?: number;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -12286,7 +12381,11 @@ export interface operations {
     };
     listRepositories: {
         parameters: {
-            query?: never;
+            query?: {
+                ownerAccount?: number;
+                unit?: number;
+                unitSubtree?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;

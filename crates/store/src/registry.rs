@@ -24,7 +24,10 @@ pub struct Registration {
   /// Whether the card service's instances keep role files (docs/own-llm.md, 「Role files」).
   pub role_files: bool,
   /// The account it belongs to, none for the platform's (docs/own-llm.md, 「What a registration holds」).
-  pub account: Option<i64>,
+  pub owner_account: Option<i64>,
+  /// The organisation unit it is filed under instead, whose people's runs reach it on a reservation naming
+  /// the unit; never both owners (docs/supply.md, 「Owned supply」).
+  pub owner_unit: Option<i64>,
   /// Its own addresses; a registration naming a card service holds none, and its reader lays the
   /// instances the master reports standing here in their place.
   pub addresses: Vec<RegisteredAddress>,
@@ -62,7 +65,7 @@ fn flag(row: &AnyRow, column: &str) -> Result<bool, sqlx::Error> {
 pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration>, sqlx::Error> {
   let models = sqlx::query(
     "SELECT name, label, model, context_tokens, answer_tokens, thinking, walked, keeps_research, \
-     card_service, role_files, account FROM registered_models ORDER BY added_at, name",
+     card_service, role_files, owner_account, owner_unit FROM registered_models ORDER BY added_at, name",
   )
   .fetch_all(&mut *store)
   .await?;
@@ -101,7 +104,8 @@ pub async fn registrations(store: &mut AnyConnection) -> Result<Vec<Registration
       keeps_research: flag(row, "keeps_research")?,
       card_service: row.try_get("card_service")?,
       role_files: flag(row, "role_files")?,
-      account: whole(row, "account")?,
+      owner_account: whole(row, "owner_account")?,
+      owner_unit: whole(row, "owner_unit")?,
       addresses: served,
       name,
     });

@@ -64,8 +64,8 @@ seeds. The other crates and the server reach the store only through it.
     token file or the endpoint or `api-key` account's own configuration home; for an endpoint account its
     `endpoint_url`, its `key_file` and its `endpoint_models`, a JSON object from the family words
     `opus`, `sonnet` and `haiku` to the endpoint's model ids, empty on the other kinds; for an `api-key`
-    account its `key_file`, the secret's path under the data root's `env/`; its `user_id`, the person it belongs
-    to, or its `unit_id`, the organisation unit it belongs to, or neither for the platform's; its `node`, the
+    account its `key_file`, the secret's path under the data root's `env/`; its `owner_account`, the person it belongs
+    to, or its `owner_unit`, the organisation unit it belongs to, or neither for the platform's; its `node`, the
     node a person's login was signed in on and stands on, or none; whether it is `lendable` to another person's
     run; and its
     `base_prompt`, the name of a kept base prompt or none, which a kept prompt cannot be removed
@@ -107,7 +107,8 @@ seeds. The other crates and the server reach the store only through it.
     node is shared with other accounts, and when it was set (`docs/person-nodes.md`, 「Which node is a person's」,
     「Several accounts on one node」);
   - the role slots: `role_slot_requests`, one row a slot request with its lease — the account it belongs to or
-    none, the one agent it asks to be
+    none, the `units` of that account's path as the chain answered them when the ask was made, which say the
+    seats it may take and the cap it counts (the deployment's own ask keeps none), the one agent it asks to be
     let in on, `agent_wanted`, where its asker named one, its title and the supervisor that asked it where its
     asker named them, the agent it was let in on, its `seat`, what it is
     bound to, the role session among it, whether the line has seen its bound run standing, and who gave it
@@ -118,7 +119,7 @@ seeds. The other crates and the server reach the store only through it.
     was set — and `role_provider_prompt_seeded`, the role and provider of each one the policy gave
     (`docs/agent-roles.md`, 「A role's provider prompts」);
   - the models and their roads: `model_catalogue`, `model_uses`, `registered_models` — a registration's
-    card service, its instances' role files, its languages, a JSON list or none, its owner's `account` or none,
+    card service, its instances' role files, its languages, a JSON list or none, its owner's `owner_account` or none,
     and whether it is `enabled` among its columns —, `registered_model_addresses` — an address reached through
     its owner's PC keeping the `reach_port` of this machine's loopback it is asked at, unique among them
     (`docs/own-llm.md`, 「A person's local AI」) —, `card_demands`, one row a demand agency asked of the arbiter's master and
@@ -153,7 +154,8 @@ seeds. The other crates and the server reach the store only through it.
     for a job that runs — said to it or a note added to its item — with who said it, the note it came from, when
     it was kept and when a turn of the job took it (`docs/agent-control.md`, 「Words for a running job」); and what a session carries: `session_work`, its item and results, and `session_loads`,
     the documents loaded into it (`docs/api.md`, 「Assignments and jobs」);
-  - the run ledger: `runs`, one row a run — its supervisor or its role and path, its title, its room, its unit, how deep
+  - the run ledger: `runs`, one row a run — its supervisor or its role and path, its title, its room, its `work_unit`, the
+    account or unit its agent was seated on when it opened (`owner_account` and `owner_unit`, below), how deep
     it runs, its bound, when it started and finished in epoch milliseconds, how it ended, who started it, the
     tokens its context held, what it spent (its input, output, cache-read and cache-write tokens, and its
     cost in millionths of a US dollar) and the supply source it went out on, the
@@ -195,11 +197,15 @@ seeds. The other crates and the server reach the store only through it.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
   kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
   shares」).
-- **An account's `user_id`** names the user it belongs to, or none for the platform's; agency reads it and
-  never fills it in itself, since who the users are is the caller's.
-- **A supervisor's and a repository's `owner_account`** names the id of the user it belongs to, the same id an account's
-  `user_id` names, or none for the administrator's; agency writes the one its registration is handed and
-  never chooses one itself.
+- **Ownership of a row stands in the same two columns across the tables that hold an owner:** `owner_account`,
+  the id of the user it belongs to, or `owner_unit`, the organisation unit it belongs to, never both and
+  neither for the platform's own. The supervisors, the repositories, the roles' agents, the Claude accounts,
+  the personal supply and the registrations are alike in this, and a run's ledger row carries its agent's
+  owners in the same two columns as it opened (`docs/run-records.md`, 「The run ledger」); what a run's row
+  names the unit its work runs under is its own `work_unit`, which is no owner.
+- **Agency reads an account's owner and never fills one in itself,** since who the users are is the caller's;
+  the owner of a supervisor or a repository is the one its registration is handed, and agency never chooses
+  one itself.
 - **A supervisor's `prompts`** names the folder under `prompts/agents/` that holds what that supervisor alone
   is given, one plain name, or none for one given no folder of its own, as a supervisor added on the console
   starts; a repository's names the folder its rules are read from. A pieces-shaped turn's persona is read
@@ -239,9 +245,11 @@ seeds. The other crates and the server reach the store only through it.
   - the event stream's numbering: `event_numbers_reserved`, the number every number a process gave
     stays below, written ahead of the numbers a process gives, and `events_dropped_through`, the
     highest number the store has dropped (`docs/api.md`, 「events」);
-  - the supervisor a run of the search or browse line writes for, `research_supervisor` (`docs/api.md`, 「settings」);
-  - the console secrets the DeepSeek top-up reads its card from and signs in with, `deepseek_card_secret` and
-    `deepseek_login_secret` (`docs/api.md`, 「settings」);
+  - the four switches of `docs/api.md`, 「settings」, while each still stands in a row: the research
+    supervisor, the deploy flush minutes and the two DeepSeek secret names now stand on the delegation chain's
+    platform links, and a row found as the server settles is moved onto its link once and given up; where no
+    account service is named, the row keeps the value (`docs/store.md`, 「Its tables」 says which keys:
+    `research_supervisor`, `deploy_flush_minutes`, `deepseek_card_secret`, `deepseek_login_secret`);
   - a hook registration that outlives a restart, `hook_kept:*` by its point, as JSON: its address and the name of
     the token file under the data root's `env/`, never the token (`docs/api.md`, 「hooks」);
   - a person's supply notice told once, `supply_told:*` by the key or login and the moment it was found refused
@@ -261,9 +269,8 @@ seeds. The other crates and the server reach the store only through it.
     `job_events_after`, past which no event's notice is left unwritten; and the deployment watch's
     `deploy_watch`, as JSON, the unit last judged for each deploy root under `judged` and the units seen
     running and not yet judged, each with its deploy root, under `running` (`docs/agent-control.md`, 「A
-    deployment that did not go live is told」); and the deploy queue's flush's: the owner's own row of the flush
-    minutes, `deploy_flush_minutes`, a positive whole number, `deploy_flush_last`, the epoch milliseconds
-    of the last flush, and `deploy_stalls`, as JSON, the moment each waiting commit was first read waiting under
+    deployment that did not go live is told」); and the deploy queue's flush's: `deploy_flush_last`, the epoch
+    milliseconds of the last flush, and `deploy_stalls`, as JSON, the moment each waiting commit was first read waiting under
     `since`, keyed by its repository, item and commit, those told as waiting too long under `stale`, and each
     repository told as one nothing deploys under `undeployable`, with the waiting commits it was told for
     (`docs/agent-control.md`, 「The deploy queue is flushed every hour」);

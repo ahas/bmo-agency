@@ -344,12 +344,11 @@ impl Route for CreateAssignment {
       if let Some(repository) = crate::repositories::named(db, assignee).await? {
         let account = crate::supervisors::named(db, &holder)
           .await?
-          .and_then(|supervisor| supervisor.owner_account)
-          .map(|account| account.to_string());
+          .and_then(|supervisor| supervisor.owner_account);
         let seating = super::support_growth::Seating {
           item: &asked["item"],
           role: &role,
-          account: account.as_deref(),
+          account,
         };
         let holding = super::support_growth::Holding {
           item_id,
@@ -951,9 +950,8 @@ impl Route for CreateJob {
     });
     let account = crate::supervisors::named(db, &holder)
       .await?
-      .and_then(|supervisor| supervisor.owner_account)
-      .map(|account| account.to_string());
-    let seat = item_seat(&call.shared_ground(), item_id, &item, &asked_role, account.as_deref()).await?;
+      .and_then(|supervisor| supervisor.owner_account);
+    let seat = item_seat(&call.shared_ground(), item_id, &item, &asked_role, account).await?;
     // A launch of the item opens where the last session that worked on it left off (docs/sessions.md, 「The
     // handoff a job's session leaves」).
     let prompt = match crate::job_handoff::of_item(&call.shared_ground(), item_id).await {
@@ -2719,7 +2717,7 @@ async fn item_seat(
   item_id: i64,
   item: &Value,
   role: &str,
-  account: Option<&str>,
+  account: Option<i64>,
 ) -> Result<Seat, Refused> {
   let db = &ground.db;
   let labels = &item["labels"];
@@ -2728,7 +2726,7 @@ async fn item_seat(
   if label.is_none()
     && let Some(model) = named_by(labels, MODEL_LABEL)
   {
-    let candidates = crate::role_agents::candidates(db, role, model, account).await?;
+    let candidates = crate::role_agents::candidates(ground, role, model, account).await?;
 
     if !candidates.is_empty() {
       return Ok(Seat {
@@ -2989,9 +2987,7 @@ pub async fn job_seat(
 
   let mut held = match waiting_seat(ground, id, asked).await? {
     Some(waiting) => waiting,
-    None => {
-      dispatch::enqueue(&ground.db, &ground.events, asked, dispatch::JOB, async |_, _| Ok(())).await?
-    }
+    None => dispatch::enqueue(ground, asked, dispatch::JOB, async |_, _| Ok(())).await?,
   };
   let mut told = false;
   // A job written waiting for its seat (docs/api.md, 「assignments and jobs」) that the line lets in at its first
@@ -3062,7 +3058,7 @@ async fn job_held(ground: &Ground, id: i64) -> bool {
 // deployment's own; a read that fails waits for the next ask rather than deciding anything.
 async fn named_agent_account<C: ConnectionTrait>(db: &C, agent: &str) -> Option<String> {
   match crate::role_agents::named(db, agent).await {
-    Ok(held) => held.and_then(|held| held.owner_account),
+    Ok(held) => held.and_then(|held| held.owner_account).map(|account| account.to_string()),
     Err(why) => {
       eprintln!("the agent {agent}'s account could not be read: {why}");
       None
@@ -3095,8 +3091,10 @@ async fn never_let_in(ground: &Ground, held: &Request, wanted: &str) -> Option<S
     ));
   }
 
-  if agent.owner_account != held.account {
-    let stands = match agent.owner_account.as_deref() {
+  let owner = agent.owner_account.map(|account| account.to_string());
+
+  if owner != held.account {
+    let stands = match owner.as_deref() {
       Some(account) => format!("account {account}"),
       None => "the deployment".to_owned(),
     };
@@ -3382,7 +3380,7 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
       &Opening {
         agent: self.worker.to_owned(),
         chat_id: member["roomId"].as_i64(),
-        unit: self.name.to_owned(),
+        work_unit: self.name.to_owned(),
         depth: 0,
         cap_ms: None,
         started_at: now_ms(),

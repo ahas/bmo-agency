@@ -326,7 +326,7 @@ async fn rows(scratch: &Scratch, home: &std::path::Path) {
     scratch
       .run(
         r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'worker', $2)"#,
-        vec![format!("worker-{side}").into(), account.map(|account| account.to_string()).into()],
+        vec![format!("worker-{side}").into(), account.into()],
       )
       .await;
   }
@@ -442,7 +442,7 @@ async fn a_member_adds_under_their_own_account_and_never_under_another_s() {
 
   let (status, agent) = as_member("/role-agents", json!({ "role": "worker", "name": "worker-mine" })).await;
 
-  assert_eq!((status, &agent["ownerAccount"]), (201, &json!("7")), "{agent}");
+  assert_eq!((status, &agent["ownerAccount"]), (201, &json!(7)), "{agent}");
 
   let path = home.path().join("mine").to_string_lossy().into_owned();
   let (status, repository) = as_member("/repositories", json!({ "name": "mine", "path": path })).await;

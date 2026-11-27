@@ -150,7 +150,7 @@ impl Route for SlotAsk {
       asked_by,
       account: None,
     };
-    let request = dispatch::enqueue(call.store(), call.events(), &asked, source, async |_, _| Ok(()))
+    let request = dispatch::enqueue(call.ground(), &asked, source, async |_, _| Ok(()))
       .await
       .map_err(refused)?;
 

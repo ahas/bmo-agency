@@ -34,16 +34,20 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   is its agent's. Which agent does a job's work is named by the supervisor that orders it, or, where its item
   names a model and a role instead, taken by the agency at the launch from that role's free agents on that model
   (「Which agent a run takes」).
-- **An agent belongs to an account** (`STRUCTURE.md`, 「Accounts, companies and units」): `ownerAccount`, the id of
-  the login account whose seat it is, or none for the deployment's own. A run is let in only on the agents of its
-  own account — the account of the supervisor that asks it, or none — so one account's runs never take another
-  account's seat, and an account's settings of a role are its own agents' prompts, bundles and skills laid over
-  the role's preset. The role itself, its preset, is the deployment's.
+- **An agent is a seat of an account or of an organisation unit** (`STRUCTURE.md`, 「Accounts, companies and
+  units」): `ownerAccount`, the id of the login account whose seat it is, or `ownerUnit`, the unit whose seat it
+  is, or neither for the deployment's own; never both (`docs/api.md`, 「Who a caller acts for」). A run is let in
+  only on the agents of its own account — the account of the supervisor that asks it, or none — so one account's
+  runs never take another account's seat, and an account's settings of a role are its own agents' prompts,
+  bundles and skills laid over the role's preset. A unit's seat is added, changed and removed by that unit's
+  heads alone. A unit's seat carries no run yet: letting a unit's people's runs take its seats stands with the
+  unit's supply. The role itself, its preset, is the deployment's.
 
 ## What an agent row holds
 
 - **Kept in agency's store,** the `role_agents` table (`docs/store.md`), one row an agent:
-  - **its account,** `ownerAccount`, the login account whose seat it is, or none for the deployment's own;
+  - **its owners,** `ownerAccount`, the login account whose seat it is, or `ownerUnit`, the organisation unit
+    whose seat it is, neither for the deployment's own and never both;
   - **its name,** its key, kebab-case, which a screen and a log show the agent by; an agent added with no
     name is named after its role and a number, `coder-01`;
   - **its role,** one the store holds;
@@ -136,7 +140,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   item names neither is refused at its launch (`docs/repositories.md`, 「An agent an item names」). Where the
   item names an agent, nothing in the agency picks one; an `agent` label stands over a `model` label.
 - **A job whose item names a model takes a free agent of its role on that model.** Its candidates are the
-  agents of its role that are switched on, of the account of the supervisor that launches it, and whose road
+  agents of its role that are switched on, of the account of the supervisor that launches it or of a unit of
+  that account's path (「A unit's seats run their people's work」 below), and whose road
   runs that model. At the launch the agency takes the first candidate by name that is free (「When an agent is
   busy」), in the same step as it writes the job: every candidate's row is held while they are read and the job
   written, so two launches at once never take one agent. Where every candidate is busy the launch is refused,
@@ -160,8 +165,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   start later, and no turn of work goes out unless a supervisor's launch or review move asks for it now. When
   the agent, or one of the candidates, comes free its supervisor is told, and the supervisor launches
   (`docs/agent-control.md`, 「An item's change is told to its orderer」).
-- **A run that names no agent is let in on any agent of its role that is switched on, is free, and whose
-  road can answer now,** taken by name where several are free; the agents hold no order of priority. A run a
+- **A run that names no agent is let in on any agent of its role that is switched on, that its account may
+  take, is free, and whose road can answer now,** taken by name where several are free; the agents hold no
+  order of priority, and a unit's seat stands in the pool beside the account's own. A run a
   supervisor asks may take an agent that names no road, or one that follows its asker, on that supervisor's
   road, and a run no supervisor asks passes the agents that name no road over and takes one that follows its
   asker on that agent's own road.
@@ -182,6 +188,19 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A reservation holds seats of a role by count,** not agents by name: a reserved seat is one fewer agent a
   run may be let in on, and the request that takes the reservation's place is let in on any agent then
   free.
+- **A unit's seats run their people's work.** A seat filed under an organisation unit is let in on the runs
+  of the accounts whose path stands on that unit — the unit's own people and those of the units below it —
+  as a unit's supply is taken by them (`docs/supply.md`, 「Organisation supply」). Its road stands as any
+  agent's, its runs are the account's runs for the line and the cap (the account's cap counts the seat, and
+  the seat holds one run at a time), and its filing, changes and removal stay the unit's heads alone
+  (`docs/api.md`, 「Who a caller acts for」). The run stands under the seat: it carries the unit's filing on
+  the ledger row, is handed the unit's space of the console's secret store
+  (`docs/tools.md`, 「The owner and the runner a record names」), keeps no seat's composition settings, and is
+  composed as the run of an agent of no account is — its role's prompt alone, since none of the asker's own
+  agent settings stand over it (`docs/prompt-layers.md`, 「A role's agents of an account」) — for
+  it is the unit's thing, not any person's. A run asked for no
+  account, the deployment's own, takes no unit's seat; neither does an account whose path does not stand on
+  the unit, whatever else it may read of it.
 
 ## When an agent is busy
 

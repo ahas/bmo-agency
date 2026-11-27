@@ -41,7 +41,9 @@ pub struct Opening {
   pub agent: String,
   #[serde(default, alias = "chat_id")]
   pub chat_id: Option<i64>,
-  pub unit: String,
+  /// The unit of work the run is: the name its log lines and its runner stand under.
+  #[serde(rename = "unit")]
+  pub work_unit: String,
   pub depth: u32,
   #[serde(default, alias = "cap_ms")]
   pub cap_ms: Option<i64>,
@@ -102,7 +104,16 @@ pub struct Run {
   pub id: i64,
   pub agent: String,
   pub chat_id: Option<i64>,
-  pub unit: String,
+  /// The unit of work the run is, answered to a caller under `unit`.
+  #[serde(rename = "unit")]
+  pub work_unit: String,
+  /// The account the run's agent is filed under, none for the platform's; kept for the reach of a list, never
+  /// answered whole.
+  #[serde(skip)]
+  pub owner_account: Option<i64>,
+  /// The organisation unit the run's agent is filed under, none where it is no unit's.
+  #[serde(skip)]
+  pub owner_unit: Option<i64>,
   pub title: Option<String>,
   pub depth: i64,
   pub started_at: i64,
@@ -122,7 +133,9 @@ impl Run {
       id: row.try_get("", "id")?,
       agent: row.try_get("", "agent")?,
       chat_id: row.try_get("", "chat_id")?,
-      unit: row.try_get("", "unit")?,
+      work_unit: row.try_get("", "work_unit")?,
+      owner_account: row.try_get("", "owner_account")?,
+      owner_unit: row.try_get("", "owner_unit")?,
       title: row.try_get("", "title")?,
       depth: row.try_get("", "depth")?,
       started_at: row.try_get("", "started_at")?,
@@ -176,16 +189,37 @@ impl From<Refusal> for NotClosed {
 
 /// Opens a run, answering its id.
 pub async fn open<C: ConnectionTrait>(db: &C, opening: &Opening) -> Result<i64, Refusal> {
+  // The run stands under its agent's owners: the account or unit the agent row is filed under, none for the
+  // platform's, so a head's list and a stranger's are each read by the row's own ground (docs/api.md, 「runs」).
+  let owners = one(
+    db,
+    r#"SELECT "owner_account", "owner_unit" FROM "supervisors" WHERE "name" = $1
+       UNION ALL
+       SELECT "owner_account", "owner_unit" FROM "role_agents" WHERE "name" = $1 LIMIT 1"#,
+    vec![opening.agent.clone().into()],
+  )
+  .await?;
+  let (owner_account, owner_unit) = owners.map_or((None, None), |row| {
+    (
+      row.try_get::<Option<i64>>("", "owner_account").unwrap_or(None),
+      row.try_get::<Option<i64>>("", "owner_unit").unwrap_or(None),
+    )
+  });
+
   let row = one(
     db,
     r#"INSERT INTO "runs"
-         ("agent", "chat_id", "unit", "depth", "cap_ms", "started_at", "started_by", "search_id", "round", "message_id",
+         ("agent", "chat_id", "work_unit", "owner_account", "owner_unit", "depth", "cap_ms", "started_at",
+          "started_by", "search_id", "round",
+          "message_id",
           "title", "carried")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING "id""#,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING "id""#,
     vec![
       opening.agent.clone().into(),
       opening.chat_id.into(),
-      opening.unit.clone().into(),
+      opening.work_unit.clone().into(),
+      owner_account.into(),
+      owner_unit.into(),
       i64::from(opening.depth).into(),
       opening.cap_ms.into(),
       opening.started_at.into(),
@@ -211,7 +245,7 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
          "input_tokens" = $5, "output_tokens" = $6, "cache_read_tokens" = $7, "cache_write_tokens" = $8,
          "cost_micros" = $9,
          "tool_count" = (SELECT COUNT(*) FROM "agent_log" l
-                          WHERE l."agent" = "runs"."agent" AND l."run" = "runs"."unit" AND l."kind" = 'tool')
+                          WHERE l."agent" = "runs"."agent" AND l."run" = "runs"."work_unit" AND l."kind" = 'tool')
        WHERE "id" = $1 AND "finished_at" IS NULL"#,
     vec![
       id.into(),
@@ -239,7 +273,8 @@ pub async fn close<C: ConnectionTrait>(db: &C, id: i64, closing: &Closing) -> Re
 }
 
 // What a run is read with.
-const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "unit", "title", "depth", "started_at", "finished_at", "outcome",
+const RUN_FIELDS: &str = r#""id", "agent", "chat_id", "work_unit", "owner_account", "owner_unit", "title", "depth",
+  "started_at", "finished_at", "outcome",
   "context_tokens", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "cost_micros", "round",
   "message_id", "tool_count""#;
 
@@ -257,7 +292,7 @@ pub async fn of_unit<C: ConnectionTrait>(db: &C, agent: &str, unit: &str) -> Res
   one(
     db,
     &format!(
-      r#"SELECT {RUN_FIELDS} FROM "runs" WHERE "unit" = $1 AND ($2 = '' OR "agent" = $2)
+      r#"SELECT {RUN_FIELDS} FROM "runs" WHERE "work_unit" = $1 AND ($2 = '' OR "agent" = $2)
          ORDER BY "id" DESC LIMIT 1"#
     ),
     vec![unit.into(), agent.into()],
@@ -309,7 +344,7 @@ pub async fn search<C: ConnectionTrait>(db: &C, search: &Search) -> Result<Page,
            AND ($5::bigint IS NULL OR "chat_id" = $5)
            AND ($6::text IS NULL OR "round" = $6)
            AND ($7::jsonb = '[]'::jsonb
-                OR "unit" IN (SELECT jsonb_array_elements_text($7::jsonb))
+                OR "work_unit" IN (SELECT jsonb_array_elements_text($7::jsonb))
                 OR "round" IN (SELECT jsonb_array_elements_text($7::jsonb)))
          ORDER BY "id" {} LIMIT $8"#,
       if upward { "ASC" } else { "DESC" }
@@ -367,18 +402,26 @@ pub async fn spent_by_round<C: ConnectionTrait>(
   db: &C,
   after: i64,
   before: i64,
+  keep: Option<&str>,
 ) -> Result<Vec<RoundSpend>, Refusal> {
+  let kept = match keep {
+    Some(predicate) => format!(r#" AND {predicate}"#),
+    None => String::new(),
+  };
+
   all(
     db,
-    r#"SELECT "round", COUNT(*) AS "turns",
+    &format!(
+      r#"SELECT "round", COUNT(*) AS "turns",
               SUM("input_tokens")::bigint AS "input_tokens", SUM("output_tokens")::bigint AS "output_tokens",
               SUM("cache_read_tokens")::bigint AS "cache_read_tokens",
               SUM("cache_write_tokens")::bigint AS "cache_write_tokens", SUM("cost_micros")::bigint AS "cost_micros",
               MIN("started_at") AS "first_at", MAX("started_at") AS "last_at"
        FROM "runs"
-       WHERE "round" IS NOT NULL AND "input_tokens" IS NOT NULL AND "started_at" >= $1 AND "started_at" <= $2
+       WHERE "round" IS NOT NULL AND "input_tokens" IS NOT NULL AND "started_at" >= $1 AND "started_at" <= $2{kept}
        GROUP BY "round"
-       ORDER BY SUM("input_tokens" + "output_tokens" + "cache_read_tokens" + "cache_write_tokens") DESC, "round""#,
+       ORDER BY SUM("input_tokens" + "output_tokens" + "cache_read_tokens" + "cache_write_tokens") DESC, "round""#
+    ),
     vec![after.into(), before.into()],
   )
   .await?
@@ -490,7 +533,7 @@ pub async fn launch(ground: &Ground, id: i64, launch: Launch) -> Result<(), NotL
   let left = Left {
     agent: &launch.agent,
     for_agent: None,
-    name: &run.unit,
+    name: &run.work_unit,
     title: &launch.title,
     command: launch.command.into(),
   };
@@ -505,7 +548,7 @@ pub async fn launch(ground: &Ground, id: i64, launch: Launch) -> Result<(), NotL
   };
 
   if let Err(NotClosed::Store(why)) = close(&ground.db, id, &closing).await {
-    eprintln!("{}: the run's row could not be closed: {}", run.unit, why.detail);
+    eprintln!("{}: the run's row could not be closed: {}", run.work_unit, why.detail);
   }
 
   Err(NotLaunched::Refused(code))

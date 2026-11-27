@@ -223,7 +223,7 @@ async fn a_role_run_stands_on_its_seat_s_account_s_node_and_one_on_the_deploymen
   let scratch = Scratch::new().await;
   let db = scratch.db();
 
-  for (name, account) in [("coder-07", Some("7")), ("coder-08", Some("8")), ("coder-01", None)] {
+  for (name, account) in [("coder-07", Some(7i64)), ("coder-08", Some(8)), ("coder-01", None)] {
     scratch
       .run(
         r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'coder', $2)"#,
@@ -473,7 +473,7 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   scratch
     .run(r#"INSERT INTO "settings" ("key", "value") VALUES ('users_administrator', '9')"#, vec![])
     .await;
-  for (name, account) in [("coder-07", Some("7")), ("coder-01", None)] {
+  for (name, account) in [("coder-07", Some(7i64)), ("coder-01", None)] {
     scratch
       .run(
         r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'coder', $2)"#,
@@ -565,10 +565,50 @@ async fn an_account_s_caller_reaches_its_own_account_s_node_alone_and_a_supervis
   assert!(!access("pc-8", "worker", Some("coder"), Some("/work/seven")).await.reaches);
   assert!(!access("pc-8", "worker", Some("coder"), Some("/work/other")).await.reaches);
 
+  // A supervisor or seat filed under an organisation unit answers that unit, so its runs are handed the unit's
+  // secret space (docs/accounts.md, 「The secret store」); an account's row names no unit.
+  rows::supervisor(db, "sup-unit", &[("owner_unit", 5i64.into())]).await;
+  scratch
+    .run(
+      r#"INSERT INTO "role_agents" ("name", "role", "owner_unit") VALUES ('coder-unit', 'coder', 5)"#,
+      vec![],
+    )
+    .await;
+  let acts_as = |agent: &'static str| {
+    let data = data.path().to_owned();
+
+    async move {
+      person_nodes::acting_for(
+        db,
+        &data,
+        Caller {
+          agent,
+          role: None,
+          checkout: None,
+        },
+      )
+      .await
+      .unwrap()
+    }
+  };
+
+  let acting = acts_as("sup-unit").await;
+
+  assert_eq!(acting.account, None, "a unit's supervisor acts for no account");
+  assert_eq!(acting.unit, Some(5), "and is named by its unit");
+
+  let acting = acts_as("coder-unit").await;
+
+  assert!(!acting.administrator, "a unit's seat holds no grant of its own");
+  assert_eq!(acting.unit, Some(5), "{acting:?}");
+
+  assert_eq!(acts_as("u7").await.unit, None, "an account's agent names no unit");
+
   // The grants a record holds follow the same judgement.
   let acting = |administrator| ActingFor {
     account: None,
     administrator,
+    unit: None,
   };
 
   assert_eq!(acting(false).grants(), Vec::<String>::new());
@@ -599,7 +639,7 @@ async fn a_role_session_s_turn_runs_as_the_seat_of_its_slot_one_asked_with_no_pa
     },
     ..Asked::default()
   };
-  let held = dispatch::enqueue(db, &ground.events, &asked, "job", async |_, _| Ok(())).await.unwrap();
+  let held = dispatch::enqueue(&ground, &asked, "job", async |_, _| Ok(())).await.unwrap();
   let active = dispatch::acquire(&ground, &held).await.unwrap().expect("let in");
   let seat = active.seat.clone().expect("seated");
   let folder = "/agents/worker";

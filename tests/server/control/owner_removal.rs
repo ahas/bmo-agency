@@ -73,11 +73,11 @@ async fn three_owners(scratch: &Scratch, data: &Path) {
     rows::supervisor(db, name, &with).await;
   }
 
-  for (name, owner) in [("worker-u7", Some("7")), ("worker-u8", Some("8")), ("worker", None)] {
+  for (name, owner) in [("worker-u7", Some(7i64)), ("worker-u8", Some(8)), ("worker", None)] {
     scratch
       .run(
         r#"INSERT INTO "role_agents" ("name", "role", "owner_account") VALUES ($1, 'worker', $2)"#,
-        vec![name.into(), owner.map(str::to_owned).into()],
+        vec![name.into(), owner.into()],
       )
       .await;
   }
@@ -145,7 +145,7 @@ async fn three_owners(scratch: &Scratch, data: &Path) {
     scratch
       .run(
         r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
-             "thinking", "walked", "added_at", "keeps_research", "account")
+             "thinking", "walked", "added_at", "keeps_research", "owner_account")
            VALUES ($1, $1, 'served', 200000, 8000, 1, 1, 1, 0, $2)"#,
         vec![name.into(), account.into()],
       )
@@ -161,7 +161,7 @@ async fn three_owners(scratch: &Scratch, data: &Path) {
     scratch
       .run(
         r#"INSERT INTO "claude_accounts" ("id", "name", "place", "enabled", "credential_kind", "credential_path",
-             "added_at", "user_id", "unit_id")
+             "added_at", "owner_account", "owner_unit")
            VALUES ($1, $1, 9, 1, 'directory', '/nowhere', 0, $2, $3)"#,
         vec![id.into(), user.into(), unit.into()],
       )
@@ -187,7 +187,7 @@ async fn three_owners(scratch: &Scratch, data: &Path) {
   ] {
     scratch
       .run(
-        r#"INSERT INTO "personal_supply" ("user_id", "unit_id", "road", "secret", "place", "added_at")
+        r#"INSERT INTO "personal_supply" ("owner_account", "owner_unit", "road", "secret", "place", "added_at")
            VALUES ($1, $2, 'deepseek', $3, 1, 0)"#,
         vec![user.into(), unit.into(), secret.into()],
       )
@@ -303,9 +303,9 @@ async fn an_owner_s_count_is_what_its_removal_takes_and_another_s_and_the_platfo
     ("repositories", r#""owner_account" = 7"#),
     ("repository_node_checkouts", r#""repository" = 'seven-repo'"#),
     ("support_checkouts", r#""repository" = 'seven-repo'"#),
-    ("registered_models", r#""account" = 7"#),
-    ("claude_accounts", r#""user_id" = 7"#),
-    ("personal_supply", r#""user_id" = 7"#),
+    ("registered_models", r#""owner_account" = 7"#),
+    ("claude_accounts", r#""owner_account" = 7"#),
+    ("personal_supply", r#""owner_account" = 7"#),
     ("supply_reservations", r#""account" = 7"#),
     ("gateway_call_keys", r#""account" = 7"#),
     ("gateway_requests", r#""account" = 7"#),
@@ -347,9 +347,9 @@ async fn an_owner_s_count_is_what_its_removal_takes_and_another_s_and_the_platfo
       2,
     ),
     ("repository_node_checkouts", r#""repository" = 'eight-repo'"#, 1),
-    ("registered_models", r#""account" = 8 OR "account" IS NULL"#, 2),
-    ("claude_accounts", r#""user_id" = 8"#, 1),
-    ("personal_supply", r#""user_id" = 8"#, 1),
+    ("registered_models", r#""owner_account" = 8 OR "owner_account" IS NULL"#, 2),
+    ("claude_accounts", r#""owner_account" = 8"#, 1),
+    ("personal_supply", r#""owner_account" = 8"#, 1),
     ("supply_reservations", r#""account" IN (8, 9)"#, 3),
     ("gateway_call_keys", r#""account" = 8"#, 1),
     ("gateway_requests", r#""account" = 8 OR "account" IS NULL"#, 2),
@@ -381,10 +381,33 @@ async fn a_unit_s_count_is_what_its_removal_takes_and_another_unit_s_stand() {
 
   three_owners(&scratch, &home.path().join("data")).await;
 
+  // A supervisor, a seat and a registration filed under each unit, so the unit's own kinds are counted and
+  // taken beside the ones the fixture stands.
+  for unit in [40i64, 41] {
+    rows::supervisor(scratch.db(), &format!("bmo-unit-{unit}"), &[("owner_unit", unit.into())]).await;
+    scratch
+      .run(
+        r#"INSERT INTO "role_agents" ("name", "role", "owner_unit") VALUES ($1, 'worker', $2)"#,
+        vec![format!("seat-unit-{unit}").into(), unit.into()],
+      )
+      .await;
+    scratch
+      .run(
+        r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens",
+             "thinking", "walked", "added_at", "owner_unit")
+           VALUES ($1, $1, 'some-model', 8192, 1024, 0, 0, 0, $2)"#,
+        vec![format!("model-unit-{unit}").into(), unit.into()],
+      )
+      .await;
+  }
+
   let port = front(ground_on(scratch.db().clone(), home.path())).await;
   let owner = administrator(port);
   let company = OrgUnitRemovalQuery { company: Some(40) };
   let expected = kinds(&[
+    ("supervisors", 1),
+    ("role-agents", 1),
+    ("registered-models", 1),
     ("repositories", 1),
     ("repository-checkouts", 0),
     ("organisation-supply", 1),
@@ -398,13 +421,19 @@ async fn a_unit_s_count_is_what_its_removal_takes_and_another_unit_s_stand() {
   assert_eq!(owner.remove_org_unit(40, &company).await.unwrap().removed, zeros(&expected));
 
   for (table, column, left) in [
+    ("supervisors", r#""owner_unit" = 40"#, 0),
+    ("role_agents", r#""owner_unit" = 40"#, 0),
+    ("registered_models", r#""owner_unit" = 40"#, 0),
+    ("supervisors", r#""owner_unit" = 41"#, 1),
+    ("role_agents", r#""owner_unit" = 41"#, 1),
+    ("registered_models", r#""owner_unit" = 41"#, 1),
     ("repositories", r#""owner_unit" = 40"#, 0),
-    ("personal_supply", r#""unit_id" = 40"#, 0),
-    ("claude_accounts", r#""unit_id" = 40"#, 0),
+    ("personal_supply", r#""owner_unit" = 40"#, 0),
+    ("claude_accounts", r#""owner_unit" = 40"#, 0),
     ("supply_reservations", r#""unit_id" = 40"#, 0),
     ("repositories", r#""owner_unit" = 41"#, 1),
-    ("personal_supply", r#""unit_id" = 41"#, 1),
-    ("claude_accounts", r#""unit_id" = 41"#, 1),
+    ("personal_supply", r#""owner_unit" = 41"#, 1),
+    ("claude_accounts", r#""owner_unit" = 41"#, 1),
     ("supply_reservations", r#""unit_id" = 41"#, 1),
     // The person's own reservation stands, taken off the unit and captured.
     (
@@ -412,8 +441,8 @@ async fn a_unit_s_count_is_what_its_removal_takes_and_another_unit_s_stand() {
       r#""run" = 'job-91' AND "unit_id" IS NULL AND "state" = 'captured'"#,
       1,
     ),
-    ("personal_supply", r#""user_id" IS NOT NULL"#, 2),
-    ("claude_accounts", r#""user_id" IS NOT NULL"#, 2),
+    ("personal_supply", r#""owner_account" IS NOT NULL"#, 2),
+    ("claude_accounts", r#""owner_account" IS NOT NULL"#, 2),
   ] {
     assert_eq!(
       rows_of(&scratch, &format!(r#"SELECT COUNT(*) FROM "{table}" WHERE {column}"#)).await,

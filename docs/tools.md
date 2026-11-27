@@ -154,7 +154,9 @@ here.
 - **And the folder that account's secrets stand in,** `secretSpace`, which a call of a personal tool naming secrets
   is handed them from (`docs/person-nodes.md`, 「The network and secrets of a call」): the console's secret store's
   space of the account, the data root's `env/users/<account>/`, and the data root's `env/` itself for the
-  administrator's (bmo-web's `docs/accounts.md`, 「The secret store」).
+  administrator's (bmo-web's `docs/accounts.md`, 「The secret store」). A caller whose agent row stands filed under
+  an organisation unit — the row's unit, no account — is handed that unit's space, `env/units/<unit>/`, whatever
+  account it otherwise acts for.
 - **It is judged as the record is issued,** as the grants are, so a session issued again reads the account and its
   PC afresh.
 ## The procedures
@@ -191,7 +193,7 @@ here.
 - **`tools/worker_ask`** declares `bmo/worker_ask` to a session holding `room.tools`: a supervisor hands a
   small coding task to a run of the `worker` role, with no queue item, lease or report.
 - **It carries no room check** (`docs/launch-lines.md`, 「What a room's words may make a supervisor do」): what a
-  room's words may have the supervisor ask is the supervisor's rules' and the owner's room rules'. A person asking
+  room's words may have the supervisor ask is the supervisor's rules'. A person asking
   their own BMO for an app of their own is held by the chain's `personal-apps.make` at the app's put
   (`docs/person-nodes.md`, 「Personal apps」).
 - **Its arguments** are the words and an optional folder or app. The folder is the asking supervisor's scratch

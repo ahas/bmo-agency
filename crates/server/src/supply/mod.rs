@@ -321,12 +321,48 @@ pub fn carrying(chosen: Option<&Chosen>) -> Carrying {
 
 /// The name a gateway road's run is sent under on the person's own key or their organisation's: its member's
 /// name marked with the person or the unit (docs/own-llm.md, 「Personal members」); none where the run goes out on
-/// the member's own name, the platform's or one the person owns.
-pub fn personal_member(chosen: Option<&Chosen>, name: &str) -> Option<String> {
-  match chosen.map(|chosen| (&chosen.source, chosen.account)) {
-    Some((Source::Personal, Some(account))) => Some(format!("{name}@u{account}")),
-    Some((Source::Organisation { unit, .. }, Some(_))) => Some(format!("{name}@o{unit}")),
+/// the member's own name, the platform's, one the person owns, or one the unit itself owns — a member filed
+/// under the unit carries the unit's own key and needs no variant (`docs/supply.md`, 「Organisation supply」).
+pub fn personal_member(
+  chosen: Option<&Chosen>,
+  machine: &harness_providers::Machine,
+  name: &str,
+) -> Option<String> {
+  let chosen = chosen?;
+  match (&chosen.source, chosen.account) {
+    (Source::Personal, Some(account)) => Some(format!("{name}@u{account}")),
+    (Source::Organisation { unit, .. }, Some(_)) => {
+      let own = harness_providers::member::member_named(machine, &chosen.provider, name)
+        .is_ok_and(|held| held.is_some_and(|member| member.unit == Some(*unit)));
+
+      (!own).then(|| format!("{name}@o{unit}"))
+    }
     _ => None,
+  }
+}
+
+/// The organisation unit a model is filed under, none where no unit owns it: a registration by its own row, a
+/// gateway road's member by the members file; a Claude account's unit is read by the walk of its logins
+/// (docs/supply.md, 「Owned supply」).
+pub async fn model_unit(ground: &Ground, provider: &str, model: &str) -> Result<Option<i64>, Refusal> {
+  match provider {
+    CLAUDE_CODE => Ok(None),
+    REGISTERED => Ok(
+      one(
+        &ground.db,
+        r#"SELECT "owner_unit" FROM "registered_models" WHERE "name" = $1"#,
+        vec![model.into()],
+      )
+      .await?
+      .map(|row| row.try_get::<Option<i64>>("", "owner_unit"))
+      .transpose()?
+      .flatten(),
+    ),
+    road => Ok(
+      harness_providers::member::member_named(&ground.machine(), road, model)
+        .map_err(Refusal::failed)?
+        .and_then(|member| member.unit),
+    ),
   }
 }
 
@@ -339,11 +375,11 @@ pub async fn owner_of(ground: &Ground, provider: &str, model: &str) -> Result<Op
     REGISTERED => Ok(
       one(
         &ground.db,
-        r#"SELECT "account" FROM "registered_models" WHERE "name" = $1"#,
+        r#"SELECT "owner_account" FROM "registered_models" WHERE "name" = $1"#,
         vec![model.into()],
       )
       .await?
-      .map(|row| row.try_get::<Option<i64>>("", "account"))
+      .map(|row| row.try_get::<Option<i64>>("", "owner_account"))
       .transpose()?
       .flatten(),
     ),
@@ -397,7 +433,7 @@ pub async fn personal_source(
   let keyed = one(
     &ground.db,
     r#"SELECT 1 AS "open" FROM "personal_supply"
-       WHERE "user_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL LIMIT 1"#,
+       WHERE "owner_account" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL LIMIT 1"#,
     vec![account.into(), provider.into()],
   )
   .await?
@@ -436,7 +472,7 @@ async fn own_key_refused(ground: &Ground, account: i64, provider: &str) -> Resul
     one(
       &ground.db,
       r#"SELECT 1 AS "refused" FROM "personal_supply"
-         WHERE "user_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NOT NULL LIMIT 1"#,
+         WHERE "owner_account" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NOT NULL LIMIT 1"#,
       vec![account.into(), provider.into()],
     )
     .await?
@@ -445,8 +481,9 @@ async fn own_key_refused(ground: &Ground, account: i64, provider: &str) -> Resul
 }
 
 /// The nearest unit of `units` whose own supply is open for the road's provider, where one is: a Claude account
-/// of the unit's that can answer now for a Claude Code road, an open key of the unit's for a gateway road; the
-/// registry's provider has none (docs/supply.md, 「Organisation supply」).
+/// of the unit's that can answer now for a Claude Code road, an open key of the unit's or a member of the road
+/// the unit itself owns for a gateway road, or the run's model as a registration filed under the unit for the
+/// registry's provider (docs/supply.md, 「Organisation supply」).
 pub async fn organisation_source(
   ground: &Ground,
   units: &[i64],
@@ -459,15 +496,22 @@ pub async fn organisation_source(
         .await
         .map_err(|refused| Refusal::failed(refused.error))?
         .is_empty(),
-      REGISTERED => false,
-      road => one(
-        &ground.db,
-        r#"SELECT 1 AS "open" FROM "personal_supply"
-           WHERE "unit_id" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL LIMIT 1"#,
-        vec![(*unit).into(), road.into()],
-      )
-      .await?
-      .is_some(),
+      // A registration answers the walk by its filing alone, as a person's own one answers personal supply;
+      // whether the engine behind it stands is the gateway's to answer at the request.
+      REGISTERED => model_unit(ground, REGISTERED, model).await? == Some(*unit),
+      road => {
+        one(
+          &ground.db,
+          r#"SELECT 1 AS "open" FROM "personal_supply"
+             WHERE "owner_unit" = $1 AND "road" = $2 AND "enabled" AND "refused_at" IS NULL LIMIT 1"#,
+          vec![(*unit).into(), road.into()],
+        )
+        .await?
+        .is_some()
+          || harness_providers::member::member_named(&ground.machine(), road, model)
+            .map_err(Refusal::failed)?
+            .is_some_and(|member| member.unit == Some(*unit))
+      }
     };
 
     if open {
@@ -487,7 +531,12 @@ pub async fn platform_open(
   model: &str,
 ) -> Result<bool, Refusal> {
   if provider != CLAUDE_CODE {
-    return Ok(owner_of(ground, provider, model).await?.is_none());
+    // What a person or a unit owns stands with their things: no platform source (docs/supply.md, 「Owned
+    // supply」).
+    return Ok(
+      owner_of(ground, provider, model).await?.is_none()
+        && model_unit(ground, provider, model).await?.is_none(),
+    );
   }
 
   Ok(
@@ -521,6 +570,12 @@ pub async fn carries(
     supervisor: None,
     room: None,
   };
+  // A provider the owner switched off or the person's chain closes carries nothing, as a run of it would find
+  // its walk ended before any source (docs/supply.md, 「A closed provider is read as closed, not as absent」).
+  if provider_state(ground, provider, account).await?.is_some() {
+    return Ok(vec![false; models.len()]);
+  }
+
   let order = hook::order(&ground.hooks, ask).await.unwrap_or_else(|| vec![PERSONAL.to_owned()]);
   let units = sources::units_for(ground, account, &order).await;
   let mut carried = Vec::with_capacity(models.len());
@@ -546,6 +601,78 @@ pub async fn carries(
   }
 
   Ok(carried)
+}
+
+/// Who stands a provider off for a person: the owner's switch, or their chain holding
+/// `provider.<code>.offered` off below a link that said it, with that link; none where its sources stand open
+/// for them (docs/supply.md, 「A closed provider is read as closed, not as absent」).
+pub enum ProviderOff {
+  Owner,
+  Chain(Option<String>),
+}
+
+impl ProviderOff {
+  /// The word the reads carry it by.
+  pub fn word(&self) -> &'static str {
+    match self {
+      Self::Owner => "owner",
+      Self::Chain(_) => "chain",
+    }
+  }
+
+  /// The link that closed the provider, where the chain did.
+  pub fn link(&self) -> Option<String> {
+    match self {
+      Self::Owner => None,
+      Self::Chain(from) => from.clone(),
+    }
+  }
+}
+
+pub async fn provider_state(
+  ground: &Ground,
+  provider: &str,
+  person: i64,
+) -> Result<Option<ProviderOff>, Refusal> {
+  if !crate::control::harness::provider_enabled(&ground.db, provider)
+    .await
+    .map_err(|refused| Refusal::failed(refused.error))?
+  {
+    return Ok(Some(ProviderOff::Owner));
+  }
+
+  if !harness_providers::ARCHIVE_PROVIDERS.contains(&provider) {
+    return Ok(None);
+  }
+
+  let key = format!("provider.{provider}.offered");
+  let answer =
+    crate::chain::resolve(&crate::apps::service(ground), &key, crate::chain::Subject::Person(person)).await;
+  let answered = match answer {
+    // A chain that does not answer says nothing: as every narrowing flag does, its default stands open
+    // (docs/cache-fallback.md, 「The account judgement」).
+    Err(why) => {
+      eprintln!("agency: the offer of provider {provider} for account {person} was not read: {why}");
+      return Ok(None);
+    }
+    Ok(answer) => answer,
+  };
+
+  if crate::chain::flag(answered.as_ref(), true) {
+    return Ok(None);
+  }
+
+  // The link that closed the provider is the outermost that said so: what it closes, no link below opens.
+  let from = answered
+    .as_ref()
+    .and_then(|answer| answer["layers"].as_array())
+    .into_iter()
+    .flatten()
+    .find(|layer| layer["value"] == serde_json::Value::Bool(false))
+    .and_then(|layer| layer["link"].as_str())
+    .map(str::to_owned);
+
+  Ok(Some(ProviderOff::Chain(from)))
 }
 
 /// The order a person's run walks: the hook's, or personal supply alone where nobody is registered, with the units
@@ -632,9 +759,51 @@ pub async fn choose(ground: &Ground, asked: &Asked<'_>) -> Result<Choice, Refusa
   }
 }
 
+// Whether the walk may go out on the provider's sources at all: the chain kind `provider.<code>.offered`
+// (docs/supply.md, 「The sources a run walks」). A link of it saying false turns every source of that provider
+// off below it — the person's own, the units' and the platform's alike; none turns it back on. A road the
+// build carries no kind for, and a chain that says nothing, stand open.
+async fn provider_offered(ground: &Ground, provider: &str, account: Option<i64>) -> Result<bool, Refusal> {
+  if !harness_providers::ARCHIVE_PROVIDERS.contains(&provider) {
+    return Ok(true);
+  }
+
+  let key = format!("provider.{provider}.offered");
+
+  if let Some(account) = account {
+    let answer =
+      crate::chain::resolve(&crate::apps::service(ground), &key, crate::chain::Subject::Person(account))
+        .await
+        .map_err(Refusal::failed)?;
+
+    return Ok(crate::chain::flag(answer.as_ref(), true));
+  }
+
+  // A run of no account stands on the platform alone, so the platform link's own word closes it.
+  match crate::chain_settings::platform(ground, &key).await {
+    Ok(Some(serde_json::Value::Bool(on))) => Ok(on),
+    _ => Ok(true),
+  }
+}
+
 /// The first source of `sources` that can take the run, written on it; where none can, why the last one tried
 /// could not.
 pub async fn next_source(
+  ground: &Ground,
+  chosen: &mut Chosen,
+  sources: &[String],
+) -> Result<Result<(), Closed>, Refusal> {
+  if !provider_offered(ground, &chosen.provider, chosen.account).await? {
+    let reason = fill_marks(&SUPPLY.words.provider_off, &[("provider", &chosen.provider)]);
+
+    return Ok(Err(Closed::of(Shortfall::Withheld, PLATFORM, reason, None)));
+  }
+
+  next_walked_source(ground, chosen, sources).await
+}
+
+// The walk itself, once the provider stands open below the run's links.
+async fn next_walked_source(
   ground: &Ground,
   chosen: &mut Chosen,
   sources: &[String],
@@ -774,8 +943,8 @@ pub async fn pass_owned(ground: &Ground, chosen: &Chosen) -> Result<Choice, Refu
 /// Claude login, marks no key. Answers the key marked.
 pub async fn refuse_personal_key(ground: &Ground, chosen: &Chosen) -> Result<Option<i64>, Refusal> {
   let (owner, id) = match (&chosen.source, chosen.account) {
-    (Source::Personal, Some(account)) => ("user_id", account),
-    (Source::Organisation { unit, .. }, Some(_)) => ("unit_id", *unit),
+    (Source::Personal, Some(account)) => ("owner_account", account),
+    (Source::Organisation { unit, .. }, Some(_)) => ("owner_unit", *unit),
     _ => return Ok(None),
   };
   if chosen.provider == CLAUDE_CODE {

@@ -191,13 +191,13 @@ impl Route for PersonalModelPut {
     let written = call.store().begin().await?;
     let standing = one(
       &written,
-      r#"SELECT "account" FROM "registered_models" WHERE "name" = $1"#,
+      r#"SELECT "owner_account" FROM "registered_models" WHERE "name" = $1"#,
       vec![registration.clone().into()],
     )
     .await?;
 
     if let Some(standing) = &standing
-      && standing.try_get::<Option<i64>>("", "account")? != Some(account)
+      && standing.try_get::<Option<i64>>("", "owner_account")? != Some(account)
     {
       return Err(unknown(&name));
     }
@@ -226,7 +226,7 @@ impl Route for PersonalModelPut {
       run(
         &written,
         r#"INSERT INTO "registered_models" ("name", "label", "model", "context_tokens", "answer_tokens", "thinking",
-             "walked", "keeps_research", "added_at", "account", "enabled")
+             "walked", "keeps_research", "added_at", "owner_account", "enabled")
            VALUES ($1, $2, $3, $4, $5, 0, 0, 0, $6, $7, 1)"#,
         vec![
           registration.clone().into(),
@@ -342,7 +342,7 @@ pub async fn off_board(db: &impl sea_orm::ConnectionTrait, account: i64) -> Resu
     run(
       db,
       r#"UPDATE "registered_models" SET "enabled" = 0
-         WHERE "account" = $1 AND "enabled" <> 0
+         WHERE "owner_account" = $1 AND "enabled" <> 0
            AND "name" IN (SELECT "registration" FROM "registered_model_addresses" WHERE "reach_port" IS NOT NULL)"#,
       vec![account.into()],
     )

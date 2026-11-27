@@ -6,6 +6,8 @@ mod m20270124_000001_baseline;
 mod m20270125_000001_person_nodes_many;
 mod m20270125_000002_agent_home_node;
 mod m20270125_000003_person_nodes_own;
+mod m20270126_000001_platform_ownership;
+mod m20270126_000002_slot_seat_units;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -16,14 +18,22 @@ pub const MIGRATIONS_TABLE: &str = "agency_migrations";
 /// The migration that makes every table; a seed given once is given as it runs (`crate::seed`).
 pub const BASELINE: &str = m20270124_000001_baseline::NAME;
 
-/// The migrations that ran after the 1.0.0 baseline, in the order they run; every one holds an install that
-/// already laid the baseline to the shape this build states, and a fresh one takes the same shape from the
-/// baseline alone.
+/// The migrations that ran after the 1.0.0 baseline and are folded into it, in the order they run; every one
+/// holds an install that already laid the baseline to the shape this build states, and a fresh one takes the
+/// same shape from the baseline alone.
 pub const POST_BASELINE: [&str; 3] = [
   m20270125_000001_person_nodes_many::NAME,
   m20270125_000002_agent_home_node::NAME,
   m20270125_000003_person_nodes_own::NAME,
 ];
+
+/// The migration that lays the two owner columns over the baseline, renames what named its owner otherwise,
+/// and gives the run ledger its `work_unit` (`docs/store.md`, 「Its tables」).
+pub const OWNERSHIP: &str = m20270126_000001_platform_ownership::NAME;
+
+/// The migration that lets a slot request keep the units of its account's path, so a unit's seats stand among
+/// the agents it may take and its account's cap counts them (docs/role-slots.md, 「Accounts」).
+pub const SEAT_UNITS: &str = m20270126_000002_slot_seat_units::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -218,6 +228,8 @@ impl MigratorTrait for Migrator {
       Box::new(m20270125_000001_person_nodes_many::Migration),
       Box::new(m20270125_000002_agent_home_node::Migration),
       Box::new(m20270125_000003_person_nodes_own::Migration),
+      Box::new(m20270126_000001_platform_ownership::Migration),
+      Box::new(m20270126_000002_slot_seat_units::Migration),
     ]
   }
 
