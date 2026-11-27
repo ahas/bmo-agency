@@ -3,7 +3,7 @@
 held_by = "agency"
 
 [[memory]]
-key = "when"
+key = "agency.when"
 type = "tip"
 recall_condition = "launching an item's worker run or job"
 text = "Take the lease, assign_worker, then run_job; release_worker where it will not run, and stop a job only on the owner's word."
