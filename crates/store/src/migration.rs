@@ -12,6 +12,7 @@ mod m20270127_000001_unit_reach;
 mod m20270127_000002_subject_settings;
 mod m20270127_000003_front_tables_gone;
 mod m20271127_000001_supervisor_name_tag;
+mod m20271128_000001_supervisor_accounts;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -51,9 +52,12 @@ pub const FRONT_TABLES_GONE: &str = m20270127_000003_front_tables_gone::NAME;
 /// The migration that gives a supervisor its name tag.
 pub const SUPERVISOR_NAME_TAG: &str = m20271127_000001_supervisor_name_tag::NAME;
 
+/// The migration that stands a supervisor's accounts on chat services.
+pub const SUPERVISOR_ACCOUNTS: &str = m20271128_000001_supervisor_accounts::NAME;
+
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 65] = [
+pub const OWN_TABLES: [&str; 66] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -102,6 +106,7 @@ pub const OWN_TABLES: [&str; 65] = [
   "room_sessions",
   "room_session_turns",
   "supervisor_settings",
+  "supervisor_accounts",
   "supervisor_sleep",
   "settings",
   "assignments",
@@ -250,6 +255,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270127_000002_subject_settings::Migration),
       Box::new(m20270127_000003_front_tables_gone::Migration),
       Box::new(m20271127_000001_supervisor_name_tag::Migration),
+      Box::new(m20271128_000001_supervisor_accounts::Migration),
     ]
   }
 

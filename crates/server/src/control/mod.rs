@@ -57,6 +57,7 @@ mod run_log;
 pub mod session_ops;
 pub mod sessions;
 pub mod signup_composition;
+pub mod supervisor_accounts;
 mod supervisor_removal;
 pub mod supervisor_reset;
 mod supervisor_routes;

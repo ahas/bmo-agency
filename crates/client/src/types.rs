@@ -3382,6 +3382,32 @@ pub struct SupervisorSleepChange {
   pub hour: Option<u32>,
 }
 
+/// SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number
+/// there and the name of the saved secret its sign-in is kept in.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorAccount {
+  pub service: String,
+  pub number: String,
+  pub secret: String,
+}
+
+/// SupervisorAccounts: a supervisor's accounts on chat services, by service.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SupervisorAccounts {
+  pub items: Vec<SupervisorAccount>,
+}
+
+/// SupervisorAccountChange: an account's number and secret, both to stand one, either to change one.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SupervisorAccountChange {
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub number: Option<String>,
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub secret: Option<String>,
+}
+
 /// The body that changes a supervisor's settings.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

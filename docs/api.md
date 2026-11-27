@@ -311,6 +311,12 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
+- **A supervisor's accounts on chat services** (`docs/supervisors.md`, 「Its accounts on chat services」):
+  `GET /supervisors/{supervisorName}/accounts` lists them, each `service`, `number` (a string, as the service
+  numbers it) and `secret` (the saved secret's name); `PUT /supervisors/{supervisorName}/accounts/{service}`
+  stands the one of that service, `number` and `secret` both given, each 1 to 200 characters with no line break,
+  else refused 400 naming the field; `PATCH` of the same address changes the fields it names; `DELETE` removes it,
+  404 `not-found` where none stands. An unknown supervisor is 404 `not-found` on every one.
 - **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, `nameTag` (one
   line of at most forty characters, an emoji in it as written, or null or blank for the default, else refused 400
   with `field` `nameTag`), the road —

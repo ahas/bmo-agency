@@ -230,6 +230,75 @@ async fn a_running_server_answers_a_supervisor_s_road_and_call_names_and_refuses
 
   assert_eq!(untagged["nameTag"], Value::Null, "{untagged}");
 
+  // Its accounts on chat services: stood, listed, changed, refused out of shape and removed.
+  let (status, stood) = send(
+    reqwest::Method::PUT,
+    port,
+    token,
+    "/supervisors/chat-agent/accounts/telegram",
+    json!({ "number": "1234567", "secret": "telegram-agent-bot" }),
+  )
+  .await;
+
+  assert_eq!(status, 200, "{stood}");
+  assert_eq!(
+    stood,
+    json!({ "service": "telegram", "number": "1234567", "secret": "telegram-agent-bot" })
+  );
+  assert_eq!(
+    get(port, token, "/supervisors/chat-agent/accounts").await.1["items"],
+    json!([stood.clone()])
+  );
+
+  let (_, changed) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent/accounts/telegram",
+    json!({ "secret": "telegram-agent-bot-2" }),
+  )
+  .await;
+
+  assert_eq!(
+    (&changed["number"], &changed["secret"]),
+    (&json!("1234567"), &json!("telegram-agent-bot-2"))
+  );
+
+  let (status, refused) = send(
+    reqwest::Method::PUT,
+    port,
+    token,
+    "/supervisors/chat-agent/accounts/discord",
+    json!({ "number": "1" }),
+  )
+  .await;
+
+  assert_eq!((status, &refused["field"]), (400, &json!("secret")), "{refused}");
+
+  let (status, _) = send(
+    reqwest::Method::DELETE,
+    port,
+    token,
+    "/supervisors/chat-agent/accounts/telegram",
+    json!({}),
+  )
+  .await;
+
+  assert_eq!(status, 200);
+  assert_eq!(get(port, token, "/supervisors/chat-agent/accounts").await.1["items"], json!([]));
+
+  let (status, _) = send(
+    reqwest::Method::DELETE,
+    port,
+    token,
+    "/supervisors/chat-agent/accounts/telegram",
+    json!({}),
+  )
+  .await;
+
+  assert_eq!(status, 404);
+  assert_eq!(get(port, token, "/supervisors/nobody/accounts").await.0, 404);
+
   let (status, refused) = send(
     reqwest::Method::POST,
     port,

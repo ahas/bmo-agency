@@ -61,6 +61,19 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
 - **None stands for the default,** which the one that sends composes from the supervisor's label: the
   receiver's policy writes it.
 
+## Its accounts on chat services
+
+- **A supervisor holds accounts of its own on chat services,** one supervisor to many: each a chat service's key,
+  the account's number on that service (the one a room's member list shows it under) and the name of the saved
+  secret its sign-in is kept in, never the secret's value. A Telegram bot is one, the bot's number its token's part
+  before the colon. One service holds one account of a supervisor's at most.
+- **They are the supervisor's alone:** listed, added, changed and removed by the supervisor's own routes
+  (`docs/api.md`, 「supervisors」), the console and the agent's verbs alike, and gone with the supervisor.
+- **What they are for:** a room whose member list holds one of a supervisor's accounts is one it answers through
+  that account; one holding none is answered in its owner's own account, behind its name tag (「Its name tag」).
+  The receiver matches a room's members against them (its `docs/wake.md`, 「Who reaches the session」), and a chat
+  service sends a supervisor's words through the account the secret signs in.
+
 ## Its settings
 
 - **Every supervisor holds settings beside its row,** a row of the `supervisor_settings` table keyed by its

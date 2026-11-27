@@ -1820,6 +1820,42 @@ export interface paths {
         patch: operations["changeSupervisorSettings"];
         trace?: never;
     };
+    "/supervisors/{supervisorName}/accounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A supervisor's accounts on chat services, by service. */
+        get: operations["listSupervisorAccounts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/supervisors/{supervisorName}/accounts/{service}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Stand a supervisor's account on a chat service: its number and its secret's name. */
+        put: operations["standSupervisorAccount"];
+        post?: never;
+        /** Remove a supervisor's account on a chat service. */
+        delete: operations["removeSupervisorAccount"];
+        options?: never;
+        head?: never;
+        /** Change the fields named of a supervisor's account on a chat service. */
+        patch: operations["changeSupervisorAccount"];
+        trace?: never;
+    };
     "/supervisors/{supervisorName}/sleep": {
         parameters: {
             query?: never;
@@ -5469,6 +5505,24 @@ export interface components {
             registration?: string | null;
             generation?: unknown;
             thinking?: boolean | null;
+        };
+        /** @description SupervisorAccounts: a supervisor's accounts on chat services, by service. */
+        SupervisorAccounts: {
+            items: components["schemas"]["SupervisorAccount"][];
+        };
+        /**
+         * @description SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number
+         *     there and the name of the saved secret its sign-in is kept in.
+         */
+        SupervisorAccount: {
+            service: string;
+            number: string;
+            secret: string;
+        };
+        /** @description SupervisorAccountChange: an account's number and secret, both to stand one, either to change one. */
+        SupervisorAccountChange: {
+            number?: string | null;
+            secret?: string | null;
         };
         /**
          * @description A supervisor's sleep setting (docs/sleep.md, 「Its setting」): whether it sleeps and its own hour, none for the
@@ -11753,6 +11807,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SupervisorSettings"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSupervisorAccounts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorAccounts"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    standSupervisorAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorAccountChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorAccount"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    removeSupervisorAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    changeSupervisorAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                supervisorName: string;
+                service: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SupervisorAccountChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SupervisorAccount"];
                 };
             };
             400: components["responses"]["BadRequest"];
