@@ -76,6 +76,9 @@ launched and how its end is told stand in `docs/api.md`, 「assignments and jobs
 - **A stage passed hands the next one over** as a turn in the same session: the stage's number, how many there
   are, its step, and that this turn too ends with its report. The stage that holds the last step is said to be
   the last, so the worker closes the change there as its closing rules say.
+- **A job that closed is handed no further stage.** Where a stage passes and the item's `close-phase` label
+  reads that its close already merged the work (`waiting-batch`), the stages after it are not handed over: the
+  final report follows, as after the last stage.
 - **A rejection may send the work back to a stage already passed.** A stage's examination can find that an
   earlier stage's work falls short — a check that shows the implementation wrong sends it back to the stage
   that implemented it. The rejection names that stage, and the work goes back there: that stage is the one

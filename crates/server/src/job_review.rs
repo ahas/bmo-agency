@@ -243,6 +243,18 @@ async fn entry(
 }
 
 // The work order's task of a stage moved to `state`, where the item's work order holds one.
+/// Whether an item's close already merged its work, read off its `close-phase` label; false where the job service
+/// cannot be read.
+async fn closed_already(vars: &BTreeMap<String, String>, item: i64) -> bool {
+  let Some(service) = service_of(vars) else {
+    return false;
+  };
+
+  call(&service, reqwest::Method::GET, &format!("/items/{item}"), None)
+    .await
+    .is_ok_and(|read| crate::watches::queue_idle::merged_awaiting_deploy(&read))
+}
+
 async fn task_moved(vars: &BTreeMap<String, String>, item: i64, stage: i64, state: &str) {
   let Some(service) = service_of(vars) else {
     return;
@@ -1072,7 +1084,13 @@ async fn passed(
     Some(stage) if stages > 1 => {
       task_moved(ground.vars(), standing.item, stage, "done").await;
 
-      if stage < stages {
+      // A job whose close already merged its work is handed no further stage: what is left is its final report
+      // (docs/job-review.md, 「A job that closed is handed no further stage」).
+      if stage < stages && closed_already(ground.vars(), standing.item).await {
+        println!(
+          "job {id}: its item's close merged at stage {stage} of {stages}, so its final report follows"
+        );
+      } else if stage < stages {
         let next = stage + 1;
         standing.stage = Some(next);
         standing.round = 1;
