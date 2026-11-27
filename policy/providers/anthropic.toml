@@ -6,8 +6,8 @@
 label = "Anthropic API"
 
 # The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
-# job, a gate's one-request judgement and the plain line's instructions alone.
-lines = ["chat", "gate", "worker", "plain"]
+# job, a gate's one-request judgement, the search line and the plain line's instructions alone.
+lines = ["chat", "gate", "worker", "search", "plain"]
 
 # A mapping of it carries a ceiling on the answer's tokens: its member names one.
 caps_answer_tokens = true
