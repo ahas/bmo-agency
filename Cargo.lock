@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "agency-checks"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "agency-checks",
  "agency-server",
@@ -60,7 +60,7 @@ dependencies = [
 
 [[package]]
 name = "agency-server"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "agent-host",
  "agent-session",
@@ -123,7 +123,7 @@ dependencies = [
 
 [[package]]
 name = "agent-host"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "clap",
@@ -139,7 +139,7 @@ dependencies = [
 
 [[package]]
 name = "agent-session"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -239,7 +239,7 @@ dependencies = [
 
 [[package]]
 name = "app-put-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -437,7 +437,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-agency-client"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "schemars",
@@ -448,7 +448,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-brain-client"
-version = "0.1.0-rev.44"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "schemars",
@@ -458,11 +458,11 @@ dependencies = [
 
 [[package]]
 name = "bmo-cache-warmer-schedule"
-version = "0.1.0-rev.7"
+version = "0.0.0"
 
 [[package]]
 name = "bmo-chat"
-version = "0.1.0-rev.10"
+version = "0.0.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -479,7 +479,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-gate-client"
-version = "0.1.0-rev.1"
+version = "0.0.0"
 dependencies = [
  "futures-util",
  "gate-codes",
@@ -494,7 +494,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-node-client"
-version = "0.1.0-rev.2"
+version = "0.0.0"
 dependencies = [
  "futures-util",
  "reqwest",
@@ -506,7 +506,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-pocket-client"
-version = "0.1.0-rev.9"
+version = "0.0.0"
 dependencies = [
  "bmo-tool",
  "http",
@@ -524,7 +524,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-secret-shapes"
-version = "0.1.0-rev.10"
+version = "0.0.0"
 dependencies = [
  "regex",
  "serde",
@@ -533,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-testbed-client"
-version = "0.1.0-rev.78"
+version = "0.0.0"
 dependencies = [
  "schemars",
  "serde",
@@ -543,7 +543,7 @@ dependencies = [
 
 [[package]]
 name = "bmo-tool"
-version = "0.1.0-rev.9"
+version = "0.0.0"
 dependencies = [
  "croner",
  "schemars",
@@ -615,7 +615,7 @@ checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
 
 [[package]]
 name = "cache-siren"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "chrono",
  "policy",
@@ -994,7 +994,7 @@ checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "deepseek-top-up-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "bmo-agency-client",
  "chrono",
@@ -1362,7 +1362,7 @@ dependencies = [
 
 [[package]]
 name = "gate-codes"
-version = "0.1.0-rev.1"
+version = "0.0.0"
 
 [[package]]
 name = "generic-array"
@@ -1440,7 +1440,7 @@ dependencies = [
 
 [[package]]
 name = "harness-machine"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "clap",
  "dotenvy",
@@ -1456,7 +1456,7 @@ dependencies = [
 
 [[package]]
 name = "harness-providers"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "clap",
  "harness-machine",
@@ -1553,7 +1553,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "herdr"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1957,7 +1957,7 @@ dependencies = [
 
 [[package]]
 name = "jobs-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "bmo-agency-client",
  "serde",
@@ -2044,7 +2044,7 @@ checksum = "47d9d19d1d6efa0109d2f65ff4c85cddd50bd572e5a00127ab10987290bcefae"
 
 [[package]]
 name = "llm-gateway"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -2173,7 +2173,7 @@ dependencies = [
 
 [[package]]
 name = "node-link"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -2301,7 +2301,7 @@ dependencies = [
 
 [[package]]
 name = "pane-head"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "agent-host",
 ]
@@ -2468,7 +2468,7 @@ checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
 
 [[package]]
 name = "policy"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "serde",
  "toml",
@@ -2526,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "procedures-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "regex",
  "reqwest",
@@ -2824,7 +2824,7 @@ checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
 name = "relay-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -3475,7 +3475,7 @@ checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 
 [[package]]
 name = "skill-put-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "serde",
@@ -3754,7 +3754,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "store"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "dotenvy",
  "sea-orm",
@@ -4111,7 +4111,7 @@ checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "tool-call"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "dotenvy",
  "reqwest",
@@ -4823,7 +4823,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "worker-ask-tool"
-version = "0.1.0-rev.81"
+version = "0.0.0"
 dependencies = [
  "reqwest",
  "serde",
