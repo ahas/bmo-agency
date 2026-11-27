@@ -56,6 +56,7 @@ mod run_ledger;
 mod run_log;
 pub mod session_ops;
 pub mod sessions;
+mod front_tables;
 pub mod signup_composition;
 mod supervisor_removal;
 pub mod supervisor_reset;
