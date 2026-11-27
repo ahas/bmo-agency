@@ -75,6 +75,11 @@ question_order = "A run asked question #{question} on item #{item}: {text}\nChoi
 # A job's question the job service put to the owner once the supervisor's minute on it passed: the same marks.
 question_handed_order = "Your minute on question #{question} on item #{item} passed, so the job service put it to the owner as the job wrote it; he has a minute before its recommendation, if any, settles it. Tell him of it in his chat now, in his language: {text}\nChoices: {choices}"
 waiting_order = "The job of item #{item} on {worker} waits: {why}\n\nIt goes on by itself once it can."
+# A job standing `starting` past `starting_seconds`, told once to its orderer: `{item}`, `{worker}`, `{minutes}` and
+# `{why}`, what it waits for as it stands now.
+starting_order = "The job of item #{item} on {worker} has stood starting for {minutes} minutes: {why}"
+starting_seconds = 900
+starting_unsaid = "it names nothing it waits for, so its launch may have stalled."
 # A job's turn that has made no progress for its stall span (docs/agent-control.md, 「A run's tool calls are held
 # to a clock」): `{job}`, `{item}`, `{worker}`, `{minutes}`, `{since}`, the time of day of its last progress, and
 # `{waiting}`, each running call as `stalled_call` gives it with `{tool}` and `{lines}`, else `stalled_no_call`.
@@ -152,6 +157,7 @@ job-awaits-close = "Next: close the item, or give its lease back so it is open a
 job-review = "Next: run the check the review asks, and pass the report or send it back."
 job-review-parked = "Next: answer the question the review stands on, or put it to the owner."
 job-waiting = "Next: free what the job waits for, or let it wait and say why."
+job-starting-long = "Next: free what the job waits for, stop it and launch it on another agent, or hold the item with the reason."
 job-question-due = "Next: settle the question now with its recommended choice, or put it to the owner."
 job-question-settled = "Next: nothing; the job goes on with the answer."
 question-awaits-answer = "Next: answer the question, or put it to the owner."

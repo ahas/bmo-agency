@@ -1192,6 +1192,10 @@ pub async fn pass(
     eprintln!("queue: a held item whose wait has ended was not told: {why}");
   }
 
+  if let Err(why) = crate::job_notices::long_starts(db, vars).await {
+    eprintln!("queue: a job that stays starting was not told: {why}");
+  }
+
   if let Err(why) = crate::watches::job_events::pass(db, vars, gate).await {
     eprintln!("queue: the job service's events were not told: {why}");
   }

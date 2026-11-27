@@ -582,6 +582,79 @@ pub async fn tell_waiting(
   }
 }
 
+/// A job standing `starting` past the policy's span, with what it waits for as it stands now.
+pub fn starting_long(item: i64, worker: &str, minutes: i64, why: &str, orderer: &Orderer) -> Value {
+  let order = fill_marks(
+    &JOB_NOTICES.starting_order,
+    &[
+      ("item", &item.to_string()),
+      ("worker", worker),
+      ("minutes", &minutes.to_string()),
+      ("why", why),
+    ],
+  );
+
+  instruction(
+    "job-starting-long",
+    item,
+    orderer,
+    format!("The job of item #{item} stays starting"),
+    order,
+  )
+}
+
+/// Every job of an item standing `starting` past `starting_seconds` whose orderer was not told so yet, told once
+/// (docs/agent-control.md, 「A job that stays starting is told once more」). Answers how many were told.
+pub async fn long_starts(
+  db: &sea_orm::DatabaseConnection,
+  vars: &BTreeMap<String, String>,
+) -> Result<usize, String> {
+  if JobService::of(vars).is_none() || outbox::Receiver::of(vars).is_none() {
+    return Ok(0);
+  }
+
+  let now = crate::now_ms();
+  let span = i64::try_from(JOB_NOTICES.starting_seconds * 1000).unwrap_or(i64::MAX / 2);
+  let rows = store::all(
+    db,
+    r#"SELECT "id", "started_at", "held_for" FROM "jobs" WHERE "state" = 'starting' AND "item_id" > 0
+         AND "start_told_at" IS NULL AND "started_at" <= $1 ORDER BY "id""#,
+    vec![(now - span).into()],
+  )
+  .await
+  .map_err(|why| why.detail)?;
+  let mut told = 0;
+
+  for row in rows {
+    let id: i64 = row.try_get("", "id").map_err(|why| why.to_string())?;
+    let started: i64 = row.try_get("", "started_at").map_err(|why| why.to_string())?;
+    let held: Option<String> = row.try_get("", "held_for").map_err(|why| why.to_string())?;
+    let (member, _) = crate::control::work::job(db, id).await.map_err(|why| why.error)?;
+    let item = member["itemId"].as_i64().unwrap_or_default();
+    let worker = member["workerName"].as_str().unwrap_or_default();
+    let why = held.unwrap_or_else(|| JOB_NOTICES.starting_unsaid.clone());
+    let orderer = crate::job_end::orderer(vars, &member).await;
+    let notice = starting_long(item, worker, (now - started) / 60_000, &why, &orderer);
+
+    match outbox::owe(db, vars, Notice::instruction(notice, Keep::Once)).await {
+      Ok(()) => {
+        store::run(
+          db,
+          r#"UPDATE "jobs" SET "start_told_at" = $1 WHERE "id" = $2"#,
+          vec![now.into(), id.into()],
+        )
+        .await
+        .map_err(|why| why.detail)?;
+        println!("job of item #{item}: its long start owed to its orderer");
+        told += 1;
+      }
+      Err(why) => eprintln!("job of item #{item}: its long start was not owed: {why}"),
+    }
+  }
+
+  Ok(told)
+}
+
 /// The waits no notice is owed for yet, owed (docs/agent-control.md, 「An item's change is told to its orderer」):
 /// each job still waiting, of an item, whose wait began at least `owe_grace_seconds` ago and was not owed — a stop
 /// of agency's cut it off, or the store refused it. Answers how many were owed.

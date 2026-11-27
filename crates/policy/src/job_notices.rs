@@ -100,6 +100,12 @@ pub struct JobNotices {
   pub question_handed_order: String,
   /// A job waiting for a road or a slot: `{item}`, `{worker}` and `{why}`.
   pub waiting_order: String,
+  /// A job standing `starting` past `starting_seconds`: `{item}`, `{worker}`, `{minutes}` and `{why}`.
+  pub starting_order: String,
+  /// How long a job may stand `starting` before its orderer is told once more, in seconds.
+  pub starting_seconds: u64,
+  /// What a job standing `starting` waits for where it names nothing.
+  pub starting_unsaid: String,
   /// An ended job's item still leased: `{item}` and `{lease}`.
   pub close_order: String,
   /// A job's turn that has made no progress for its stall span: `{job}`, `{item}`, `{worker}`, `{minutes}`,

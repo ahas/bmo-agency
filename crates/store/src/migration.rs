@@ -13,6 +13,7 @@ mod m20270127_000002_subject_settings;
 mod m20270127_000003_front_tables_gone;
 mod m20271127_000001_supervisor_name_tag;
 mod m20271128_000001_supervisor_accounts;
+mod m20271129_000001_job_start_told;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -54,6 +55,9 @@ pub const SUPERVISOR_NAME_TAG: &str = m20271127_000001_supervisor_name_tag::NAME
 
 /// The migration that stands a supervisor's accounts on chat services.
 pub const SUPERVISOR_ACCOUNTS: &str = m20271128_000001_supervisor_accounts::NAME;
+
+/// The migration that marks when a job's orderer was told it stood starting too long.
+pub const JOB_START_TOLD: &str = m20271129_000001_job_start_told::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -256,6 +260,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270127_000003_front_tables_gone::Migration),
       Box::new(m20271127_000001_supervisor_name_tag::Migration),
       Box::new(m20271128_000001_supervisor_accounts::Migration),
+      Box::new(m20271129_000001_job_start_told::Migration),
     ]
   }
 

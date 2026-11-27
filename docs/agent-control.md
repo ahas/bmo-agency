@@ -3681,6 +3681,7 @@ view and a person's room may not mend it alone.
 | A job's question past its due time while open with the owner, one with no recommendation; a question the supervisor holds is put to the owner by the job service once its due time passes, and its owner's clock starts then; the job service tells it once each time the question is put to the owner | the orderer | instruction, from the events | `job-question-due:<question>`, `job-question-due:#<question>` |
 | A job's question settled on its recommendation because its due time passed with no answer (a settling `reply.created` whose `source` is `recommendation`) | the orderer | instruction, from the events | `job-question-settled:<question>`, `job-question-settled:#<question>` |
 | A job waiting for a road, for its card or for a slot of its role | the orderer | instruction, once as the wait begins | `job-waiting:<item>`, `job-waiting:#<item>` |
+| A job standing `starting` past the starting span (「A job that stays starting is told once more」) | the orderer | instruction, from the minute pass, once a job | `job-starting-long:<item>`, `job-starting-long:#<item>` |
 | A job's turn that has made no progress for the stall span while it still works (「A run's tool calls are held to a clock」) | the orderer | instruction, from the turn's own watch, told once a stall and kept until the turn makes progress again or ends | `job-stalled:<item>`, `job-stalled:#<item>` |
 | A job's report awaiting a check of its review, one check at a time (`docs/job-review.md`, 「The checks」) | the orderer | instruction, as the report, the answer or the owner's word comes, standing until the orderer moves | `job-review:<item>`, `job-review:#<item>` |
 | A job whose work waits on the owner's question past its due time, its checkout given up (`docs/job-review.md`, 「The owner's word」) | the orderer | instruction, from the events | `job-review-parked:<item>`, `job-review-parked:#<item>` |
@@ -3688,6 +3689,11 @@ view and a person's room may not mend it alone.
 | A job ended `failed` or `blocked`, a dead pane's among them, whose orderer is a room other than the owner's private room | the owner's private room, beside the orderer's `job-ended` | instruction | `job-failed:<item>`, `job-failed:#<item>` |
 | An ended job's item still leased at the lease pass after the one that first found it so, unless its commit waits for its repository's batch deployment | the orderer | instruction, from the lease pass, told once for each lease and kept until the lease ends or the commit waits for its deployment | `job-awaits-close:<item>`, `job-awaits-close:#<item>` |
 
+- **A job that stays starting is told once more.** A job's wait is told as it begins; one that still stands
+  `starting` past the starting span (`policy/job-notices.toml`, `starting_seconds`, fifteen minutes) is told to its
+  orderer once more by the minute pass, with how long it has stood and what it waits for as it stands now, or that
+  it names nothing, where its launch may have stalled. Each job is told so once, the time it was told kept on the
+  job.
 - **An item that cannot go is told to its orderer as well.** An open item in a queue that gives no lease
   waits on the queue, not on a launch: its orderer is told once that the queue holds it, the mark let go once
   the item is no longer open in such a queue. An open item whose assignee is no checkout and no repository

@@ -5,8 +5,8 @@
 
 use agency_server::job_end::delivered_with;
 use agency_server::job_notices::{
-  agent_refused, awaits_close, closed, failed, moved, owner_hears_failure, paused, question, question_due,
-  question_settled, role_unknown, tell_waiting, unlaunchable, waiting,
+  agent_refused, awaits_close, closed, failed, long_starts, moved, owner_hears_failure, paused, question,
+  question_due, question_settled, role_unknown, tell_waiting, unlaunchable, waiting,
 };
 use agency_server::queue::orderer::Orderer;
 use serde_json::{Value, json};
@@ -283,4 +283,76 @@ fn a_question_settled_on_its_recommendation_is_an_instruction_naming_the_answer_
 
   assert!(order.contains("write it fresh") && !order.contains("item #"), "{order}");
   assert_eq!(told["room"], Value::Null);
+}
+
+async fn standing_job(
+  scratch: &Scratch,
+  id: i64,
+  item: i64,
+  state: &str,
+  started_ago_ms: i64,
+  held: Option<&str>,
+) {
+  scratch
+    .run(
+      r#"INSERT INTO "jobs" ("id", "item_id", "lease_id", "holder_name", "assignment_id", "worker_name",
+           "item_agent", "run_name", "session_id", "room_id", "state", "started_at", "prompt", "held_for")
+         VALUES ($1, $2, 9, 'harness', 10, 'w1', 'coder-01', $3, $3, -500, $4, $5, 'work', $6)"#,
+      vec![
+        id.into(),
+        item.into(),
+        format!("job-{id}").into(),
+        state.into(),
+        (agency_server::now_ms() - started_ago_ms).into(),
+        held.map(str::to_owned).into(),
+      ],
+    )
+    .await;
+}
+
+#[tokio::test]
+async fn a_job_standing_starting_past_its_span_is_told_once_with_what_it_waits_for() {
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+  let span = i64::try_from(policy::job_notices::JOB_NOTICES.starting_seconds * 1000).unwrap();
+
+  {
+    let mut held = peers.lock().unwrap();
+
+    for id in [51, 52, 53, 54] {
+      held.items.insert(id, item(id, "leased", json!({ "scope": "-500" })));
+    }
+  }
+
+  standing_job(
+    &scratch,
+    951,
+    51,
+    "starting",
+    span + 120_000,
+    Some("it waits for a slot of the coder role"),
+  )
+  .await;
+  standing_job(&scratch, 952, 52, "starting", span + 60_000, None).await;
+  // One inside its span, and one running past it, are told nothing.
+  standing_job(&scratch, 953, 53, "starting", span - 60_000, None).await;
+  standing_job(&scratch, 954, 54, "running", span + 60_000, None).await;
+
+  assert_eq!(long_starts(scratch.db(), &vars).await.unwrap(), 2);
+
+  let told = peers.lock().unwrap().instructed();
+  let kinds: Vec<&Value> = told.iter().map(|one| &one["kind"]).collect();
+
+  assert_eq!(kinds, [&json!("job-starting-long:51"), &json!("job-starting-long:52")], "{told:?}");
+
+  let first = told[0]["said"]["order"].as_str().unwrap();
+
+  assert!(
+    first.contains("it waits for a slot of the coder role") && first.contains("minutes"),
+    "{first}"
+  );
+  assert!(told[1]["said"]["order"].as_str().unwrap().contains("names nothing"), "{told:?}");
+
+  // Each job is told once.
+  assert_eq!(long_starts(scratch.db(), &vars).await.unwrap(), 0);
 }
