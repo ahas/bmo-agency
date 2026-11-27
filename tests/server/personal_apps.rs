@@ -290,6 +290,7 @@ async fn a_put_is_refused_where_the_account_has_no_runner_or_its_chain_withholds
   let address = account_service().await;
   let stood = stood(&[("WEB_ADDRESS", &address), ("WEB_TOKEN", "chain-token")]).await;
   let ground = &stood.ground;
+  crate::support::front::resolve_all(&ground.db, &address, "chain-token").await;
   let db = ground.db.clone();
 
   rows::supervisor(&db, "u8", &[("owner_account", 8i64.into())]).await;

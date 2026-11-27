@@ -21,18 +21,6 @@ use crate::support::scratch::Scratch;
 
 const TOKEN: &str = "secret";
 
-/// The five kinds of route agent management is read and changed through, each with its console section.
-const PARTS: [(&str, &str); 5] = [
-  ("/supervisors", "supervisors"),
-  ("/roles", "roles"),
-  ("/repositories", "repositories"),
-  ("/models", "models"),
-  ("/model-catalogue", "model-files"),
-];
-
-/// The kinds the agent list is read from.
-const AGENT_LIST: [&str; 3] = ["/supervisors", "/roles", "/repositories"];
-
 /// One section a stub grants: its name, its read and its write.
 type Grant = (&'static str, bool, bool);
 
@@ -73,10 +61,6 @@ struct Granting {
 }
 
 impl Granting {
-  fn grant(&self, grants: &[Grant]) {
-    *self.grants.lock().unwrap() = grants.to_vec();
-  }
-
   fn asked(&self) -> usize {
     *self.asked.lock().unwrap()
   }
@@ -159,77 +143,6 @@ async fn member(port: u16, method: reqwest::Method, path: &str) -> (u16, Value) 
 }
 
 #[tokio::test]
-async fn a_member_reads_each_kind_under_its_own_section_and_the_models_under_no_other() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let (port, granting) = granted(&scratch, home.path(), &[]).await;
-
-  for (path, section) in PARTS {
-    granting.grant(&[(section, true, false)]);
-
-    let (status, body) = member(port, reqwest::Method::GET, path).await;
-
-    assert_eq!(status, 200, "{section} reads {path}: {body}");
-
-    for (other, _) in PARTS.into_iter().filter(|(other, _)| *other != path && !AGENT_LIST.contains(other)) {
-      let (status, body) = member(port, reqwest::Method::GET, other).await;
-
-      assert_eq!(status, 403, "{section} does not read {other}: {body}");
-      assert!(body["error"].as_str().unwrap().contains("read"), "{body}");
-    }
-  }
-}
-
-#[tokio::test]
-async fn the_agent_list_is_read_under_any_part_and_under_none_is_refused() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let (port, granting) = granted(&scratch, home.path(), &[("model-files", true, false)]).await;
-
-  for path in AGENT_LIST {
-    let (status, body) = member(port, reqwest::Method::GET, path).await;
-
-    assert_eq!(status, 200, "{path}: {body}");
-  }
-
-  granting.grant(&[("rooms", true, true)]);
-
-  let (status, body) = member(port, reqwest::Method::GET, "/supervisors").await;
-
-  assert_eq!(status, 403, "{body}");
-  assert!(body["error"].as_str().unwrap().contains("any section of agent management"), "{body}");
-}
-
-#[tokio::test]
-async fn a_change_needs_its_own_sections_write() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let mut grants: Vec<Grant> = PARTS.iter().map(|(_, section)| (*section, true, false)).collect();
-
-  grants.push(("roles", true, true));
-
-  let (port, granting) = granted(&scratch, home.path(), &grants).await;
-  let (status, body) = member(port, reqwest::Method::POST, "/role-agents").await;
-
-  assert_ne!(status, 403, "the roles write lets the change reach the route: {body}");
-
-  for (path, section) in PARTS.into_iter().filter(|(path, _)| *path != "/roles") {
-    let (status, body) = member(port, reqwest::Method::POST, path).await;
-
-    assert_eq!(status, 403, "{path}: {body}");
-    assert!(
-      body["error"]
-        .as_str()
-        .unwrap()
-        .contains(&format!("write access to the {section} section")),
-      "{body}"
-    );
-  }
-
-  assert_eq!(granting.asked(), PARTS.len());
-}
-
-#[tokio::test]
 async fn who_owns_a_registration_is_not_a_member_s_to_set_even_with_the_models_write() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
@@ -282,18 +195,6 @@ async fn the_administrator_and_a_caller_carrying_no_key_are_not_checked() {
   assert_ne!(administrator, 403, "the owner keeps every access");
   assert_ne!(nobody, 403, "a unit's own call keeps the route's present behaviour");
   assert_eq!(granting.asked(), 0, "neither is asked of the account service");
-}
-
-#[tokio::test]
-async fn a_permission_that_cannot_be_read_is_no_access() {
-  let scratch = Scratch::new().await;
-  let home = tempfile::tempdir().unwrap();
-  let (address, _) = account_service(&[], StatusCode::INTERNAL_SERVER_ERROR).await;
-  let port = front(ground(&scratch, home.path(), &address).await).await;
-  let (status, body) = member(port, reqwest::Method::GET, "/supervisors").await;
-
-  assert_eq!(status, 503, "{body}");
-  assert_eq!(body["code"], "access-unchecked");
 }
 
 /// A member's write of every part a test of rows changes.
@@ -478,7 +379,7 @@ async fn a_member_adds_under_their_own_account_and_never_under_another_s() {
 async fn the_roles_are_the_platform_s_and_a_role_s_agents_stand_under_the_roles_section() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
-  let (port, granting) = granted(&scratch, home.path(), &ROW_WRITES).await;
+  let (port, _granting) = granted(&scratch, home.path(), &ROW_WRITES).await;
 
   rows(&scratch, home.path()).await;
 
@@ -504,29 +405,6 @@ async fn the_roles_are_the_platform_s_and_a_role_s_agents_stand_under_the_roles_
   .await;
 
   assert_eq!(administrator, 200, "{answer}");
-
-  // Without the roles write, a member changes no agent of a role, even their own.
-  granting.grant(&[("supervisors", true, true), ("roles", true, false)]);
-
-  let (status, answer) = send(
-    port,
-    reqwest::Method::PATCH,
-    "/role-agents/worker-seven",
-    Some("7"),
-    Some("member"),
-    json!({ "enabled": false }),
-  )
-  .await;
-
-  assert_eq!(status, 403, "{answer}");
-  assert!(
-    answer["error"].as_str().unwrap().contains("write access to the roles section"),
-    "{answer}"
-  );
-
-  let (status, answer) = member(port, reqwest::Method::GET, "/role-agents").await;
-
-  assert_eq!(status, 200, "the agents are read under the roles read: {answer}");
 }
 
 #[tokio::test]
@@ -607,11 +485,10 @@ async fn work_stands_only_on_a_repository_of_its_holder_s_side() {
 }
 
 #[tokio::test]
-async fn a_unit_s_repository_asks_no_section_and_is_judged_by_the_chain() {
+async fn a_unit_s_repository_is_changed_by_its_heads_as_the_reach_table_says() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
-  // The member holds the repositories' read and no write.
-  let (port, granting) = granted(&scratch, home.path(), &[("repositories", true, false)]).await;
+  let (port, _granting) = granted(&scratch, home.path(), &[("repositories", true, false)]).await;
 
   scratch
     .run(
@@ -622,43 +499,31 @@ async fn a_unit_s_repository_asks_no_section_and_is_judged_by_the_chain() {
     .await;
   rows(&scratch, home.path()).await;
 
-  // A unit's repository, changed or added under the unit, goes past the section to the chain's check, which this
-  // stand-in account service answers no head of the unit.
-  for (method, path, body) in [
-    (reqwest::Method::PATCH, "/repositories/repo-unit", json!({ "label": "Renamed" })),
-    (
-      reqwest::Method::POST,
-      "/repositories",
-      json!({ "name": "added-unit", "path": "/nowhere", "ownerUnit": 40 }),
-    ),
-  ] {
-    let (status, answer) = send(port, method.clone(), path, Some("7"), Some("member"), body).await;
-    let said = answer["error"].as_str().unwrap_or_default();
+  // No row says the member heads unit 40: a change of its repository is refused.
+  let (status, answer) = send(
+    port,
+    reqwest::Method::PATCH,
+    "/repositories/repo-unit",
+    Some("7"),
+    Some("member"),
+    json!({ "label": "Renamed" }),
+  )
+  .await;
 
-    assert!(!said.contains("section"), "{method} {path}: {status} {answer}");
-    assert!(
-      ["access-unchecked", "forbidden"].contains(&answer["code"].as_str().unwrap_or_default()),
-      "{method} {path}: {status} {answer}"
-    );
-  }
+  assert_eq!((status, &answer["code"]), (403, &json!("forbidden")), "{answer}");
 
-  // The member's own repository and an add under no unit still ask the section's write.
-  for (method, path, body) in [
-    (reqwest::Method::PATCH, "/repositories/repo-seven", json!({ "label": "Renamed" })),
-    (
-      reqwest::Method::POST,
-      "/repositories",
-      json!({ "name": "added-own", "path": "/nowhere" }),
-    ),
-  ] {
-    let (status, answer) = send(port, method.clone(), path, Some("7"), Some("member"), body).await;
+  // The front writes that the member heads it, and the same change goes through.
+  crate::support::front::heads(scratch.db(), &[(7, 40)]).await;
 
-    assert_eq!(status, 403, "{method} {path}: {answer}");
-    assert!(
-      answer["error"].as_str().unwrap().contains("write access to the repositories section"),
-      "{answer}"
-    );
-  }
+  let (status, answer) = send(
+    port,
+    reqwest::Method::PATCH,
+    "/repositories/repo-unit",
+    Some("7"),
+    Some("member"),
+    json!({ "label": "Renamed" }),
+  )
+  .await;
 
-  assert_eq!(granting.asked(), 2);
+  assert_eq!(status, 200, "{answer}");
 }

@@ -113,7 +113,9 @@ impl<'a> Reach<'a> {
             .split(',')
             .map(str::trim)
             .filter(|one| !one.is_empty())
-            .map(|one| whole(one).ok_or_else(|| bad("unitSubtree: the ids of the units under the unit, by commas.")))
+            .map(|one| {
+              whole(one).ok_or_else(|| bad("unitSubtree: the ids of the units under the unit, by commas."))
+            })
             .collect::<Result<_, _>>()?,
         };
 
@@ -302,4 +304,3 @@ fn owned(ids: &[i64]) -> String {
     false => format!("ARRAY[{}]", ids.iter().map(i64::to_string).collect::<Vec<_>>().join(", ")),
   }
 }
-

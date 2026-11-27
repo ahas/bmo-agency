@@ -7,6 +7,7 @@
 pub mod binary;
 pub mod connections;
 pub mod cut;
+pub mod front;
 pub mod gates;
 pub mod git;
 pub mod grounds;

@@ -2023,9 +2023,25 @@ export interface paths {
         };
         /** A person's own instructions, whether they may give any, and the organisation's, which stand before them. */
         get: operations["ownInstructions"];
-        /** Replace a person's own instructions, written on their own link of the delegation chain in their name. */
-        put: operations["setOwnInstructions"];
+        put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/own-instructions/{ownerAccount}/judge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Judge a person's own instructions and answer the value the front writes on its chain. */
+        post: operations["judgeOwnInstructions"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2039,7 +2055,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The sign-up composition standing for a unit or a person, and the subject's own link. */
+        /** The sign-up composition standing for a unit or a person, as the subject settings resolve it. */
         get: operations["signupComposition"];
         put?: never;
         post?: never;
@@ -2049,7 +2065,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/signup-composition/{link}": {
+    "/signup-composition/judge": {
         parameters: {
             query?: never;
             header?: never;
@@ -2057,8 +2073,61 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Judge a link's sign-up composition and write it on the delegation chain in the caller's name. */
-        put: operations["setSignupComposition"];
+        put?: never;
+        /** Judge a sign-up composition's value and answer it as the front writes it on its chain. */
+        post: operations["judgeSignupComposition"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/setting-kinds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every setting the agency reads, as the front declares it on its chain. */
+        get: operations["settingKinds"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/unit-reach": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every account's reach of every unit, as the front wrote it. */
+        get: operations["unitReach"];
+        /** Replace the unit reach table whole. */
+        put: operations["setUnitReach"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/subject-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every subject's resolution of every setting, as the front wrote it. */
+        get: operations["subjectSettings"];
+        /** Replace the subject settings whole. */
+        put: operations["setSubjectSettings"];
         post?: never;
         delete?: never;
         options?: never;
@@ -8603,7 +8672,7 @@ export interface operations {
                 limit?: number;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: boolean;
+                unitSubtree?: string;
             };
             header?: never;
             path?: never;
@@ -9355,7 +9424,7 @@ export interface operations {
                 tier?: string;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: boolean;
+                unitSubtree?: string;
             };
             header?: never;
             path?: never;
@@ -11401,7 +11470,7 @@ export interface operations {
             query?: {
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: boolean;
+                unitSubtree?: string;
             };
             header?: never;
             path?: never;
@@ -11972,7 +12041,7 @@ export interface operations {
                 role?: string;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: boolean;
+                unitSubtree?: string;
             };
             header?: never;
             path?: never;
@@ -12242,7 +12311,7 @@ export interface operations {
             422: components["responses"]["AccessUnchecked"];
         };
     };
-    setOwnInstructions: {
+    judgeOwnInstructions: {
         parameters: {
             query?: never;
             header?: never;
@@ -12262,14 +12331,11 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["OwnInstructions"];
-                };
+                content?: never;
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Locked"];
             422: components["responses"]["BadInstructions"];
         };
     };
@@ -12296,16 +12362,13 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
-            422: components["responses"]["AccessUnchecked"];
         };
     };
-    setSignupComposition: {
+    judgeSignupComposition: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                link: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
@@ -12322,9 +12385,109 @@ export interface operations {
                 content?: never;
             };
             401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            409: components["responses"]["Locked"];
             422: components["responses"]["BadComposition"];
+        };
+    };
+    settingKinds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    unitReach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setUnitReach: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    subjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    setSubjectSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
         };
     };
     deleteRoleAgent: {
@@ -12384,7 +12547,7 @@ export interface operations {
             query?: {
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: boolean;
+                unitSubtree?: string;
             };
             header?: never;
             path?: never;

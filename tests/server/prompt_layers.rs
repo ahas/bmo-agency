@@ -10,17 +10,14 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 use agency_server::lines::Trees;
 use agency_server::lines::chat::SystemParts;
 use agency_server::prompt_layers;
-use axum::extract::{Path as Route, Query, State};
 use harness_machine::supervisor_prompt::{self, Composition, Layers, Roots, Supervisor};
 use policy::prompt_layers::PROMPT_LAYERS;
 use policy::supervisors::SUPERVISORS;
 use serde_json::{Value, json};
-use tool_call::account_service::AccountService;
 
 use crate::support::scratch::Scratch;
 
@@ -37,8 +34,6 @@ type Entry = (Value, bool);
 struct Chain {
   declared: HashMap<String, Value>,
 }
-
-type Shared = Arc<Mutex<Chain>>;
 
 // Each person's path, the outermost link first, with what each link holds of each kind.
 fn path(person: &str) -> Option<Vec<(&'static str, HashMap<&'static str, Entry>)>> {
@@ -126,63 +121,34 @@ fn resolve(chain: &Chain, key: &str, person: &str) -> (axum::http::StatusCode, V
   )
 }
 
-/// The account service standing in on a loopback port, behind the token `chain-token`, with the kinds declared
-/// as `declared` names.
-async fn account_service(declared: bool) -> (AccountService, Shared) {
-  let chain = Shared::default();
+/// The chain's resolutions for the three people written into the agency's subject settings, as the front writes
+/// them, every kind the policy holds declared with its own declaration.
+async fn chained(scratch: &Scratch) -> Chain {
+  let mut chain = Chain::default();
 
-  if declared {
-    for kind in PROMPT_LAYERS.kinds() {
-      chain
-        .lock()
-        .unwrap()
-        .declared
-        .insert(kind.key.clone(), prompt_layers::declaration(kind));
+  for kind in PROMPT_LAYERS.kinds() {
+    chain.declared.insert(kind.key.clone(), prompt_layers::declaration(kind));
+  }
+
+  let mut rows = Vec::new();
+
+  for person in [FREE_PERSON, LOCKED_PERSON, ADMINISTRATOR] {
+    for key in chain.declared.keys() {
+      let (status, body) = resolve(&chain, key, &person.to_string());
+
+      if status.is_success() {
+        rows.push(agency_server::chain::Held {
+          subject: format!("person:{person}"),
+          key: key.clone(),
+          value: body,
+        });
+      }
     }
   }
 
-  let app = axum::Router::new()
-    .route(
-      "/chain/kinds/{key}",
-      axum::routing::put(
-        |State(chain): State<Shared>, Route(key): Route<String>, axum::Json(body): axum::Json<Value>| async move {
-          chain.lock().unwrap().declared.insert(key, body.clone());
+  agency_server::chain::replace_held(scratch.db(), &rows).await.unwrap();
 
-          axum::Json(body)
-        },
-      ),
-    )
-    .route(
-      "/chain/kinds/{key}/resolve",
-      axum::routing::get(
-        |State(chain): State<Shared>,
-         headers: axum::http::HeaderMap,
-         Route(key): Route<String>,
-         Query(asked): Query<HashMap<String, String>>| async move {
-          if headers.get("authorization").and_then(|value| value.to_str().ok()) != Some("Bearer chain-token") {
-            return (axum::http::StatusCode::UNAUTHORIZED, axum::Json(json!({ "code": "unauthorized" })));
-          }
-
-          let person = asked.get("person").cloned().unwrap_or_default();
-          let (status, body) = resolve(&chain.lock().unwrap(), &key, &person);
-
-          (status, axum::Json(body))
-        },
-      ),
-    )
-    .with_state(chain.clone());
-  let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
-  let address = format!("http://{}", listener.local_addr().unwrap());
-
-  tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-
-  (
-    AccountService {
-      address,
-      token: "chain-token".to_owned(),
-    },
-    chain,
-  )
+  chain
 }
 
 // A store naming the platform's administrator.
@@ -257,10 +223,9 @@ fn window(layers: &Layers) -> String {
 #[tokio::test]
 async fn the_administrator_s_supervisors_carry_the_platform_s_rules_and_an_organisation_s_do_not() {
   let scratch = store().await;
-  let none = AccountService::default();
-  let own = prompt_layers::of(scratch.db(), &none, None).await.unwrap();
-  let administrator = prompt_layers::of(scratch.db(), &none, Some(ADMINISTRATOR)).await.unwrap();
-  let organisation = prompt_layers::of(scratch.db(), &none, Some(LOCKED_PERSON)).await.unwrap();
+  let own = prompt_layers::of(scratch.db(), None).await.unwrap();
+  let administrator = prompt_layers::of(scratch.db(), Some(ADMINISTRATOR)).await.unwrap();
+  let organisation = prompt_layers::of(scratch.db(), Some(LOCKED_PERSON)).await.unwrap();
 
   assert!(own.platform && administrator.platform, "{own:?} {administrator:?}");
   assert_eq!(organisation, Layers::default());
@@ -300,17 +265,21 @@ async fn the_administrator_s_supervisors_carry_the_platform_s_rules_and_an_organ
   }
 }
 
-// Agency declares every setting it keeps on the chain as its policy holds them — the prompt layers' two beside the
-// supply sources, the sign-up composition, repository management, personal apps and their sharing — and a kind a resolution finds undeclared is
-// declared and asked again.
+// Agency lists every setting it reads as its policy holds them — the prompt layers' two beside the supply sources,
+// the sign-up composition, repository management, personal apps and their sharing — for the front to declare on its
+// chain, each in the declaration it is declared with.
 #[tokio::test]
-async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_undeclared() {
+async fn the_setting_kinds_are_listed_as_the_policy_holds_them() {
   let scratch = store().await;
-  let (service, chain) = account_service(false).await;
-  let layers = prompt_layers::of(scratch.db(), &service, Some(FREE_PERSON)).await.unwrap();
-  let declared = chain.lock().unwrap().declared.clone();
+  let chain = chained(&scratch).await;
+  let layers = prompt_layers::of(scratch.db(), Some(FREE_PERSON)).await.unwrap();
+  let declared: HashMap<String, Value> = agency_server::chain::kinds()
+    .iter()
+    .map(|kind| (kind.key.clone(), agency_server::chain::declaration(kind)))
+    .collect();
   let keys: HashSet<&str> = declared.keys().map(String::as_str).collect();
 
+  assert!(chain.declared.keys().all(|key| declared.contains_key(key)));
   assert_eq!(
     keys,
     HashSet::from([
@@ -362,10 +331,10 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
 #[tokio::test]
 async fn the_organisation_s_instructions_follow_the_chain_outermost_first_and_stop_at_a_lock() {
   let scratch = store().await;
-  let (service, _) = account_service(true).await;
-  let free = prompt_layers::of(scratch.db(), &service, Some(FREE_PERSON)).await.unwrap();
-  let locked = prompt_layers::of(scratch.db(), &service, Some(LOCKED_PERSON)).await.unwrap();
-  let administrator = prompt_layers::of(scratch.db(), &service, Some(ADMINISTRATOR)).await.unwrap();
+  chained(&scratch).await;
+  let free = prompt_layers::of(scratch.db(), Some(FREE_PERSON)).await.unwrap();
+  let locked = prompt_layers::of(scratch.db(), Some(LOCKED_PERSON)).await.unwrap();
+  let administrator = prompt_layers::of(scratch.db(), Some(ADMINISTRATOR)).await.unwrap();
   let words = &PROMPT_LAYERS.organisation;
 
   assert_eq!(
@@ -403,9 +372,9 @@ async fn the_organisation_s_instructions_follow_the_chain_outermost_first_and_st
 #[tokio::test]
 async fn a_persona_chosen_none_leaves_no_character_text_on_either_shape() {
   let scratch = store().await;
-  let (service, _) = account_service(true).await;
-  let free = prompt_layers::of(scratch.db(), &service, Some(FREE_PERSON)).await.unwrap();
-  let locked = prompt_layers::of(scratch.db(), &service, Some(LOCKED_PERSON)).await.unwrap();
+  chained(&scratch).await;
+  let free = prompt_layers::of(scratch.db(), Some(FREE_PERSON)).await.unwrap();
+  let locked = prompt_layers::of(scratch.db(), Some(LOCKED_PERSON)).await.unwrap();
 
   assert!(!free.persona_none && locked.persona_none, "{free:?} {locked:?}");
 
@@ -423,23 +392,23 @@ async fn a_persona_chosen_none_leaves_no_character_text_on_either_shape() {
   assert!(pieces(&locked).contains("In the rooms you stand as Dear"), "the name stands");
 }
 
-// Where the account service does not answer, the layers last read for the account stand, and an account never
-// read is refused rather than composed without its organisation's instructions.
+// Where the front has written nothing for a person, their layers stand on the defaults: an account with no subject
+// settings carries no organisation's instructions until the front writes them.
 #[tokio::test]
-async fn a_chain_that_does_not_answer_keeps_the_last_read_and_refuses_an_account_never_read() {
+async fn a_person_the_front_wrote_nothing_for_stands_on_the_defaults() {
   let scratch = store().await;
-  let (service, _) = account_service(true).await;
-  let read = prompt_layers::of(scratch.db(), &service, Some(LOCKED_PERSON)).await.unwrap();
-  let gone = AccountService {
-    address: "http://127.0.0.1:1".to_owned(),
-    token: "chain-token".to_owned(),
-  };
 
-  assert_eq!(prompt_layers::of(scratch.db(), &gone, Some(LOCKED_PERSON)).await.unwrap(), read);
+  assert_eq!(prompt_layers::of(scratch.db(), Some(LOCKED_PERSON)).await.unwrap(), Layers::default());
 
-  let refused = prompt_layers::of(scratch.db(), &gone, Some(4242)).await.unwrap_err();
+  chained(&scratch).await;
 
-  assert!(refused.contains("could not be read"), "{refused}");
+  assert!(
+    prompt_layers::of(scratch.db(), Some(LOCKED_PERSON))
+      .await
+      .unwrap()
+      .organisation
+      .is_some()
+  );
 }
 
 // "An organisation's agent is never told it can reach the platform's own units, ports, stores and token files":
@@ -508,9 +477,9 @@ fn an_organisation_s_agent_s_prompt_names_nothing_of_the_platform_s_own() {
 #[tokio::test]
 async fn the_person_s_instructions_stand_after_the_role_and_a_lock_withholds_them() {
   let scratch = store().await;
-  let (service, _chain) = account_service(true).await;
-  let free = prompt_layers::of(scratch.db(), &service, Some(FREE_PERSON)).await.unwrap();
-  let locked = prompt_layers::of(scratch.db(), &service, Some(LOCKED_PERSON)).await.unwrap();
+  chained(&scratch).await;
+  let free = prompt_layers::of(scratch.db(), Some(FREE_PERSON)).await.unwrap();
+  let locked = prompt_layers::of(scratch.db(), Some(LOCKED_PERSON)).await.unwrap();
 
   assert_eq!(free.personal.all.as_deref(), Some("Person: answer in short lines."));
   assert_eq!(locked.personal, Default::default(), "a lock above withholds them");

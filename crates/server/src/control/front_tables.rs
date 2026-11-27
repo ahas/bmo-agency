@@ -17,8 +17,11 @@ use crate::unit_reach::{self, Reached};
 fn persons_call(call: &Call) -> Result<(), Refused> {
   if call.header("owner-key").is_some_and(|key| !key.trim().is_empty()) {
     return Err(
-      Refused::new(StatusCode::FORBIDDEN, "The front's tables are read and written by the deployment's own call alone")
-        .with_code("forbidden"),
+      Refused::new(
+        StatusCode::FORBIDDEN,
+        "The front's tables are read and written by the deployment's own call alone",
+      )
+      .with_code("forbidden"),
     );
   }
 
@@ -115,7 +118,10 @@ impl Route for SubjectSettingsWrite {
 
     chain::replace_held(db, &rows.items).await.map_err(Refused::failed)?;
 
-    Ok(answer(StatusCode::OK, json!({ "items": chain::every_held(db).await.map_err(Refused::failed)? })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "items": chain::every_held(db).await.map_err(Refused::failed)? }),
+    ))
   }
 }
 
@@ -129,7 +135,9 @@ fn subject_named(subject: &str) -> bool {
 }
 
 /// `GET /setting-kinds`: the settings the agency declares, each as the front declares it on its own chain: its key,
-/// what it is for, its shape, its choices, its mode, the levels it stands on and its default.
+/// what it is for, its shape, its choices, its mode, the levels it stands on and its default; the keys of the kinds
+/// the front declares that the agency reads as well; and the prefixes of the kinds others declare that it reads, an
+/// app's own settings among them.
 pub struct SettingKinds;
 
 impl Route for SettingKinds {
@@ -141,7 +149,10 @@ impl Route for SettingKinds {
 
     let kinds: Vec<Value> = chain::kinds().iter().map(chain::declaration).collect();
 
-    Ok(answer(StatusCode::OK, json!({ "kinds": kinds })))
+    Ok(answer(
+      StatusCode::OK,
+      json!({ "kinds": kinds, "reads": chain::read_beyond(), "prefixes": [crate::apps::KIND_HEAD] }),
+    ))
   }
 }
 

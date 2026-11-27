@@ -652,9 +652,7 @@ pub async fn composed_system(
     .await
     .map_err(|why| fault(format!("{agent}: its supervisor row was not read: {why}")))?
     .and_then(|row| row.owner_account);
-  let layers = crate::prompt_layers::of(&ground.db, owner)
-    .await
-    .map_err(fault)?;
+  let layers = crate::prompt_layers::of(&ground.db, owner).await.map_err(fault)?;
   let limits = Limits::of(&ground.db, agent).await?;
   let parts = SystemParts {
     layers,

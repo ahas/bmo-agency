@@ -9,7 +9,6 @@
 
 use axum::http::{Method, StatusCode};
 
-
 use crate::control::{Call, Refused};
 use crate::places::Ground;
 
@@ -46,9 +45,6 @@ impl Part {
       Self::ModelFiles => "/model-catalogue",
     }
   }
-
-
-
 
   /// The path parameter that names the row a route of this part changes, none for a part whose rows are judged
   /// whatever the path names.
@@ -94,10 +90,6 @@ impl Part {
     })
   }
 }
-
-
-
-
 
 /// Whose the row a managed route changes is (「Part::row」).
 enum Row {
@@ -318,8 +310,3 @@ impl Acting {
     }
   }
 }
-
-
-
-
-

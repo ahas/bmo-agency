@@ -107,6 +107,15 @@ pub fn kinds() -> Vec<Kind> {
   kinds
 }
 
+/// The kinds agency reads that others declare: the organisation supply a person's path stands on, and whether the
+/// platform's brain base is read for a person.
+pub fn read_beyond() -> Vec<String> {
+  vec![
+    policy::organisation::ORGANISATION.sources.organisation_kind.clone(),
+    crate::lines::token::BASE_LAYER.to_owned(),
+  ]
+}
+
 /// The body the account service takes a kind's declaration in.
 pub fn declaration(kind: &Kind) -> Value {
   let mut body = json!({
@@ -189,6 +198,38 @@ pub async fn resolve(
     .transpose()
 }
 
+/// One kind resolved for a subject by asking the account service, for the app store alone, which still reads and
+/// writes the chain in a person's name until its own judgements move to the front (docs/api.md, 「Calls agency
+/// makes」); a kind or subject the service does not hold says nothing.
+pub async fn resolve_remote(
+  service: &AccountService,
+  key: &str,
+  subject: Subject,
+) -> Result<Option<Value>, String> {
+  if service.address.is_empty() {
+    return Ok(None);
+  }
+
+  let (kind, id) = subject.query();
+  let answer = client()
+    .get(format!("{}/chain/kinds/{key}/resolve", service.address))
+    .query(&[(kind, id)])
+    .bearer_auth(&service.token)
+    .send()
+    .await
+    .map_err(|why| format!("the account service was not reached: {why}"))?;
+
+  match answer.status().as_u16() {
+    200..=299 => answer
+      .json()
+      .await
+      .map(Some)
+      .map_err(|why| format!("the resolution does not read: {why}")),
+    404 => Ok(None),
+    status => Err(format!("the account service answered the resolution of {key} with {status}")),
+  }
+}
+
 /// One subject's value of one setting, as the service in front wrote it.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Held {
@@ -223,7 +264,9 @@ pub async fn replace_held<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrai
 ) -> Result<(), String> {
   let tx = db.begin().await.map_err(|why| why.to_string())?;
 
-  store::run(&tx, r#"DELETE FROM "subject_settings""#, vec![]).await.map_err(|why| why.to_string())?;
+  store::run(&tx, r#"DELETE FROM "subject_settings""#, vec![])
+    .await
+    .map_err(|why| why.to_string())?;
 
   for row in rows {
     store::run(

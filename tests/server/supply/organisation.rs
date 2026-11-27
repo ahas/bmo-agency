@@ -100,6 +100,15 @@ async fn a_person_s_run_takes_the_nearest_unit_s_key_through_a_reservation_namin
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
+  crate::support::front::resolve_keys(
+    &ground.db,
+    &vars["WEB_ADDRESS"],
+    &vars["WEB_TOKEN"],
+    &[PERSON],
+    &[],
+    |key| key.starts_with("provider.") || key == "supply.organisation",
+  )
+  .await;
   let consumer = Consumer::stand().await;
 
   personal_key(scratch.db(), "deepseek").await;
@@ -209,6 +218,15 @@ async fn a_registration_filed_under_a_unit_answers_the_walk_of_its_peoples_run()
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
+  crate::support::front::resolve_keys(
+    &ground.db,
+    &vars["WEB_ADDRESS"],
+    &vars["WEB_TOKEN"],
+    &[PERSON],
+    &[],
+    |key| key.starts_with("provider.") || key == "supply.organisation",
+  )
+  .await;
   let consumer = Consumer::stand().await;
 
   scratch
@@ -292,6 +310,15 @@ async fn an_order_that_names_no_source_closes_the_run_saying_so() {
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
+  crate::support::front::resolve_keys(
+    &ground.db,
+    &vars["WEB_ADDRESS"],
+    &vars["WEB_TOKEN"],
+    &[PERSON],
+    &[],
+    |key| key.starts_with("provider.") || key == "supply.organisation",
+  )
+  .await;
   let consumer = Consumer::stand().await;
 
   consumer.register(&ground);

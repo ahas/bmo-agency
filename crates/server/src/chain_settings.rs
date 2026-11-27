@@ -66,7 +66,9 @@ fn said(value: &Value) -> Option<Value> {
 /// The platform's word on a standing: the settings row it stands under, where that says one.
 pub async fn platform(ground: &Ground, key: &str) -> Result<Option<Value>, String> {
   let Some(standing) = of(key) else { return Ok(None) };
-  let held = crate::queue::settings::get(&ground.db, standing.row).await.map_err(|why| why.to_string())?;
+  let held = crate::queue::settings::get(&ground.db, standing.row)
+    .await
+    .map_err(|why| why.to_string())?;
 
   Ok(held.filter(|text| !text.trim().is_empty()).map(|text| match standing.amount {
     true => text.trim().parse::<i64>().map(Value::from).unwrap_or(Value::String(text)),
@@ -117,7 +119,6 @@ async fn write_row(ground: &Ground, standing: &Standing, value: Value) -> Result
 
   result.map_err(|why| why.to_string())
 }
-
 
 /// The standing of one kind, none where the kind is not one the chain holds.
 pub fn of(kind: &str) -> Option<Standing> {

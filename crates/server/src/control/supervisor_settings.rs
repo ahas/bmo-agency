@@ -323,12 +323,7 @@ async fn route_of(db: &DatabaseConnection, agent: &str) -> Option<(String, Strin
 }
 
 /// One supervisor as a screen shows it, each room by the title the room's owner answers.
-async fn view(
-  db: &DatabaseConnection,
-  hooks: &Hooks,
-  roots: &Roots,
-  agent: &str,
-) -> Result<Value, Fault> {
+async fn view(db: &DatabaseConnection, hooks: &Hooks, roots: &Roots, agent: &str) -> Result<Value, Fault> {
   let row = supervisor_row(db, agent).await?;
   let prompts = prompt_folder(db, agent).await?;
   let registration_name = pinned_registration(&row)?;
@@ -379,16 +374,7 @@ async fn view(
       prompts: prompts.as_deref(),
     };
 
-    Some(
-      system(
-        db,
-        roots,
-        (supervisor, held.owner_account),
-        &settings,
-        (&provider_now, &model_now),
-      )
-      .await?,
-    )
+    Some(system(db, roots, (supervisor, held.owner_account), &settings, (&provider_now, &model_now)).await?)
   } else {
     None
   };

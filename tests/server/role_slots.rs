@@ -1134,6 +1134,7 @@ async fn a_person_on_a_unit_s_path_takes_the_unit_s_seat_and_counts_against_thei
     ("WEB_TOKEN".to_owned(), "chain".to_owned()),
   ]);
   let ground = seeded_with(scratch.db(), home.path(), &vars).await;
+  crate::support::front::resolve_all(&ground.db, &vars["WEB_ADDRESS"], &vars["WEB_TOKEN"]).await;
 
   deepseek_balance(&ground, 5.0).await;
 

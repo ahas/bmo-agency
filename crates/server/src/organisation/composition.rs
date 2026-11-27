@@ -144,9 +144,7 @@ pub fn standing(answer: Option<&Value>) -> BTreeMap<String, Standing> {
 
 /// What the chain resolves for a subject, read afresh.
 pub async fn resolved(ground: &Ground, subject: Subject) -> Result<Option<Value>, Refused> {
-  chain::resolve(&ground.db, key(), subject)
-    .await
-    .map_err(|_| super::unchecked())
+  chain::resolve(&ground.db, key(), subject).await.map_err(|_| super::unchecked())
 }
 
 /// Whether the role stands off for the person; where the account service does not answer, it stands on, as it

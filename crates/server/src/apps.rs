@@ -11,7 +11,6 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use futures_util::future::join_all;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tool_call::account_service::AccountService;
@@ -27,7 +26,7 @@ pub const PLACE_FILE: &str = "withheld-apps.json";
 const RUN_FOLDER: &str = "agency/withheld-apps";
 
 /// The prefix and the suffix of the kind key of an app's offered setting.
-const KIND_HEAD: &str = "app.";
+pub const KIND_HEAD: &str = "app.";
 const OFFERED_TAIL: &str = ".offered";
 
 /// What a withheld-apps file holds: the keys of the apps that do not reach the person, none where they cannot be
@@ -232,74 +231,31 @@ fn put(file: &Path, withheld: &Withheld, before: Option<&Withheld>) -> bool {
   true
 }
 
-/// The keys of the apps that do not reach `person`: every app whose offered setting the account service declares,
-/// each withheld unless both its settings resolve `true` for the person. An app whose settings do not resolve is
-/// withheld; an account service that does not list its kinds is the error.
-pub async fn resolve(service: &AccountService, person: &str) -> Result<BTreeSet<String>, String> {
-  if service.address.is_empty() {
-    return Err("no account service is named (WEB_ADDRESS)".to_owned());
-  }
-
-  let client = reqwest::Client::new();
-  let listed = get(&client, service, &format!("{}/chain/kinds", service.address), &[]).await?;
-  let apps: Vec<String> = listed["kinds"]
-    .as_array()
-    .into_iter()
-    .flatten()
-    .filter_map(|kind| kind["key"].as_str())
-    .filter_map(|key| key.strip_prefix(KIND_HEAD)?.strip_suffix(OFFERED_TAIL))
+/// The keys of the apps that do not reach `person`: every app whose offered setting the front resolved for anyone
+/// (「What the front writes」 in docs/api.md), each withheld unless both its settings resolve `true` for the person as
+/// the subject settings hold them; an app whose settings say nothing for the person is withheld.
+pub async fn resolve(db: &impl sea_orm::ConnectionTrait, person: &str) -> Result<BTreeSet<String>, String> {
+  let held = crate::chain::every_held(db).await?;
+  let apps: BTreeSet<String> = held
+    .iter()
+    .filter_map(|row| row.key.strip_prefix(KIND_HEAD)?.strip_suffix(OFFERED_TAIL))
     .map(str::to_owned)
     .collect();
-  let client = &client;
-  let asks = apps.iter().map(|app| async move {
-    let reaches = |setting: &'static str| {
-      let address = format!("{}/chain/kinds/{KIND_HEAD}{app}.{setting}/resolve", service.address);
-
-      async move {
-        get(client, service, &address, &[("person", person)])
-          .await
-          .is_ok_and(|resolved| resolved["value"] == Value::Bool(true))
-      }
-    };
-    let (offered, on) = futures_util::join!(reaches("offered"), reaches("on"));
-
-    (app.clone(), offered && on)
-  });
+  let subject = format!("person:{person}");
+  let reaches = |key: String| {
+    held
+      .iter()
+      .any(|row| row.subject == subject && row.key == key && row.value["value"] == Value::Bool(true))
+  };
 
   Ok(
-    join_all(asks)
-      .await
+    apps
       .into_iter()
-      .filter(|(_, reaches)| !reaches)
-      .map(|(app, _)| app)
+      .filter(|app| {
+        !(reaches(format!("{KIND_HEAD}{app}.offered")) && reaches(format!("{KIND_HEAD}{app}.on")))
+      })
       .collect(),
   )
-}
-
-// One read of the account service, answered as JSON where it answers 200.
-async fn get(
-  client: &reqwest::Client,
-  service: &AccountService,
-  address: &str,
-  query: &[(&str, &str)],
-) -> Result<Value, String> {
-  let answer = client
-    .get(address)
-    .bearer_auth(&service.token)
-    .query(query)
-    .send()
-    .await
-    .map_err(|why| format!("the account service was not reached: {why}"))?;
-  let status = answer.status();
-
-  if !status.is_success() {
-    return Err(format!("the account service answered {}", status.as_u16()));
-  }
-
-  answer
-    .json()
-    .await
-    .map_err(|why| format!("the account service's answer does not read: {why}"))
 }
 
 /// The account service as agency reaches it.
@@ -311,9 +267,7 @@ pub fn service(ground: &Ground) -> AccountService {
 /// left as it stands, which a file never written yet reads to the tool host as every app
 /// withheld.
 pub async fn write_for(ground: &Ground, file: &Path, person: &str, issued: &Issued) {
-  let service = service(ground);
-
-  match resolve_all(ground, &service, person, issued).await {
+  match resolve_all(ground, person, issued).await {
     Ok(resolved) => {
       let withheld = Withheld {
         apps: resolved.apps,
@@ -333,13 +287,8 @@ pub async fn write_for(ground: &Ground, file: &Path, person: &str, issued: &Issu
 }
 
 // The apps the chain withholds from the person, and the MCP servers of theirs the record's holder is not attached to.
-async fn resolve_all(
-  ground: &Ground,
-  service: &AccountService,
-  person: &str,
-  issued: &Issued,
-) -> Result<Resolved, String> {
-  let apps = resolve(service, person).await?;
+async fn resolve_all(ground: &Ground, person: &str, issued: &Issued) -> Result<Resolved, String> {
+  let apps = resolve(&ground.db, person).await?;
 
   Ok(Resolved::of(apps, withheld_mcp(ground, person, issued).await))
 }
@@ -380,7 +329,7 @@ pub async fn write_for_administrator(ground: &Ground, file: &Path, account: &str
 pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
   let file = place_file(place);
   let before = read(&file)?;
-  let service = service(ground);
+
   let issued = Issued {
     holder: before.holder.clone(),
     line: before.line.clone(),
@@ -390,7 +339,7 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
   let resolved = if administrator {
     Ok(Resolved::of(BTreeSet::new(), withheld_mcp(ground, &before.account, &issued).await))
   } else {
-    resolve_all(ground, &service, &before.account, &issued).await
+    resolve_all(ground, &before.account, &issued).await
   };
   let resolved = match resolved {
     Ok(resolved) => resolved,

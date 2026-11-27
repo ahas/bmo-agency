@@ -45,7 +45,7 @@ pub const SUBJECT_SETTINGS: &str = m20270127_000002_subject_settings::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 65] = [
+pub const OWN_TABLES: [&str; 67] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -111,6 +111,8 @@ pub const OWN_TABLES: [&str; 65] = [
   "personal_supply",
   "supply_reservations",
   "supply_settlements",
+  "unit_reach",
+  "subject_settings",
 ];
 
 /// The record an install from before 1.0.0 holds once every migration of its last release ran. Its schema is

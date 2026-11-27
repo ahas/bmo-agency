@@ -12,12 +12,10 @@ use policy::prompt_layers::{Kind, PROMPT_LAYERS};
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
-
 /// The body the account service takes a kind's declaration in.
 pub fn declaration(kind: &Kind) -> Value {
   crate::chain::declaration(kind)
 }
-
 
 // The last layers this process read off the chain for each account, which a turn stands on while the account
 // service does not answer.

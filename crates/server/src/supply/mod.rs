@@ -646,8 +646,7 @@ pub async fn provider_state(
   }
 
   let key = format!("provider.{provider}.offered");
-  let answer =
-    crate::chain::resolve(&ground.db, &key, crate::chain::Subject::Person(person)).await;
+  let answer = crate::chain::resolve(&ground.db, &key, crate::chain::Subject::Person(person)).await;
   let answered = match answer {
     // A chain that does not answer says nothing: as every narrowing flag does, its default stands open
     // (docs/cache-fallback.md, 「The account judgement」).
@@ -771,10 +770,9 @@ async fn provider_offered(ground: &Ground, provider: &str, account: Option<i64>)
   let key = format!("provider.{provider}.offered");
 
   if let Some(account) = account {
-    let answer =
-      crate::chain::resolve(&ground.db, &key, crate::chain::Subject::Person(account))
-        .await
-        .map_err(Refusal::failed)?;
+    let answer = crate::chain::resolve(&ground.db, &key, crate::chain::Subject::Person(account))
+      .await
+      .map_err(Refusal::failed)?;
 
     return Ok(crate::chain::flag(answer.as_ref(), true));
   }

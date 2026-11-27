@@ -194,6 +194,9 @@ seeds. The other crates and the server reach the store only through it.
     many tries it took and the last one's failure — written as a notice is owed and sent until the receiver
     takes it (`docs/agent-control.md`, 「An item's change is told to its orderer」);
   - the settings, below.
+  - what the front writes whole (`docs/api.md`, 「What the front writes」): `unit_reach`, one row an account, a
+    unit and whether the account heads it; and `subject_settings`, one row a subject (`person:<id>` or `unit:<id>`),
+    a setting's key and the chain's resolution of it as the front received it.
 - **The run records are the receiver's,** not this store's: what a turn wrote down beside its run is
   kept by the receiver, beside the run it was written under (`docs/api.md`, 「Tables a consumer
   shares」).

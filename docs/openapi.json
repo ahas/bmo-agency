@@ -199,6 +199,9 @@
       "name": "own-agents"
     },
     {
+      "name": "front"
+    },
+    {
       "name": "nodes"
     },
     {
@@ -1868,8 +1871,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "with unit: that unit and every unit under it"
+              "type": "string",
+              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
             }
           }
         ]
@@ -3250,8 +3253,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "with unit: that unit and every unit under it"
+              "type": "string",
+              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
             }
           }
         ]
@@ -6950,8 +6953,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "with unit: that unit and every unit under it"
+              "type": "string",
+              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
             }
           }
         ]
@@ -7999,8 +8002,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "with unit: that unit and every unit under it"
+              "type": "string",
+              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
             }
           }
         ]
@@ -8521,23 +8524,18 @@
             }
           }
         ]
-      },
-      "put": {
-        "operationId": "setOwnInstructions",
+      }
+    },
+    "/own-instructions/{ownerAccount}/judge": {
+      "post": {
+        "operationId": "judgeOwnInstructions",
         "tags": [
           "own-agents"
         ],
-        "summary": "Replace a person's own instructions, written on their own link of the delegation chain in their name.",
+        "summary": "Judge a person's own instructions and answer the value the front writes on its chain.",
         "responses": {
           "200": {
-            "description": "Answered.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OwnInstructions"
-                }
-              }
-            }
+            "description": "Answered."
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -8550,9 +8548,6 @@
           },
           "422": {
             "$ref": "#/components/responses/BadInstructions"
-          },
-          "409": {
-            "$ref": "#/components/responses/Locked"
           }
         },
         "x-codes": [
@@ -8561,9 +8556,7 @@
           "forbidden",
           "instructions-withheld",
           "bad-instructions",
-          "unknown-agent",
-          "locked",
-          "access-unchecked"
+          "unknown-agent"
         ],
         "parameters": [
           {
@@ -8594,7 +8587,7 @@
         "tags": [
           "roles"
         ],
-        "summary": "The sign-up composition standing for a unit or a person, and the subject's own link.",
+        "summary": "The sign-up composition standing for a unit or a person, as the subject settings resolve it.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -8611,15 +8604,11 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
-          },
-          "422": {
-            "$ref": "#/components/responses/AccessUnchecked"
           }
         },
         "x-codes": [
           "unauthorized",
-          "bad-request",
-          "access-unchecked"
+          "bad-request"
         ],
         "parameters": [
           {
@@ -8643,13 +8632,13 @@
         ]
       }
     },
-    "/signup-composition/{link}": {
-      "put": {
-        "operationId": "setSignupComposition",
+    "/signup-composition/judge": {
+      "post": {
+        "operationId": "judgeSignupComposition",
         "tags": [
           "roles"
         ],
-        "summary": "Judge a link's sign-up composition and write it on the delegation chain in the caller's name.",
+        "summary": "Judge a sign-up composition's value and answer it as the front writes it on its chain.",
         "responses": {
           "200": {
             "description": "Answered."
@@ -8659,31 +8648,11 @@
           },
           "422": {
             "$ref": "#/components/responses/BadComposition"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "409": {
-            "$ref": "#/components/responses/Locked"
           }
         },
         "x-codes": [
           "unauthorized",
-          "bad-composition",
-          "forbidden",
-          "locked",
-          "access-unchecked"
-        ],
-        "parameters": [
-          {
-            "name": "link",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "description": ""
-            }
-          }
+          "bad-composition"
         ],
         "requestBody": {
           "required": true,
@@ -8695,6 +8664,130 @@
             }
           }
         }
+      }
+    },
+    "/setting-kinds": {
+      "get": {
+        "operationId": "settingKinds",
+        "tags": [
+          "front"
+        ],
+        "summary": "Every setting the agency reads, as the front declares it on its chain.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden"
+        ]
+      }
+    },
+    "/unit-reach": {
+      "get": {
+        "operationId": "unitReach",
+        "tags": [
+          "front"
+        ],
+        "summary": "Every account's reach of every unit, as the front wrote it.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden"
+        ]
+      },
+      "put": {
+        "operationId": "setUnitReach",
+        "tags": [
+          "front"
+        ],
+        "summary": "Replace the unit reach table whole.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "bad-request"
+        ]
+      }
+    },
+    "/subject-settings": {
+      "get": {
+        "operationId": "subjectSettings",
+        "tags": [
+          "front"
+        ],
+        "summary": "Every subject's resolution of every setting, as the front wrote it.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden"
+        ]
+      },
+      "put": {
+        "operationId": "setSubjectSettings",
+        "tags": [
+          "front"
+        ],
+        "summary": "Replace the subject settings whole.",
+        "responses": {
+          "200": {
+            "description": "Answered."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "forbidden",
+          "bad-request"
+        ]
       }
     },
     "/role-agents/{agentName}": {
@@ -8839,8 +8932,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "boolean",
-              "description": "with unit: that unit and every unit under it"
+              "type": "string",
+              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
             }
           }
         ]

@@ -51,7 +51,11 @@ async fn head_of(ground: &Ground, acting: Acting, unit: i64) -> Result<(), Refus
     Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
   })?;
 
-  if heads { Ok(()) } else { Err(Refused::new(StatusCode::FORBIDDEN, &words().not_head).with_code("forbidden")) }
+  if heads {
+    Ok(())
+  } else {
+    Err(Refused::new(StatusCode::FORBIDDEN, &words().not_head).with_code("forbidden"))
+  }
 }
 
 /// Whether organisation supply stands open for the unit on the chain.

@@ -21,7 +21,12 @@ pub struct Reached {
 
 /// Every row the table holds, by account and then unit.
 pub async fn every(db: &impl ConnectionTrait) -> Result<Vec<Reached>, Refusal> {
-  let rows = all(db, r#"SELECT "account", "unit", "write" FROM "unit_reach" ORDER BY "account", "unit""#, vec![]).await?;
+  let rows = all(
+    db,
+    r#"SELECT "account", "unit", "write" FROM "unit_reach" ORDER BY "account", "unit""#,
+    vec![],
+  )
+  .await?;
 
   rows
     .into_iter()
@@ -36,7 +41,10 @@ pub async fn every(db: &impl ConnectionTrait) -> Result<Vec<Reached>, Refusal> {
 }
 
 /// The table replaced whole by the rows given, in one transaction.
-pub async fn replace<C: ConnectionTrait + TransactionTrait>(db: &C, rows: &[Reached]) -> Result<(), Refusal> {
+pub async fn replace<C: ConnectionTrait + TransactionTrait>(
+  db: &C,
+  rows: &[Reached],
+) -> Result<(), Refusal> {
   let tx = db.begin().await?;
 
   run(&tx, r#"DELETE FROM "unit_reach""#, vec![]).await?;
