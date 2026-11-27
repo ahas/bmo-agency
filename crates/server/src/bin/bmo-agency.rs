@@ -27,8 +27,8 @@ use agency_server::verbs::run_stop::{self, StopArgs};
 use agency_server::verbs::supervisor_reset::{self, ResetArgs};
 use agency_server::verbs::work_node::{self, WorkNodeVerb};
 use agency_server::verbs::{
-  Answer, VerbError, agent_status, borrow, claude_token, code_tree, deploy_link, job_guard, live_claude,
-  node_pane, repository, supervisor_follow, turns,
+  Answer, VerbError, agent_status, borrow, claude_token, code_tree, crud, deploy_link, job_guard,
+  live_claude, node_pane, repository, supervisor_follow, turns,
 };
 use bmo_agency_client::AgencyClient;
 use clap::{Parser, Subcommand};
@@ -39,7 +39,7 @@ use rmcp::transport::stdio;
 /// The nouns `bmo` dispatches to this command, one a line as `nouns` prints them, each marked `home` after
 /// a tab where its commands act on the operations machine (bmo-cli's `docs/api.md`, 「The nouns a unit
 /// declares」; `docs/api.md`, 「The command」).
-pub const NOUNS: [&str; 25] = [
+pub const NOUNS: [&str; 29] = [
   "agent\thome",
   "agents\thome",
   "agent status\thome",
@@ -61,6 +61,10 @@ pub const NOUNS: [&str; 25] = [
   "live-claude",
   "job borrow\thome",
   "repository\thome",
+  "role-agent\thome",
+  "supervisor list\thome",
+  "supervisor show\thome",
+  "supervisor set\thome",
   "run list\thome",
   "run say\thome",
   "run stop\thome",
@@ -136,10 +140,15 @@ enum Verb {
     #[command(subcommand)]
     what: JobVerb,
   },
-  /// The repositories' registrations: one added or taken away through the server's own routes.
+  /// The repositories' registrations: listed, shown, added, changed or taken away through the server's own routes.
   Repository {
     #[command(subcommand)]
     what: RepositoryVerb,
+  },
+  /// The role agents, the seats a role's work runs on: listed, shown, added, changed or removed.
+  RoleAgent {
+    #[command(subcommand)]
+    what: RowVerb,
   },
   /// A batch put to Claude Code on a pinned login.
   Claude {
@@ -290,6 +299,53 @@ enum RepositoryVerb {
   },
   /// Remove a repository's registration, refused while a job holds one of its checkouts.
   Remove { name: String },
+  /// Every repository's registration, one a line.
+  List,
+  /// One repository's registration whole.
+  Show { name: String },
+  /// Change the fields named, `--set field=value` each, every other field left as it stands.
+  Set {
+    name: String,
+    #[arg(long = "set", value_name = "FIELD=VALUE", required = true)]
+    fields: Vec<String>,
+  },
+}
+
+/// The one grammar of a collection of rows (docs/cli.md, 「One grammar for every noun」).
+#[derive(Subcommand)]
+enum RowVerb {
+  /// Every row, one a line.
+  List,
+  /// One row whole.
+  Show { name: String },
+  /// Add a row under the name, with the fields named, `--set field=value` each.
+  Add {
+    name: String,
+    #[arg(long = "set", value_name = "FIELD=VALUE")]
+    fields: Vec<String>,
+  },
+  /// Change the fields named, `--set field=value` each, every other field left as it stands.
+  Set {
+    name: String,
+    #[arg(long = "set", value_name = "FIELD=VALUE", required = true)]
+    fields: Vec<String>,
+  },
+  /// Remove the row.
+  Remove { name: String },
+}
+
+impl RowVerb {
+  fn step(self) -> agency_server::verbs::crud::Step {
+    use agency_server::verbs::crud::Step;
+
+    match self {
+      Self::List => Step::List,
+      Self::Show { name } => Step::Show(name),
+      Self::Add { name, fields } => Step::Add(name, fields),
+      Self::Set { name, fields } => Step::Set(name, fields),
+      Self::Remove { name } => Step::Remove(name),
+    }
+  }
 }
 
 #[derive(Subcommand)]
@@ -367,6 +423,17 @@ enum SupervisorVerb {
   },
   /// A supervisor started afresh: what it said, what it remembers, or both.
   Reset(ResetArgs),
+  /// Every supervisor, one a line.
+  List,
+  /// One supervisor whole.
+  Show { name: String },
+  /// Change the fields named, `--set field=value` each, every other field left as it stands. A supervisor is added
+  /// and removed through the receiver, which keeps its room.
+  Set {
+    name: String,
+    #[arg(long = "set", value_name = "FIELD=VALUE", required = true)]
+    fields: Vec<String>,
+  },
 }
 
 #[derive(Subcommand)]
@@ -578,7 +645,13 @@ async fn run(verb: Verb) -> ExitCode {
         umbrella,
       } => ended(repository::add(&name, &path, label.as_deref(), umbrella).await),
       RepositoryVerb::Remove { name } => ended(repository::run(&name).await),
+      RepositoryVerb::List => ended(crud::run(crud::REPOSITORIES, crud::Step::List).await),
+      RepositoryVerb::Show { name } => ended(crud::run(crud::REPOSITORIES, crud::Step::Show(name)).await),
+      RepositoryVerb::Set { name, fields } => {
+        ended(crud::run(crud::REPOSITORIES, crud::Step::Set(name, fields)).await)
+      }
     },
+    Verb::RoleAgent { what } => ended(crud::run(crud::ROLE_AGENTS, what.step()).await),
     Verb::Claude {
       what: ClaudeVerb::Batch(asked),
     } => ended(claude_batch::run(asked, &data_root).await.map(Answer::from)),
@@ -638,6 +711,11 @@ async fn run(verb: Verb) -> ExitCode {
         supervisor_follow::follow(&data_root, &agent, &room).await.map(|()| Answer::default())
       }
       SupervisorVerb::Reset(args) => supervisor_reset::reset(args).await,
+      SupervisorVerb::List => crud::run(crud::SUPERVISORS, crud::Step::List).await,
+      SupervisorVerb::Show { name } => crud::run(crud::SUPERVISORS, crud::Step::Show(name)).await,
+      SupervisorVerb::Set { name, fields } => {
+        crud::run(crud::SUPERVISORS, crud::Step::Set(name, fields)).await
+      }
     }),
     Verb::Run { what } => ended(match what {
       RunVerb::List(asked) => run_list::run_list(&data_root, &asked).await,
