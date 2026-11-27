@@ -139,6 +139,29 @@ fn a_poll_made_again_and_again_with_the_same_answer_is_no_progress() {
 }
 
 #[test]
+fn the_same_command_made_again_under_new_words_is_no_progress() {
+  let mut progress = Progress::new(clock());
+  let mut records = vec![];
+  let mut told = vec![];
+
+  for (pass, now) in (0..2 * SPAN).step_by(60_000).enumerate() {
+    records.push(json!({
+      "type": "assistant", "timestamp": stamp(now),
+      "message": { "content": [
+        { "type": "tool_use", "id": format!("t{now}"), "name": "Bash",
+          "input": { "command": "rg -rn needle src", "description": format!("Search again, try {pass}") } }
+      ] }
+    }));
+    records.push(answered("src/a.rs:n", now));
+    progress.records(&records, 0, now);
+    progress.judge(now, false, waits);
+    told.extend(changes(&mut progress));
+  }
+
+  assert_eq!(stalled_since(&told).len(), 1, "the loop is told once: {told:?}");
+}
+
+#[test]
 fn output_grown_with_a_new_last_line_is_progress_and_a_repeated_line_is_not() {
   let mut progress = Progress::new(clock());
 

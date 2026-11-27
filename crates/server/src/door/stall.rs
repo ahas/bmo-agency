@@ -283,7 +283,7 @@ fn said_keys(record: &Value) -> Vec<u64> {
       (Some("assistant"), Some("tool_use")) => Some(alike(&format!(
         "{} {}",
         block.get("name").and_then(Value::as_str).unwrap_or_default(),
-        block.get("input").unwrap_or(&Value::Null)
+        what_it_does(block.get("input").unwrap_or(&Value::Null))
       ))),
       (Some("user"), Some("tool_result")) => Some(alike(&match block.get("content") {
         Some(Value::String(text)) => text.clone(),
@@ -293,6 +293,18 @@ fn said_keys(record: &Value) -> Vec<u64> {
       _ => None,
     })
     .collect()
+}
+
+// A tool call's input less the words it says of itself: a shell call's `description` changes from one try to the
+// next while the command stays the same, so the same command made again with new words is no progress.
+fn what_it_does(input: &Value) -> Value {
+  let mut kept = input.clone();
+
+  if let Some(fields) = kept.as_object_mut() {
+    fields.remove("description");
+  }
+
+  kept
 }
 
 fn stamp_of(record: &Value) -> Option<i64> {

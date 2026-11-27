@@ -1537,7 +1537,8 @@ it names a job.
     work writes grown with a last line unlike the last few, or the writing process's tree burning more than
     that share. Two lines are alike where they read the same once every run of digits is taken as one, so a
     wait that says it still waits every minute with a new count, and a poll the model makes again and again
-    with the same answer, are no progress. A process that merely lives, and one newly begun, are no progress:
+    with the same answer, are no progress. A tool call is read by its tool and its input less the words it
+    says of itself, its `description`, so the same command made again under new words is no progress. A process that merely lives, and one newly begun, are no progress:
     a poll begins one on every pass.
   - **When nothing is told.** While a call of the turn stands under an overtime ask, a keep, or a wait on the
     job's own question, the supervisor already holds that wait, so no stall is told; one that outlasts them is
