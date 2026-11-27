@@ -980,6 +980,7 @@ impl Attempting<'_, '_> {
         run: Some(work.name.clone()),
         resume: apart.resume.clone(),
         resume_else: apart.resume_else.clone(),
+        fresh: apart.fresh,
       },
       &mut watch,
     )
@@ -1083,6 +1084,7 @@ impl Attempting<'_, '_> {
         run: Some(work.name.clone()),
         resume: apart.resume.clone(),
         resume_else: apart.resume_else.clone(),
+        fresh: apart.fresh,
       },
       &mut watch,
     )

@@ -3373,6 +3373,9 @@ impl<S: Sessions + Send + Sync> OnSession<'_, S> {
           effort: parts.mapping.effort.clone(),
           cwd: parts.cwd.clone(),
           role: Some(self.role.to_owned()),
+          // A job's first turn names no session of its own and opens a new one, never the one its agent kept
+          // from another job (docs/sessions.md, 「A role's session」).
+          fresh: continued.session.is_none(),
           resume: continued.session,
           resume_else: continued.instead,
           resume_prefix: continued.prefix,

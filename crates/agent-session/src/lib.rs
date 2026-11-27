@@ -80,6 +80,9 @@ pub struct Apart {
   /// record stands, whatever the role keeps, and a new one opened where it does not (docs/sessions.md, 「A
   /// role's session」).
   pub resume: Option<String>,
+  /// Whether a run naming no session opens a new one rather than resuming the session its agent kept: a job's
+  /// first turn, so one job's work never opens on another's (docs/sessions.md, 「A role's session」).
+  pub fresh: bool,
   /// The words the turn goes out with instead where the session `resume` names cannot be resumed, so a new
   /// session opens on what that one held.
   pub resume_else: Option<String>,

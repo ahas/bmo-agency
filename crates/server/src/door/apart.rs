@@ -66,6 +66,8 @@ pub struct Apart<'a> {
   pub resume: Option<String>,
   /// The words the run goes out with instead where the session `resume` names cannot be resumed.
   pub resume_else: Option<String>,
+  /// Whether a run naming no session opens a new one rather than resuming the session its agent kept.
+  pub fresh: bool,
 }
 
 /// A new session for a run, which a later run resumes only where the run's role keeps sessions.
@@ -145,7 +147,7 @@ pub async fn run<W: Watch>(ground: &Ground, mut apart: Apart<'_>, watch: &mut W)
   {
     // The named session's record is gone: a new session opens on the words that carry what it held.
     apart.prompt = instead;
-  } else if let Some(key) = &kept {
+  } else if let Some(key) = kept.as_ref().filter(|_| !apart.fresh) {
     match apart_sessions::take(&ground.db, key, now_ms()).await {
       Ok(Some(held)) if record_of(ground, &apart.command, &held).is_file() => {
         apart.command.args = resumed_command(&apart.command.args, &held);
@@ -281,6 +283,7 @@ pub async fn ping(ground: &Ground, warm: &crate::keepalive::agents::Warm) -> boo
     run: None,
     resume: None,
     resume_else: None,
+    fresh: false,
   };
   let answered = matches!(run_on(ground, herdr, ping, &mut Quiet).await, Ok(Ending::Answered { .. }));
   let given = match answered {
@@ -377,6 +380,7 @@ impl Folding<'_> {
       run: None,
       resume: None,
       resume_else: None,
+      fresh: false,
     };
     let ended = run_on(ground, herdr, fold, &mut Quiet).await;
     let compacted = compacted_since(tail.look(), from);

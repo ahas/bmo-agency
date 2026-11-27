@@ -448,7 +448,10 @@ statements below about either are kept for a rollback to the road a deployment l
   model the agent's run stands on beside them. An agent is one worker, not a kind of seat
   (`docs/role-agents.md`, 「What an agent is」): a run of a `keep` agent (`docs/agent-roles.md`, 「A role's
   sessions」) resumes the session that same agent's last answered run left at the same path, while it is
-  valid, and opens a new one otherwise, so the agent takes up its own work where it left it there. Two agents
+  valid, and opens a new one otherwise, so the agent takes up its own work where it left it there. A job's first
+  turn is the one exception: it names no session of its own yet and opens a new one, never the session its agent
+  kept from another job, so one item's work never opens on another's context; the job's later turns continue the
+  session its first turn opened. Two agents
   never share a session, whatever role and road they hold in common; a run whose agent cannot be told keeps
   no session (`docs/agent-roles.md`, 「A role's sessions」).
 - **The path is the folder the run works in:** a repository's checkout for a job, a support worktree for a

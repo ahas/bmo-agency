@@ -256,6 +256,7 @@ pub async fn run(ground: &Ground, account: &Account) -> Result<(), Failure> {
     run: None,
     resume: None,
     resume_else: None,
+    fresh: false,
   };
   let ending = apart::run(ground, apart, &mut Quiet)
     .await

@@ -1257,6 +1257,7 @@ async fn a_job_in_a_pane_of_its_own_is_given_a_place_whose_stop_hook_holds_a_too
     run: Some("worker-job-1".into()),
     resume: None,
     resume_else: None,
+    fresh: false,
   };
   let (place, args) = hooks_place(&ground, &run("worker")).unwrap().expect("a place for the hooks");
   let settings = after(&args, "--settings").unwrap();

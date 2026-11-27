@@ -218,6 +218,7 @@ pub async fn run(asked: ClaudeBatch, data_root: &Path) -> Result<Vec<String>, Ve
       run: None,
       resume: None,
       resume_else: None,
+      fresh: false,
     },
     &mut Stoppable(stop),
   )
