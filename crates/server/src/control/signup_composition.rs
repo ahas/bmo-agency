@@ -9,8 +9,8 @@ use serde_json::{Value, json};
 
 use super::role_agents::view;
 use super::{Call, Refused, Route, answer};
-use crate::access::Acting;
-use crate::chain::{self, Subject};
+
+use crate::chain::Subject;
 use crate::organisation::composition::{self, Standing};
 
 fn forbidden(error: &str) -> Refused {
@@ -68,8 +68,8 @@ fn standing_view(role: &str, held: Option<&Standing>) -> Value {
 }
 
 /// `GET /signup-composition?unit=|person=`: what stands for the subject, each role with whether it is off, the
-/// agents given of it and the link that said them; and, for a caller the console names, the subject's own link as
-/// the chain answers it to them, its value and whether they may change it.
+/// agents given of it and the link that said them, as the subject settings the front wrote resolve it. The
+/// subject's own link on the chain is the front's to read.
 pub struct SignupCompositionRead;
 
 impl Route for SignupCompositionRead {
@@ -84,7 +84,6 @@ impl Route for SignupCompositionRead {
       (None, Some(person)) => (Subject::Person(person), format!("person:{person}")),
       _ => return Err(Refused::new(StatusCode::BAD_REQUEST, "Name a unit or a person, one of them")),
     };
-    let caller = call.header("owner-key").and_then(|key| key.trim().parse::<i64>().ok());
     let ground = call.shared_ground();
     let answer_read = composition::resolved(&ground, subject).await?;
     let standing = composition::standing(answer_read.as_ref());
@@ -93,43 +92,22 @@ impl Route for SignupCompositionRead {
       .iter()
       .map(|role| standing_view(&role.name, standing.get(&role.name)))
       .collect();
-    let own = match caller {
-      Some(caller) => {
-        let read = chain::entry(
-          &crate::apps::service(&ground),
-          &policy::organisation::ORGANISATION.composition.key,
-          &link,
-          caller,
-        )
-        .await
-        .map_err(|_| crate::organisation::unchecked())?;
-
-        read.ok().then_some(read.body)
-      }
-      None => None,
-    };
-
-    Ok(answer(StatusCode::OK, json!({ "subject": link, "roles": roles, "own": own })))
+    Ok(answer(StatusCode::OK, json!({ "subject": link, "roles": roles })))
   }
 }
 
 crate::moved!(SignupCompositionRead);
 
-/// `PUT /signup-composition/{link}`: a link's composition judged and written on the chain in the name of the
-/// person the console names, null to follow the link above; the chain answers who may write it and whether a
-/// lock above withholds it, and its answer is this route's.
-pub struct SignupCompositionWrite;
+/// `POST /signup-composition/judge`: a composition's value judged as the agency reads it — each role it names one
+/// the agency holds, the agents given whole numbers — and answered as it would stand, null to follow the link above.
+/// The front writes it on its own chain; the agency writes nothing.
+pub struct SignupCompositionJudge;
 
-impl Route for SignupCompositionWrite {
-  const METHOD: Method = Method::PUT;
-  const PATH: &'static str = "/signup-composition/{link}";
+impl Route for SignupCompositionJudge {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/signup-composition/judge";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
-    let link = call.param("link").unwrap_or_default().to_owned();
-    let Some(caller) = call.header("owner-key").and_then(|key| key.trim().parse::<i64>().ok()) else {
-      return Err(forbidden("A composition is written in the name of a signed-in person"));
-    };
-    let _ = Acting::of(&call)?;
     let body = call.body().await?;
     let ground = call.shared_ground();
     let value = match body.get("value") {
@@ -138,19 +116,9 @@ impl Route for SignupCompositionWrite {
         serde_json::to_value(composition::judge(&ground, value).await?).map_err(Refused::failed)?
       }
     };
-    let written = chain::write_value(
-      &crate::apps::service(&ground),
-      &policy::organisation::ORGANISATION.composition.key,
-      &link,
-      caller,
-      value,
-    )
-    .await
-    .map_err(|_| crate::organisation::unchecked())?;
-    let status = StatusCode::from_u16(written.status).unwrap_or(StatusCode::BAD_GATEWAY);
 
-    Ok(answer(status, written.body))
+    Ok(answer(StatusCode::OK, json!({ "value": value })))
   }
 }
 
-crate::moved!(SignupCompositionWrite);
+crate::moved!(SignupCompositionJudge);

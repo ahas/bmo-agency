@@ -552,13 +552,14 @@ fn instruction(value: Option<&Value>, field: &str) -> Result<Option<String>, Ref
   }
 }
 
-/// `PUT /own-instructions/{ownerAccount}`: the person's own instructions replaced whole, `all` and `agents` by name,
-/// written on their own link of the chain in their name.
+/// `POST /own-instructions/{ownerAccount}/judge`: the person's own instructions, `all` and `agents` by name, judged
+/// as the agency reads them — whether they may give any, each agent one they may give one to — and answered as the
+/// value the front writes on its own chain, null for none. The agency writes nothing.
 pub struct OwnInstructionsWrite;
 
 impl Route for OwnInstructionsWrite {
-  const METHOD: Method = Method::PUT;
-  const PATH: &'static str = "/own-instructions/{ownerAccount}";
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/own-instructions/{ownerAccount}/judge";
 
   async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
     let person = account_of(&call)?;
@@ -603,27 +604,7 @@ impl Route for OwnInstructionsWrite {
     } else {
       json!({ "all": all, "agents": agents })
     };
-    let service = crate::apps::service(call.ground());
-    let written =
-      chain::write_value(&service, &words.personal.text.key, &format!("person:{person}"), person, value)
-        .await
-        .map_err(|_| crate::organisation::unchecked())?;
-
-    if !written.ok() {
-      let status = StatusCode::from_u16(written.status).unwrap_or(StatusCode::BAD_GATEWAY);
-      let error = written.body["error"]
-        .as_str()
-        .unwrap_or("The account service refused the instructions")
-        .to_owned();
-      let refused = Refused::new(status, error);
-
-      return Err(match written.body["code"].as_str() {
-        Some(code) => refused.with_code(code),
-        None => refused,
-      });
-    }
-
-    Ok(answer(StatusCode::OK, instructions_view(call.ground(), person).await?))
+    Ok(answer(StatusCode::OK, json!({ "value": value })))
   }
 }
 
