@@ -1,0 +1,9 @@
+# This service's standing line in every agent's brain: when to reach for it. How its tools are called is
+# their manuals', handed with a tool's first call in a session.
+held_by = "agency"
+
+[[memory]]
+key = "when"
+type = "tip"
+recall_condition = "launching an item's worker run or job"
+text = "Take the lease, assign_worker, then run_job; release_worker where it will not run, and stop a job only on the owner's word."
