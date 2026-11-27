@@ -415,6 +415,25 @@ fn full_match_refusal(program: &str, args: &[String]) -> Option<String> {
   ))
 }
 
+/// `rg` given `-r` among other short flags (`-rn`, `-nr`, `-ri`): grep's habit of asking for recursion, where for
+/// `rg` the flag is `--replace` and takes the next letters or the next word as the replacement, so every match is
+/// printed rewritten and the search answers wrong.
+fn replace_refusal(program: &str, args: &[String]) -> Option<String> {
+  if program != "rg" {
+    return None;
+  }
+
+  let cluster = args.iter().take_while(|arg| arg.as_str() != "--").find(|arg| {
+    !arg.starts_with("--") && arg.starts_with('-') && arg.len() > 2 && arg[1..].contains('r')
+  })?;
+  let kept: String = cluster[1..].chars().filter(|flag| *flag != 'r').collect();
+  let written = if kept.is_empty() { String::new() } else { format!(" -{kept}") };
+
+  Some(format!(
+    "refused: rg {cluster} reads -r as --replace, not as recursion, so every match comes back rewritten and the search answers wrong. rg searches directories recursively by itself: write rg{written} <pattern> <path>. {DOC}"
+  ))
+}
+
 // Every word after an option that takes a pattern, and every `--option=value` word, is a pattern the command
 // expands for itself; left unquoted, zsh expands it first, and refuses the whole command where it matches
 // nothing.
@@ -545,8 +564,9 @@ fn read_habits(text: &str, call: ShellCall, bounded: bool, depth: usize) -> Opti
       return Some(stdin_refusal(&run.program));
     }
 
-    if let Some(refused) =
-      full_match_refusal(&run.program, &run.args).or_else(|| pattern_refusal(&run.program, &run.args))
+    if let Some(refused) = full_match_refusal(&run.program, &run.args)
+      .or_else(|| pattern_refusal(&run.program, &run.args))
+      .or_else(|| replace_refusal(&run.program, &run.args))
     {
       return Some(refused);
     }

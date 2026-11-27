@@ -122,6 +122,27 @@ fn a_known_long_command_with_a_short_wait_asked_for() {
 }
 
 #[test]
+fn rg_given_r_among_short_flags_reads_it_as_replace() {
+  for (command, written) in [
+    ("rg -rn 'fn main' crates", "rg -n <pattern>"),
+    ("rg -nr TODO src", "rg -n <pattern>"),
+    ("cd crates && rg -rni needle .", "rg -ni <pattern>"),
+  ] {
+    assert!(habit(command).is_some_and(|refused| refused.contains(written)), "{command}");
+  }
+
+  for command in [
+    "rg -n 'fn main' crates",
+    "rg -r '$1' -n 'x(.)' file.rs",
+    "rg --replace X needle src",
+    "grep -rn needle src",
+    "rg -n needle -- -rn",
+  ] {
+    assert_eq!(habit(command), None, "{command}");
+  }
+}
+
+#[test]
 fn a_full_match_that_finds_its_own_shell() {
   for command in [
     "pkill -f voice-cer.py",

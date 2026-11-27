@@ -280,6 +280,9 @@ This is what the hook does on every line, whether or not it judges as the job gu
     value holds `*`, `?` or `[` outside quotes, and the value after `-name`, `-iname`, `-path`,
     `-ipath`, `-wholename`, `-lname`, `--glob`, `--iglob`, `--include`, `--exclude`, `--exclude-dir`,
     or `rg -g`.
+  - **`rg` given `-r` among other short flags** (`-rn`, `-nr`, `-ri`): grep's way to ask for recursion, where
+    `rg`'s `-r` is `--replace` and takes what follows as the replacement, so every match comes back rewritten.
+    `rg` searches directories recursively by itself; the refusal gives the command without the `r`.
   - **A sleeping wait with no bound.** A `while` or `until` loop in a command that also sleeps,
     unless the loop runs under `timeout`.
 - **What it lets through:** the same commands with a path, a file, a redirect, a quoted pattern, no
