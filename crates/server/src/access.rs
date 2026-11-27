@@ -1,28 +1,14 @@
-//! Who may read or change the agents a console manages (docs/api.md, 「The control port」): a control route
-//! of the supervisors, the roles, the repositories, the registered models or the model files, asked by a
-//! signed-in person the console names, goes on only where the console's permission for that person lets it:
-//! each kind stands under the console section of the agent management tab that holds it, and the agent list,
-//! which the console's screen reads under any one of its parts, is read under any of the five.
-//!
-//! A repository an organisation unit owns is the exception: a member's change of one, or an add naming the unit,
-//! asks no section, its unit's heads alone passing the chain's check that follows (「unit_repository」).
-//!
-//! A caller carrying no `Owner-Key` is a unit, a tool, a job or the shell acting on the deployment's own
-//! token, and keeps the routes' present behaviour. The platform administrator, `Owner-Role: administrator`,
-//! is the owner and keeps every access. A member's permission is the console's, kept on the account service:
-//! agency asks it, with that person's headers, and refuses where the answer gives no read or no write.
-//!
-//! A section's write lets a member change only the rows filed under their own account: a supervisor, a
-//! repository or a role agent of another account, or one of the platform's, filed under none, is refused, a row a
-//! member adds is filed under their account, and the roles, which no account owns, are the platform's alone. A
-//! supervisor's or another holder's work stands only on a repository of its own side (「works_on」).
-
-use std::path::PathBuf;
-use std::time::Duration;
+//! Whose rows a call changes on the agent management routes (docs/api.md, 「Who a caller acts for」): the agency
+//! judges no person's permission — the service in front of it does, before a call is made — and keeps only the
+//! line between owners. A caller carrying no `Owner-Key` is the deployment's own and keeps every row; one
+//! carrying `Owner-Role: administrator` is the platform's and keeps every row too. A member, named by the key the
+//! front hands on, changes only the rows filed under their own account and those of the units the unit reach
+//! table says they head (`crate::unit_reach`), files what they add under their own account, and changes no
+//! role, the roles being the platform's presets. A supervisor's or another holder's work stands only on a
+//! repository of its own side (「works_on」).
 
 use axum::http::{Method, StatusCode};
-use serde_json::Value;
-use tool_call::account_service::AccountService;
+
 
 use crate::control::{Call, Refused};
 use crate::places::Ground;
@@ -61,37 +47,8 @@ impl Part {
     }
   }
 
-  /// The console section the part stands under.
-  fn section(self) -> &'static str {
-    match self {
-      Part::Supervisors => "supervisors",
-      Self::Roles | Self::RoleAgents => "roles",
-      Self::Repositories => "repositories",
-      Self::Models => "models",
-      Self::ModelFiles => "model-files",
-    }
-  }
 
-  /// The part alone, as the parts a change of it is allowed under.
-  fn alone(self) -> &'static [Self] {
-    match self {
-      Part::Supervisors => &[Self::Supervisors],
-      Self::Roles => &[Self::Roles],
-      Part::RoleAgents => &[Self::RoleAgents],
-      Self::Repositories => &[Self::Repositories],
-      Self::Models => &[Self::Models],
-      Self::ModelFiles => &[Self::ModelFiles],
-    }
-  }
 
-  /// The parts whose read lets a person read this one: the agent list is read under any part, since the
-  /// console's screen opens on any one of them and an agent's page stands under the three it is made of.
-  fn read_under(self) -> &'static [Self] {
-    match self {
-      Self::Supervisors | Self::Roles | Self::RoleAgents | Self::Repositories => &Self::ALL,
-      Self::Models | Self::ModelFiles => self.alone(),
-    }
-  }
 
   /// The path parameter that names the row a route of this part changes, none for a part whose rows are judged
   /// whatever the path names.
@@ -138,96 +95,9 @@ impl Part {
   }
 }
 
-/// The account service is waited on for its answer: the local service answers at once, and a call that cannot
-/// be made is no access, never a guessed one.
-const WAIT: Duration = Duration::from_secs(10);
 
-/// One managed route a member asks: whose permission it needs, which way, and the account service to ask.
-pub struct Check {
-  key: String,
-  data_root: PathBuf,
-  part: Part,
-  write: bool,
-}
 
-/// The check a call needs, or none where it needs none: a route of another kind, a caller carrying no key, or
-/// the owner.
-pub fn asked(call: &Call, method: &Method, path: &str) -> Option<Check> {
-  let part = Part::of(path)?;
-  let key = call
-    .header("owner-key")
-    .map(|key| key.trim().to_owned())
-    .filter(|key| !key.is_empty())?;
 
-  if call
-    .header("owner-role")
-    .is_some_and(|role| role.trim().eq_ignore_ascii_case("administrator"))
-  {
-    return None;
-  }
-
-  Some(Check {
-    key,
-    data_root: call.data_root(),
-    part,
-    write: !matches!(method, &Method::GET | &Method::HEAD),
-  })
-}
-
-/// Whether a member's write is on a row an organisation unit owns, or adds one under a unit: such a call asks
-/// no console section, since heading the unit is the whole of who may, and the chain's checks after it judge that
-/// (docs/api.md, 「Who a caller acts for」; docs/repositories.md, 「An organisation's repository」). A change
-/// names the row, read for its unit; an add names the unit in its body,
-/// read ahead of the route and put back.
-pub async fn unit_repository(call: &mut Call, method: &Method, path: &str) -> bool {
-  let Some(part) = Part::of(path) else { return false };
-
-  if !matches!(part, Part::Supervisors | Part::RoleAgents | Part::Repositories | Part::Models)
-    || matches!(method, &Method::GET | &Method::HEAD)
-  {
-    return false;
-  }
-
-  if let Some(name) = part.row_param().and_then(|param| call.param(param)).map(str::to_owned) {
-    let db = &call.ground().db;
-
-    return match part {
-      Part::Supervisors => matches!(
-        crate::supervisors::named(db, &name).await,
-        Ok(Some(held)) if held.owner_unit.is_some()
-      ),
-      Part::RoleAgents => matches!(
-        crate::role_agents::named(db, &name).await,
-        Ok(Some(held)) if held.owner_unit.is_some()
-      ),
-      Part::Models => {
-        // A model route names its row by its key, whose name part the registry keeps.
-        let (_, name) = crate::control::walk_reads::model_key(&name, call.query("provider").as_deref());
-
-        matches!(
-          crate::control::registry::registration(db, &name).await,
-          Ok(Some(held)) if held.owner_unit.is_some()
-        )
-      }
-      _ => matches!(
-        crate::repositories::named(db, &name).await,
-        Ok(Some(held)) if held.owner_unit.is_some()
-      ),
-    };
-  }
-
-  if method != Method::POST || path != part.root() {
-    return false;
-  }
-
-  // A model body names its unit owner by `unit`; the other resources by `ownerUnit`.
-  let axis = if part == Part::Models { "unit" } else { "ownerUnit" };
-
-  call
-    .peek_body()
-    .await
-    .is_some_and(|body| body.get(axis).and_then(Value::as_i64).is_some())
-}
 
 /// Whose the row a managed route changes is (「Part::row」).
 enum Row {
@@ -449,89 +319,7 @@ impl Acting {
   }
 }
 
-/// Whether the caller may make this call, or the refusal saying why it may not.
-pub async fn check(check: Check) -> Result<(), Refused> {
-  if access_of(&check).await? {
-    return Ok(());
-  }
 
-  let what = if check.write { "change" } else { "read" };
-  let access = if check.write { "write" } else { "read" };
-  let sections = match check.sections() {
-    [one] => format!("the {} section", one.section()),
-    _ => "any section of agent management".to_owned(),
-  };
 
-  Err(Refused::new(
-    StatusCode::FORBIDDEN,
-    format!(
-      "The signed-in person may not {what} {}: the console holds no {access} access to {sections} for them",
-      check.part.root()
-    ),
-  ))
-}
 
-impl Check {
-  /// The parts any one of which lets the call go on: a change needs its own part's write, a read the read of a
-  /// part it stands under.
-  fn sections(&self) -> &'static [Part] {
-    if self.write { self.part.alone() } else { self.part.read_under() }
-  }
-}
 
-/// Whether the account service says the person may use a section the call stands under for what it asks: the
-/// write for a change, the read for a read.
-async fn access_of(check: &Check) -> Result<bool, Refused> {
-  let accounts = AccountService::read(&check.data_root, |name| std::env::var(name).ok());
-
-  if accounts.address.is_empty() {
-    return Err(unchecked("the account service is not named"));
-  }
-
-  let asked = reqwest::Client::new()
-    .get(format!("{}/users/{}/sections", accounts.address, check.key))
-    .bearer_auth(&accounts.token)
-    .header("Owner-Key", &check.key)
-    .header("Owner-Role", "member")
-    .timeout(WAIT)
-    .send()
-    .await
-    .map_err(|why| unchecked(&format!("the account service was not reached: {why}")))?;
-  let status = asked.status();
-  let read = asked.json::<Value>().await.unwrap_or(Value::Null);
-
-  if status == StatusCode::FORBIDDEN || status == StatusCode::UNAUTHORIZED {
-    return Ok(false);
-  }
-
-  if !status.is_success() {
-    let said = read.get("error").and_then(Value::as_str).unwrap_or("no reason given");
-
-    return Err(unchecked(&format!("the account service answered {}: {said}", status.as_u16())));
-  }
-
-  Ok(sections_allow(&read, check.sections(), check.write))
-}
-
-/// Whether a section of the answer among the parts named reads and, where a change asks, writes.
-fn sections_allow(body: &Value, parts: &[Part], write: bool) -> bool {
-  let access = if write { "write" } else { "read" };
-
-  body.get("sections").and_then(Value::as_array).is_some_and(|rows| {
-    rows.iter().any(|row| {
-      let named = row.get("section").and_then(Value::as_str);
-
-      parts.iter().any(|part| named == Some(part.section()))
-        && row.get(access).and_then(Value::as_bool).unwrap_or(false)
-    })
-  })
-}
-
-/// The refusal of a check that could not be made: no access is guessed.
-fn unchecked(why: &str) -> Refused {
-  Refused::new(
-    StatusCode::SERVICE_UNAVAILABLE,
-    format!("Agent management's access could not be checked: {why}"),
-  )
-  .with_code("access-unchecked")
-}

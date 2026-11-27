@@ -15,7 +15,6 @@ use policy::supervisors::{GENERATION, GenerationSetting, SUPERVISORS};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, QueryResult, TransactionTrait};
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use tool_call::account_service::AccountService;
 
 use super::fault::{Fault, refused};
 use super::models::{entries, latest_uses};
@@ -280,7 +279,7 @@ pub fn roots(call: &Call) -> Roots {
 /// as its account's standing and the delegation chain give them (docs/prompt-layers.md).
 async fn system<C: ConnectionTrait>(
   db: &C,
-  (roots, service): (&Roots, &AccountService),
+  roots: &Roots,
   (supervisor, owner): (Supervisor<'_>, Option<i64>),
   settings: &Settings,
   (provider, model): (&str, &str),
@@ -327,7 +326,7 @@ async fn route_of(db: &DatabaseConnection, agent: &str) -> Option<(String, Strin
 async fn view(
   db: &DatabaseConnection,
   hooks: &Hooks,
-  (roots, service): (&Roots, &AccountService),
+  roots: &Roots,
   agent: &str,
 ) -> Result<Value, Fault> {
   let row = supervisor_row(db, agent).await?;
@@ -383,7 +382,7 @@ async fn view(
     Some(
       system(
         db,
-        (roots, service),
+        roots,
         (supervisor, held.owner_account),
         &settings,
         (&provider_now, &model_now),
@@ -810,9 +809,7 @@ pub async fn shown(
   roots: &Roots,
   agent: &str,
 ) -> Result<Value, String> {
-  let service = AccountService::read(&roots.data, |name| std::env::var(name).ok());
-
-  view(db, hooks, (roots, &service), agent).await.map_err(said)
+  view(db, hooks, roots, agent).await.map_err(said)
 }
 
 /// A save of one supervisor's settings, read as a route's body is read and written whole or refused, by a
@@ -848,9 +845,7 @@ impl Route for SupervisorSettingsRead {
   async fn answer(&self, call: Call) -> Result<Response, Refused> {
     let agent = call.param("supervisorName").unwrap_or_default().to_owned();
 
-    let service = crate::apps::service(call.ground());
-
-    match view(call.store(), &call.ground().hooks, (&roots(&call), &service), &agent).await {
+    match view(call.store(), &call.ground().hooks, &roots(&call), &agent).await {
       Ok(shown) => Ok(answer(StatusCode::OK, shown)),
       Err(fault) => fault.answer(),
     }
@@ -911,9 +906,7 @@ impl Route for SupervisorSettingsChange {
       carry_out_waiting(&call).await;
     }
 
-    let service = crate::apps::service(call.ground());
-
-    match view(db, &call.ground().hooks, (&roots, &service), &agent).await {
+    match view(db, &call.ground().hooks, &roots, &agent).await {
       Ok(shown) => Ok(answer(StatusCode::OK, shown)),
       Err(fault) => fault.answer(),
     }

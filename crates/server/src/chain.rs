@@ -8,7 +8,6 @@ use std::time::Duration;
 
 use policy::organisation::ORGANISATION;
 use policy::prompt_layers::{Kind, PROMPT_LAYERS};
-use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tool_call::account_service::AccountService;
 
