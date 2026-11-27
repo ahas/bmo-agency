@@ -95,7 +95,7 @@ pub async fn judge(ground: &Ground, value: &Value) -> Result<Composition, Refuse
     for road in agents {
       if road.provider.is_some() != road.model.is_some() {
         return Err(unprocessable(format!(
-          "{name}: an agent's road names its provider together with its model, or neither."
+          "{name}: an agent's road names its provider together with its model, or neither: give both, or leave both out to follow the role's order."
         )));
       }
 

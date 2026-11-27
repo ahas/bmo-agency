@@ -226,8 +226,11 @@ pub async fn to_repository(
     .await
     .map_err(|why| Refused::failed(why.detail))?
     .ok_or_else(|| {
-      Refused::new(StatusCode::NOT_FOUND, format!("no repository is named {repository}"))
-        .with_code("unknown-repository")
+      Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("no repository is named {repository}; `bmo repository list` names every repository"),
+      )
+      .with_code("unknown-repository")
     })?;
   let checkouts = checkouts_of(&ground, repository).await?;
   let named = ask.worker.as_deref().map(str::trim).filter(|worker| !worker.is_empty());

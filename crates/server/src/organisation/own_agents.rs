@@ -239,7 +239,7 @@ pub fn road_asked(body: &Value) -> Result<Option<Option<Road>>, Refused> {
     _ => Err(
       Refused::new(
         StatusCode::UNPROCESSABLE_ENTITY,
-        "An agent's road names its provider together with its model, or neither.",
+        "An agent's road names its provider together with its model, or neither: give both, or leave both out to follow the role's order.",
       )
       .with_field("provider"),
     ),

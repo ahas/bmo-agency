@@ -155,6 +155,8 @@ pub fn answered(
       }
       _ => String::new(),
     };
+    // A route that says the step past its refusal itself is said as it is.
+    let next = if error.contains('`') { String::new() } else { next };
 
     return Err(VerbError::Refused(format!("{noun}: {error}{next}")));
   }

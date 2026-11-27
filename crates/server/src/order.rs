@@ -203,15 +203,30 @@ pub async fn judge(
   for (at, entry) in read.iter().enumerate() {
     let field = format!("order[{at}]");
     let Some(provider) = harness_providers::provider(&entry.provider) else {
-      return Err(refused(field, format!("No provider named {} is carried here.", entry.provider)));
+      return Err(refused(
+        field,
+        format!(
+          "No provider named {} is carried here; `bmo agent` lists the providers this build carries.",
+          entry.provider
+        ),
+      ));
     };
 
     if read[..at].iter().any(|before| before.provider == entry.provider) {
-      return Err(refused(field, format!("{} stands in the order twice.", entry.provider)));
+      return Err(refused(
+        field,
+        format!("{} stands in the order twice; name each provider once.", entry.provider),
+      ));
     }
 
     if !provider.declared().carries(line) {
-      return Err(refused(field, format!("{} does not carry the {line} line.", entry.provider)));
+      return Err(refused(
+        field,
+        format!(
+          "{} does not carry the {line} line; leave it out of this order, or choose a provider that carries it.",
+          entry.provider
+        ),
+      ));
     }
 
     if entry.model.trim().is_empty() {

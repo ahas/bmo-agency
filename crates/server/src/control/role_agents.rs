@@ -29,7 +29,10 @@ fn unprocessable(error: impl Into<String>) -> Refused {
 }
 
 fn unknown(name: &str) -> Refused {
-  Refused::new(StatusCode::NOT_FOUND, format!("No agent is named {name}."))
+  Refused::new(
+    StatusCode::NOT_FOUND,
+    format!("No agent is named {name}; `bmo role-agent list` names every agent."),
+  )
 }
 
 /// An agent as the routes answer it: every field of its row, whether a run a supervisor asks of it goes out on that
@@ -273,7 +276,9 @@ pub(crate) async fn judged(
         })?;
     }
     _ => {
-      return Err(unprocessable("An agent's road names its provider together with its model, or neither."));
+      return Err(unprocessable(
+        "An agent's road names its provider together with its model, or neither: give both, or leave both out to follow the role's order.",
+      ));
     }
   }
 
@@ -456,7 +461,12 @@ impl Route for RoleAgentCreate {
     }
 
     if role_agents::named(db, &name).await?.is_some() {
-      return Err(Refused::new(StatusCode::CONFLICT, format!("An agent is already named {name}.")));
+      return Err(Refused::new(
+        StatusCode::CONFLICT,
+        format!(
+          "An agent is already named {name}; choose another name, or change that agent with `bmo role-agent set {name}`."
+        ),
+      ));
     }
 
     let fresh = RoleAgent {

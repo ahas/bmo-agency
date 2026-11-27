@@ -61,4 +61,17 @@ fn a_refusal_says_the_route_s_words_and_the_step_past_it() {
     refused(409, Step::Add("coder-a".to_owned(), vec![]))
       .ends_with("change the one standing with `role-agent set`.")
   );
+
+  // A route that names the step past its refusal is said as it is, the step not named twice.
+  let said = match answered(
+    ROLE_AGENTS,
+    &Step::Show("coder-z".to_owned()),
+    404,
+    Some(json!({ "error": "No agent is named coder-z; `bmo role-agent list` names every agent." })),
+  ) {
+    Err(VerbError::Refused(said)) => said,
+    other => panic!("not refused: {other:?}"),
+  };
+
+  assert_eq!(said, "role-agent: No agent is named coder-z; `bmo role-agent list` names every agent.");
 }
