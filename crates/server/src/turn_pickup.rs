@@ -1161,6 +1161,21 @@ async fn followed(
         }
       }
 
+      // A run of alike tool calls is told in the turn itself, where its provider takes words mid-turn
+      // (docs/agent-control.md, 「A call made again and again is told in the turn」).
+      while let Some(count) = watch.take_repeated() {
+        if let (true, Some(herdr), Some(target)) =
+          (takes_words_mid_turn(provider), &ground.herdr, target.as_deref())
+        {
+          let words = fill_marks(
+            &policy::tool_clock::TOOL_CLOCK.stall.repeat_words,
+            &[("count", &count.to_string())],
+          );
+          let _ = herdr.call("agent.prompt", json!({ "target": target, "text": words }), None).await;
+          println!("{}: {count} alike tool calls in a row told in its turn", turn.run);
+        }
+      }
+
       // A job's turn standing still is told to its item's orderer as a live turn's is.
       while let Some(change) = watch.take_stall() {
         if let Some(stall) = stall.as_deref_mut() {

@@ -91,6 +91,10 @@ pub struct StallClock {
   pub lines: usize,
   /// How many characters of a call's command and of each of its lines the notice carries.
   pub chars: usize,
+  /// How many tool calls in a row, each the same call answered the same, before words are put into the turn.
+  pub repeat_say: usize,
+  /// The words put into the turn then: `{count}`.
+  pub repeat_words: String,
 }
 
 crate::part!(pub TOOL_CLOCK: ToolClock = "tool-clock.toml");

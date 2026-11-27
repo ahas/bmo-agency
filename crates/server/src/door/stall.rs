@@ -129,6 +129,12 @@ pub struct Progress {
   // Whether a stall may stand told from before this watch began, so its first progress withdraws it.
   maybe_told: bool,
   changes: VecDeque<StallChange>,
+  // The last tool call and its answer, how many times in a row they came alike, and the runs to tell.
+  last_call: Option<u64>,
+  last_answer: Option<u64>,
+  pending_call: Option<u64>,
+  repeats: usize,
+  repeated: VecDeque<usize>,
 }
 
 impl Progress {
@@ -143,6 +149,11 @@ impl Progress {
       told: false,
       maybe_told: false,
       changes: VecDeque::new(),
+      last_call: None,
+      last_answer: None,
+      pending_call: None,
+      repeats: 0,
+      repeated: VecDeque::new(),
     }
   }
 
@@ -186,10 +197,17 @@ impl Progress {
     let mut last_at = None;
     let mut moved = false;
 
-    for record in &records[start..] {
+    // The line read again was counted as calls before.
+    let fresh = from.max(self.read).min(records.len());
+
+    for (at, record) in records.iter().enumerate().skip(start) {
       for key in said_keys(record) {
         moved |= self.said.new_line(key, self.clock.recent);
         last_at = stamp_of(record).or(last_at);
+      }
+
+      if at >= fresh {
+        self.count_calls(record, !first);
       }
     }
 
@@ -200,6 +218,33 @@ impl Progress {
     } else if moved {
       self.moved(now);
     }
+  }
+
+  // The tool calls and answers of one record line counted: a call alike the last, answered alike the last, makes
+  // a run one longer, and a run reaching the policy's count is told once, where `tells`.
+  fn count_calls(&mut self, record: &Value, tells: bool) {
+    for (call, key) in call_keys(record) {
+      if call {
+        self.pending_call = Some(key);
+        continue;
+      }
+
+      let Some(made) = self.pending_call.take() else { continue };
+      let alike = self.last_call == Some(made) && self.last_answer == Some(key);
+
+      self.repeats = if alike { self.repeats + 1 } else { 1 };
+      self.last_call = Some(made);
+      self.last_answer = Some(key);
+
+      if tells && self.repeats == TOOL_CLOCK.stall.repeat_say {
+        self.repeated.push_back(self.repeats);
+      }
+    }
+  }
+
+  /// The next run of alike calls to tell in the turn, by how many it holds.
+  pub fn take_repeated(&mut self) -> Option<usize> {
+    self.repeated.pop_front()
   }
 
   /// A source of output read at `size`: a call's output, the file the job's own work writes, a subagent's
@@ -290,6 +335,38 @@ fn said_keys(record: &Value) -> Vec<u64> {
         Some(other) => other.to_string(),
         None => String::new(),
       })),
+      _ => None,
+    })
+    .collect()
+}
+
+// The tool calls and answers a record line holds, in order: true for a call keyed by its tool and what it does,
+// false for an answer keyed by what it answered.
+fn call_keys(record: &Value) -> Vec<(bool, u64)> {
+  let kind = record.get("type").and_then(Value::as_str);
+  let Some(blocks) = record.pointer("/message/content").and_then(Value::as_array) else {
+    return vec![];
+  };
+
+  blocks
+    .iter()
+    .filter_map(|block| match (kind, block.get("type").and_then(Value::as_str)) {
+      (Some("assistant"), Some("tool_use")) => Some((
+        true,
+        alike(&format!(
+          "{} {}",
+          block.get("name").and_then(Value::as_str).unwrap_or_default(),
+          what_it_does(block.get("input").unwrap_or(&Value::Null))
+        )),
+      )),
+      (Some("user"), Some("tool_result")) => Some((
+        false,
+        alike(&match block.get("content") {
+          Some(Value::String(text)) => text.clone(),
+          Some(other) => other.to_string(),
+          None => String::new(),
+        }),
+      )),
       _ => None,
     })
     .collect()

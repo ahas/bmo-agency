@@ -385,6 +385,11 @@ impl Watch {
     self.progress.take()
   }
 
+  /// The next run of alike tool calls to tell in the turn, by how many it holds.
+  pub fn take_repeated(&mut self) -> Option<usize> {
+    self.progress.take_repeated()
+  }
+
   /// The subagents' own records beside the turn's `record` read, at most once a look: one grown is progress.
   pub fn subagent_records(&mut self, record: &Path, now: i64) {
     if now - self.subagents_read_at < self.clock.look_ms {

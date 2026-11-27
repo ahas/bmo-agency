@@ -1540,6 +1540,11 @@ it names a job.
     with the same answer, are no progress. A tool call is read by its tool and its input less the words it
     says of itself, its `description`, so the same command made again under new words is no progress. A process that merely lives, and one newly begun, are no progress:
     a poll begins one on every pass.
+  - **A call made again and again is told in the turn.** A job's turn that makes the same tool call several
+    times in a row (`policy/tool-clock.toml`, `repeat_say`, five), each answered alike, is told so in the turn
+    itself, once a run, where its provider takes words while a turn works: that the answer will not change, to
+    read it and do something else or say what blocks it. A call is keyed by its tool and its input less its
+    description, an answer as the stall reads lines.
   - **When nothing is told.** While a call of the turn stands under an overtime ask, a keep, or a wait on the
     job's own question, the supervisor already holds that wait, so no stall is told; one that outlasts them is
     told at the next read. A turn picked up across a restart counts its last progress from the time of the

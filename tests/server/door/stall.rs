@@ -236,3 +236,32 @@ fn a_turn_taken_up_says_its_first_move_so_a_stall_told_before_it_is_let_go() {
   );
   assert!(changes(&mut progress).is_empty(), "said once");
 }
+
+#[test]
+fn a_run_of_alike_calls_is_told_once_at_the_policy_s_count() {
+  let mut progress = Progress::new(clock());
+  let mut records = vec![called("ls src", 0), answered("a.rs", 0)];
+  let count = policy::tool_clock::TOOL_CLOCK.stall.repeat_say;
+
+  // The first read only learns the record.
+  progress.records(&records, 0, 0);
+
+  let mut told = vec![];
+
+  for at in 1..=(count as i64 + 3) {
+    let now = at * 1_000;
+
+    records.push(called("ls src", now));
+    records.push(answered("a.rs", now));
+    progress.records(&records, 0, now);
+    told.extend(std::iter::from_fn(|| progress.take_repeated()));
+  }
+
+  assert_eq!(told, [count], "told once, as the run reaches the count");
+
+  // A call answered otherwise starts the run again.
+  records.push(called("ls src", 99_000));
+  records.push(answered("a.rs b.rs", 99_000));
+  progress.records(&records, 0, 99_000);
+  assert_eq!(progress.take_repeated(), None);
+}
