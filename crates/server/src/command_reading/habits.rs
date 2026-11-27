@@ -415,6 +415,33 @@ fn full_match_refusal(program: &str, args: &[String]) -> Option<String> {
   ))
 }
 
+/// `git push` onto the main branch, or every branch at once: a job's commits reach main through its close alone,
+/// which checks them first (the job service's `docs/cli.md`, `bmo job close`); a step's commits stay on its own
+/// branch.
+fn main_push_refusal(program: &str, args: &[String]) -> Option<String> {
+  if program != "git" {
+    return None;
+  }
+
+  let mut words = args.iter().skip_while(|arg| arg.as_str() != "push");
+
+  words.next()?;
+
+  let rest: Vec<&String> = words.collect();
+  let every = rest.iter().any(|arg| matches!(arg.as_str(), "--all" | "--mirror"));
+  let onto_main = rest.iter().filter(|arg| !arg.starts_with('-')).skip(1).any(|spec| {
+    let target = spec.trim_start_matches('+').rsplit(':').next().unwrap_or_default();
+
+    matches!(target.trim_start_matches("refs/heads/"), "main" | "master")
+  });
+
+  (every || onto_main).then(|| {
+    format!(
+      "refused: this push puts commits onto main without the close's check. A job's commits reach main through bmo job close alone, which checks them first; push a step's commits to the job's own branch, or leave them for the close. {DOC}"
+    )
+  })
+}
+
 /// `rg` given `-r` among other short flags (`-rn`, `-nr`, `-ri`): grep's habit of asking for recursion, where for
 /// `rg` the flag is `--replace` and takes the next letters or the next word as the replacement, so every match is
 /// printed rewritten and the search answers wrong.
@@ -567,6 +594,7 @@ fn read_habits(text: &str, call: ShellCall, bounded: bool, depth: usize) -> Opti
     if let Some(refused) = full_match_refusal(&run.program, &run.args)
       .or_else(|| pattern_refusal(&run.program, &run.args))
       .or_else(|| replace_refusal(&run.program, &run.args))
+      .or_else(|| main_push_refusal(&run.program, &run.args))
     {
       return Some(refused);
     }

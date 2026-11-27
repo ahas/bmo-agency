@@ -280,6 +280,9 @@ This is what the hook does on every line, whether or not it judges as the job gu
     value holds `*`, `?` or `[` outside quotes, and the value after `-name`, `-iname`, `-path`,
     `-ipath`, `-wholename`, `-lname`, `--glob`, `--iglob`, `--include`, `--exclude`, `--exclude-dir`,
     or `rg -g`.
+  - **`git push` onto main, or every branch at once** (`main` or `master` as a refspec's target, `--all`,
+    `--mirror`): a job's commits reach main through its close alone, which checks them first, so a step's
+    commits stay on the job's own branch.
   - **`rg` given `-r` among other short flags** (`-rn`, `-nr`, `-ri`): grep's way to ask for recursion, where
     `rg`'s `-r` is `--replace` and takes what follows as the replacement, so every match comes back rewritten.
     `rg` searches directories recursively by itself; the refusal gives the command without the `r`.

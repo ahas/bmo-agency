@@ -92,7 +92,7 @@ fn a_known_long_command_with_a_short_wait_asked_for() {
     "bmo-testbed run -- bun test a.test.ts b.test.ts",
     "bmo-testbed cargo test -p x",
     "git push",
-    "git -C /tmp/x push origin main",
+    "git -C /tmp/x push origin work/1",
     "cd client && bunx nuxi typecheck",
     "cd client && bun run build",
     "bunx vue-tsc --noEmit",
@@ -118,6 +118,30 @@ fn a_known_long_command_with_a_short_wait_asked_for() {
     "bmo job --help",
   ] {
     assert_eq!(habit_refusal(command, asked(Some(1_000), false)), None, "{command}");
+  }
+}
+
+#[test]
+fn a_push_onto_main_is_refused_and_one_onto_the_job_s_branch_is_not() {
+  for command in [
+    "git push origin main",
+    "git push origin HEAD:main",
+    "git push -f origin +HEAD:refs/heads/main",
+    "git push origin master",
+    "git push --all origin",
+    "cd ../w2 && git push origin work/12:main",
+  ] {
+    assert!(habit(command).is_some_and(|refused| refused.contains("bmo job close")), "{command}");
+  }
+
+  for command in [
+    "git push",
+    "git push origin work/12-fix",
+    "git push -u origin HEAD",
+    "git push origin HEAD:work/12-fix",
+    "git log main",
+  ] {
+    assert_eq!(habit(command), None, "{command}");
   }
 }
 
