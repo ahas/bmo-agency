@@ -3571,6 +3571,9 @@ facts. One notice is told in the owner's private room as well: a job that ended 
 room, beside the instruction its orderer has, since the owner's supervisor keeps every room's broken work in
 view and a person's room may not mend it alone.
 
+- **Every notice names the requester of the item its room was found on** as its `agentName`, as a job's end
+  does: the receiver keeps that supervisor where it answers the room, so the supervisor that ordered the work
+  hears of it in its own voice in a room several answer, and gives the room's voice otherwise.
 - **The orderer of an item** is the supervisor of the room the item was asked in, found in this order: the
   item's `roomId`, else the room its `scope` names; else, where the item was raised from another, that item's
   orderer, the parent read with the job service's `GET /items/{itemId}` — named by the item's `raisedBy`

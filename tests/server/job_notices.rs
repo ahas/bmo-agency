@@ -356,3 +356,24 @@ async fn a_job_standing_starting_past_its_span_is_told_once_with_what_it_waits_f
   // Each job is told once.
   assert_eq!(long_starts(scratch.db(), &vars).await.unwrap(), 0);
 }
+
+#[tokio::test]
+async fn a_queue_notice_names_the_requester_of_the_item_its_room_was_found_on() {
+  let scratch = Scratch::new().await;
+  let (peers, vars) = stand().await;
+
+  peers
+    .lock()
+    .unwrap()
+    .items
+    .insert(60, item(60, "leased", json!({ "scope": "-600", "requesterName": "kakia-chat" })));
+  tell_waiting(scratch.db(), &vars, &waiter(60, None), "it waits for a slot of the worker role").await;
+
+  let told = peers.lock().unwrap().instructed();
+
+  assert_eq!(
+    (&told[0]["room"], &told[0]["agentName"]),
+    (&json!(-600), &json!("kakia-chat")),
+    "{told:?}"
+  );
+}

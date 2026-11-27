@@ -18,10 +18,12 @@ use crate::watches::closes::Close;
 pub fn instruction(event: &str, number: i64, orderer: &Orderer, summary: String, order: String) -> Value {
   let order = told(event, order);
 
+  // The requester of the item the room was found on, as a job's end names it: the receiver keeps it where it
+  // answers the room and gives the room's voice otherwise.
   json!({
     "room": orderer.room,
     "said": { "order": order },
-    "agentName": Value::Null,
+    "agentName": orderer.requester,
     "sort": "job",
     "kind": format!("{event}:{number}"),
     "summary": summary,
