@@ -101,7 +101,7 @@ async fn a_running_server_answers_the_fields_the_console_reads() {
 
   for (name, file) in &key_files {
     match name.as_str() {
-      "openrouter" | "deepseek" => {
+      "openrouter" | "deepseek" | "anthropic" => {
         assert!(file.as_str().is_some_and(|file| !file.is_empty()), "{name}: {file}")
       }
       _ => assert!(file.is_null(), "{name}: {file}"),

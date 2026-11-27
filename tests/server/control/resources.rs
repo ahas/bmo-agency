@@ -520,7 +520,7 @@ async fn a_provider_s_switch_and_a_registered_model_s_name_are_changed_as_their_
   );
 
   // The last provider on is not turned off, since nothing would answer.
-  for other in ["deepseek", "openrouter", "registered"] {
+  for other in ["deepseek", "openrouter", "registered", "anthropic"] {
     assert_eq!(
       send(
         port,

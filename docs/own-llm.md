@@ -451,7 +451,8 @@ never the model's name.
 - **A deployment serves providers of its own beside the registry.**
   `llm-gateway/members.json` under the data root names each member; the launcher adds one
   `model_list` entry per member beside the registrations.
-  - `road`: the agent provider the member belongs to, such as `deepseek`, `openrouter` or `codex`. A
+  - `road`: the agent provider the member belongs to, such as `deepseek`, `openrouter`, `codex` or `anthropic`,
+    the last Claude Code on an Anthropic API key, its runs spending that key's credit. A
     member with no road is served by the gateway alone, for a caller that names it by hand.
   - `name`: the model name a caller asks for. It is unique among the members and against every
     registration's name and `<name>@<node>`.

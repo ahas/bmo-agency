@@ -328,6 +328,7 @@ async fn the_kinds_are_declared_as_the_policy_holds_them_and_again_where_found_u
       "provider.openrouter.offered",
       "provider.registered.offered",
       "provider.deepseek.offered",
+      "provider.anthropic.offered",
       "agency.own-agents",
       "agency.road-choice",
       "signup.composition",

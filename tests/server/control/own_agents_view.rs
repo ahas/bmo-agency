@@ -113,6 +113,7 @@ async fn the_supply_reads_name_who_stands_each_provider_off() {
       ("openrouter", json!("owner"), Value::Null),
       ("registered", Value::Null, Value::Null),
       ("deepseek", json!("chain"), json!("unit:3")),
+      ("anthropic", Value::Null, Value::Null),
     ],
     "the owner's switch stands first; the chain names the outermost link that closed it"
   );
@@ -138,6 +139,7 @@ async fn the_supply_reads_name_who_stands_each_provider_off() {
       ("openrouter", json!("owner"), Value::Null),
       ("registered", Value::Null, Value::Null),
       ("deepseek", json!("chain"), json!("unit:3")),
+      ("anthropic", Value::Null, Value::Null),
     ]
   );
 

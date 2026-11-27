@@ -45,7 +45,7 @@ flowchart TD
 
 - **Claude Code** always can: whether one of its logins answers is the account walk's judgement
   (`docs/cache-fallback.md`, 「The Claude Code road is a list of accounts」).
-- **Codex, OpenRouter and DeepSeek** can where the gateway's key file and at least one member of their road
+- **Codex, OpenRouter, DeepSeek and the Anthropic API** can where the gateway's key file and at least one member of their road
   stand, and every member's own key file under the data root's `env` directory is private to its owner and
   not empty. A member road holds no login of its own.
 - **The registered models** can where the gateway's key file stands private under the data root's

@@ -1,0 +1,65 @@
+# The Anthropic API, reached by Claude Code through agency's gateway member, with the API key the member names,
+# so a run spends that key's credit rather than a subscription's windows (docs/own-llm.md, 「The gateway's
+# members」). Read by this provider's own declaration on each side.
+
+# The provider's name as a screen shows it.
+label = "Anthropic API"
+
+# The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
+# job, a gate's one-request judgement and the plain line's instructions alone.
+lines = ["chat", "gate", "worker", "plain"]
+
+# A mapping of it carries a ceiling on the answer's tokens: its member names one.
+caps_answer_tokens = true
+
+# Its engine is not the owner's own: what a session reads goes to the outside service.
+owners_engine = false
+
+# The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
+# holds no row for (docs/sessions.md, 「Session compaction」): half the window.
+fold_ratio = 0.5
+
+[effort]
+# Every effort word a mapping of it may hold.
+words = ["low", "medium", "high", "xhigh"]
+# A mapping may also name no effort.
+none_held = true
+# What a launch makes of the mapping's word: either is taken.
+launch = "either"
+
+[presence]
+# The member's key file under the data root's env directory, private to its owner; its value is never held
+# anywhere else.
+key_file = "anthropic-api-key"
+# What it says where the key file or the gateway's key file is not usable: the kebab-case code a screen words
+# in its own language, and the English sentence the log keeps.
+missing_code = "anthropic-key-unusable"
+missing = "The Anthropic API cannot be chosen: its member's key file (anthropic-api-key) or the gateway's key file is missing or its mode is not 0600."
+# What a pin or a job naming a model this provider does not serve says; the name follows it.
+not_held = "Not an Anthropic API model"
+
+[claude]
+# The Claude Code effort word a run goes out with, by the word its tier mapping or its agent named.
+effort = { low = "low", medium = "medium", high = "high", xhigh = "xhigh" }
+
+[resident]
+# The keys typed into the pane of its standing program, Claude Code, that cut a working turn short
+# (docs/agent-control.md, 「Stopping」).
+interrupt = ["escape"]
+# Its surface carries its own turns: put into Claude Code's transcript door and read back out of its record.
+turns = "endpoint"
+# Words put in while a turn works are taken into that turn.
+words_mid_turn = true
+# A conversation grown to its mark is handed over by a turn asking it for its note, which a new session
+# opens with.
+handover = "handoff"
+# A conversation's turn is watched for going nowhere and cut at the conversation limits.
+turn_limits = true
+# No engine of its own holds a slot; every request goes to the Anthropic API.
+waits_for_engine = false
+
+[[reads]]
+# The media a model of this road reads natively (docs/provider-order.md, 「The media a model reads」): every
+# Claude model takes pictures and PDFs into the request its runs go out on.
+model = "claude"
+media = ["image", "pdf"]

@@ -11,6 +11,7 @@ use std::pin::Pin;
 use policy::providers::Declared;
 use serde_json::Value;
 
+pub mod anthropic;
 pub mod balance;
 pub mod claude_code;
 pub mod codex;
@@ -464,17 +465,19 @@ pub fn standing_provider(
 
 /// The providers the archive stores rows under, in the order its lists name them: the tier store's
 /// providers, the default provider order.
-pub const ARCHIVE_PROVIDERS: [&str; 5] = ["claude-code", "codex", "openrouter", "registered", "deepseek"];
+pub const ARCHIVE_PROVIDERS: [&str; 6] =
+  ["claude-code", "codex", "openrouter", "registered", "deepseek", "anthropic"];
 
 /// The providers this build carries, in the order a screen offers them, Claude Code first as the
 /// program a line's own code spawns on.
-pub fn providers() -> [&'static dyn Provider; 5] {
+pub fn providers() -> [&'static dyn Provider; 6] {
   [
     &claude_code::ClaudeCode,
     &registered::Registered,
     &codex::Codex,
     &openrouter::OpenRouter,
     &deepseek::DeepSeek,
+    &anthropic::Anthropic,
   ]
 }
 

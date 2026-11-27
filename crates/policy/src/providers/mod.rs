@@ -3,6 +3,7 @@
 
 use serde::Deserialize;
 
+pub mod anthropic;
 pub mod claude_code;
 pub mod codex;
 pub mod deepseek;
