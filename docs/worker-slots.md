@@ -128,9 +128,10 @@
 ## A job's own checkout
 
 - **Agency moves no branch in a job's own checkout while the job holds it;** between jobs it brings an idle
-  base's main up to the remote's (「The base checkout's main brought up to the remote's」). The job is handed
-  the checkout as it stands: a support
-  worktree as its last job left it, or as it was made, detached at main; the base checkout on whatever was
+  base's main up to the remote's (「The base checkout's main brought up to the remote's」). A support worktree
+  standing at a launch is brought up to main, detached, and set up again where nothing in it is open — no
+  tracked file changed and its `HEAD` a commit main holds — so a job never starts on the main an earlier job
+  saw; one holding anything open is handed as its last job left it. The base checkout is handed on whatever was
   last checked out there. Nothing is committed, switched or parked there for it. Which branch the job works
   on and what it leaves open are its own, and its close lands what its `HEAD` holds (「Landing on main」).
 - **Main is the branch the base checkout stands on,** read off the base checkout — the one the

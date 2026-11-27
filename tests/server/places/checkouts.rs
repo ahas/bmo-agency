@@ -3,7 +3,7 @@
 //! holds while the base checkout's own copy of the submodule does, are fetched and landed where the
 //! place is a worktree grown off that base.
 
-use agency_server::places::checkouts::bring_submodules;
+use agency_server::places::checkouts::{bring_submodules, bring_up};
 
 use crate::integration::common::alone::alone;
 use crate::support::git::{at, git};
@@ -95,4 +95,45 @@ fn a_grown_place_lands_each_pin_whatever_branch_it_stands_on() {
       "{name} stands at the commit its pin records",
     );
   }
+}
+
+#[test]
+fn a_standing_support_worktree_is_brought_up_to_main_only_where_nothing_in_it_is_open() {
+  let home = tempfile::tempdir().unwrap();
+  let repo = home.path().join("repo");
+  let place = home.path().join("repo-w2");
+  let open = home.path().join("repo-w3");
+  let ahead = home.path().join("repo-w4");
+
+  git(&["init", "-q", "-b", "main", &at(&repo)]);
+  std::fs::write(repo.join("file.txt"), "one\n").unwrap();
+  git(&["-C", &at(&repo), "add", "file.txt"]);
+  git(&["-C", &at(&repo), "commit", "-q", "-m", "start"]);
+
+  for worktree in [&place, &open, &ahead] {
+    git(&["-C", &at(&repo), "worktree", "add", "-q", "--detach", &at(worktree), "main"]);
+  }
+
+  // Main moves on past them; one holds a tracked change, one a commit main does not hold.
+  git(&["-C", &at(&repo), "commit", "-q", "--allow-empty", "-m", "landed"]);
+  std::fs::write(open.join("file.txt"), "changed\n").unwrap();
+  git(&["-C", &at(&ahead), "commit", "-q", "--allow-empty", "-m", "a job's own"]);
+
+  let tip = git(&["-C", &at(&repo), "rev-parse", "main"]);
+  let head = |worktree: &Path| git(&["-C", &at(worktree), "rev-parse", "HEAD"]);
+  let open_before = head(&open);
+  let ahead_before = head(&ahead);
+
+  for worktree in [&place, &open, &ahead] {
+    bring_up(&at(&repo), &at(worktree), "bun").unwrap();
+  }
+
+  assert_eq!(head(&place), tip, "a clean worktree stands on main now");
+  assert_eq!(head(&open), open_before, "a worktree with a tracked change is left as it stands");
+  assert_eq!(
+    head(&ahead),
+    ahead_before,
+    "a worktree holding a commit main does not is left as it stands"
+  );
+  assert_eq!(std::fs::read_to_string(open.join("file.txt")).unwrap(), "changed\n");
 }

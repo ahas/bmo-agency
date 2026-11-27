@@ -16,9 +16,10 @@ use super::{AgentRow, Ground, locks};
 pub const WORKTREE_SETUP_SCRIPT: &str = "worktree:setup";
 
 /// A support worker's worktree made where it is missing, before its program is stood: detached at its
-/// base checkout's main branch, the submodules first and the repository's own setup after them. A base
-/// worker, a worker of its own and one on a node are left as they are, and a worktree already standing
-/// is left as it stands.
+/// base checkout's main branch, the submodules first and the repository's own setup after them. A worktree
+/// already standing is brought up to main where nothing in it is open — no tracked change, and no commit main
+/// does not hold — and left as it stands otherwise. A base worker, a worker of its own and one on a node are
+/// left as they are.
 pub async fn ensure_support_checkout(ground: &Ground, worker: &str) -> Result<(), String> {
   let Some(row) = AgentRow::named(&ground.db, worker).await.map_err(|refused| refused.detail)? else {
     return Ok(());
@@ -28,7 +29,7 @@ pub async fn ensure_support_checkout(ground: &Ground, worker: &str) -> Result<()
   };
   let Some(cwd) = row.cwd.as_deref().filter(|cwd| !cwd.is_empty()) else { return Ok(()) };
 
-  if row.node.is_some() || Path::new(cwd).join(".git").exists() {
+  if row.node.is_some() {
     return Ok(());
   }
 
@@ -44,19 +45,45 @@ pub async fn ensure_support_checkout(ground: &Ground, worker: &str) -> Result<()
   let lock = locks::lock_path(&ground.roots.data, cwd);
   let _held = locks::hold(lock).await.map_err(|why| format!("{worker}: the lock of {cwd}: {why}"))?;
 
-  if Path::new(cwd).join(".git").exists() {
-    return Ok(());
-  }
-
   let bun = ground
     .machine()
     .program("bun")
     .map_or_else(|| "bun".to_owned(), |path| path.to_string_lossy().into_owned());
   let (base_cwd, cwd) = (base_cwd.to_owned(), cwd.to_owned());
 
+  if Path::new(&cwd).join(".git").exists() {
+    return tokio::task::spawn_blocking(move || bring_up(&base_cwd, &cwd, &bun))
+      .await
+      .map_err(|why| format!("{worker}: {why}"))?;
+  }
+
   tokio::task::spawn_blocking(move || make_worktree(&base_cwd, &cwd, &bun))
     .await
     .map_err(|why| format!("{worker}: {why}"))?
+}
+
+/// A standing support worktree put on its base's main, detached, and set up again, where nothing in it is open:
+/// no tracked file changed, and its `HEAD` a commit main holds, so no job's work stands only there. One holding
+/// anything open, or already at main, is left as it stands; a setup that fails says why.
+pub fn bring_up(base: &str, cwd: &str, bun: &str) -> Result<(), String> {
+  let main = main_branch(base);
+  let (Ok(head), Ok(tip)) = (git_at(cwd, &["rev-parse", "HEAD"]), git_at(base, &["rev-parse", &main]))
+  else {
+    return Ok(());
+  };
+
+  if head == tip
+    || !git_at(cwd, &["status", "--porcelain", "--untracked-files=no"]).is_ok_and(|open| open.is_empty())
+    || git_at(cwd, &["merge-base", "--is-ancestor", "HEAD", &tip]).is_err()
+  {
+    return Ok(());
+  }
+
+  git_at(cwd, &["checkout", "--quiet", "--detach", &tip])
+    .map_err(|why| format!("the worktree at {cwd} could not be put on {main}: {why}"))?;
+  println!("{cwd}: brought up to {main} at {}", &tip[..tip.len().min(12)]);
+
+  set_up(Path::new(cwd), bun, false)
 }
 
 // The worktree made and set up, or why it could not be: a directory holding anything that is not a
