@@ -34,10 +34,10 @@ use crate::door::place_run::{
 use crate::door::record::{Notices, read_turn, turns_owed};
 use crate::door::turn::program_login;
 use crate::door::written_call::text_tool_call;
-use crate::lines::place::{FAILURE_KIND, SHELL_KIND};
+use crate::lines::place::{FAILURE_KIND, SHELL_KIND, TOOL_KIND};
 use crate::wording::{banned_terms_in, banned_terms_line, read_glossary};
 
-const KINDS: [&str; 6] = ["status", "stop", FAILURE_KIND, "submit", "start", SHELL_KIND];
+const KINDS: [&str; 7] = ["status", "stop", FAILURE_KIND, "submit", "start", SHELL_KIND, TOOL_KIND];
 
 /// What one call of the hook is asked: the kind of call, the place, and what its line asks of it.
 #[derive(Clone, Debug, Default)]
@@ -68,7 +68,7 @@ pub struct Ground<'a> {
 /// The usage line, said on the error stream where the hook was started without a kind it knows or a place.
 pub const USAGE: &str = concat!(
   "usage: bmo-agency agent-status <status|stop|failure|submit|start> --place <dir>, ",
-  "or shell [--refuse-claude] [--guard-job]"
+  "or shell [--refuse-claude] [--guard-job], or tool --place <dir>"
 );
 
 // The session record's lines written since a moment, or none where it cannot be read.
@@ -318,6 +318,13 @@ pub async fn agent_status(asked: &Asked, input: &str, ground: &Ground<'_>) -> Ve
 
   let place = Path::new(&asked.place);
   let kind = asked.kind.as_str();
+
+  // The tool brief reads only the call it is handed and the place's list of tools it briefed.
+  if kind == TOOL_KIND {
+    let payload = serde_json::from_str::<Value>(input).unwrap_or(Value::Null);
+
+    return super::tool_brief::brief(place, &payload).await.into_iter().collect();
+  }
   // What was handed over is kept as it came where it is not the JSON the program promises.
   let payload = serde_json::from_str::<Value>(input).unwrap_or_else(|_| Value::String(input.to_owned()));
   // A person's line, on a line that composes typed lines: asked before the submit is recorded, since

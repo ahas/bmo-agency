@@ -34,6 +34,12 @@ pub const SHELL_KIND: &str = "shell";
 /// The kind of call the verb is told it answers where a failed request ended the turn.
 pub const FAILURE_KIND: &str = "failure";
 
+/// The hook kind that briefs a tool's first call in a session (docs/agent-control.md, 「The tool brief」).
+pub const TOOL_KIND: &str = "tool";
+
+// The calls the tool brief is read before: every MCP tool.
+const MCP_CALLS: &str = "mcp__.*";
+
 // The words the stop hook is started with where its line holds a turn's end while its background work
 // runs, and while its final answer uses a banned word; the word the submit hook is started with where
 // its line composes a person's typed line, and how long the program gives that hook.
@@ -304,6 +310,7 @@ pub fn write_place_settings(
   };
 
   own.push(shell_hook(&shell_calls, call(SHELL_KIND, &shell_flags)));
+  own.push(shell_hook(MCP_CALLS, call(TOOL_KIND, &[])));
   settings.insert("statusLine".to_owned(), json!({ "type": "command", "command": call("status", &[]) }));
   merge_hooks(&mut settings, own);
   // The program runs with permissions bypassed, so its warning dialog would hold a fresh program at its

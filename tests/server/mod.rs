@@ -262,6 +262,7 @@ mod verbs {
   mod node_service;
   mod quiet;
   mod reload;
+  mod tool_brief;
   mod work_node_setup;
 }
 

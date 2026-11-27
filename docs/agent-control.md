@@ -351,6 +351,10 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   standard input」) and, on a supervisor's program, refuses a command starting Claude Code
   (`docs/agents.md`, 「No print mode」); on a line that carries its background apart, its stop and submit hooks
   also write the place's background record (「Background work on a line that carries it apart」).
+  The settings also name a `PreToolUse` hook on every MCP tool, the tool brief: the first time a session calls a
+  tool, it hands the program that tool's manual, as the tool host's toolbook describes it to the session, and the
+  brain's lessons whose situation the tool and its arguments meet, beside the call, so how a tool is used and
+  what went wrong with it before reach the run without riding in every turn's prompt (「The tool brief」).
 - **How one turn goes in:** `agent.prompt` for a program herdr recognises as an agent, the pane
   program's own inbox for one it does not.
 - **Whether words go into a turn that is working.** A surface that takes them says so; one that
@@ -4003,3 +4007,16 @@ A task unit is its own root; its coordinator unit remains the parent association
 
 Launch adapters require an installed archive before opening included work. Refusals before prompt delivery are recorded as launch errors. Structured supervisors reject expired grants and unreadable policy archives, publishing a launch outcome without starting a child. Interactive eligibility is checked again immediately before prompt delivery; uncertain delivery remains unknown.
 
+## The tool brief
+
+- **A tool's manual and its lessons come with its first call in a session.** The hook reads the call it is
+  handed: the tool's full name, a namespace's tool as `<namespace>/<tool>` and a call through the toolbook as the
+  tool it names. Where the session has not called that tool before, it asks the tool host for the tool's
+  description and manual, `bmo use <tool> --describe`, and the brain for up to three active lessons of the type
+  `tip` or `check` whose situation the tool's name and its arguments meet, `bmo/brain_list`, both under the run's own
+  session token, and hands them to the program as the call's added context. It keeps the tools it briefed in the
+  place, one file a session, so each tool is briefed once a session.
+- **A brief never stands in a call's way.** Where the token is missing, the tool host or the brain does not answer
+  within a few seconds, or neither gives anything, the hook hands nothing and the call goes on as it would.
+- **What it hands is read, never written:** the manual is the tool's own and the lessons are the brain's; the hook
+  keeps no copy of either beyond the session's list of tools it briefed.

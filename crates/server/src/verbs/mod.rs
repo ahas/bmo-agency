@@ -28,6 +28,7 @@ pub mod run_say;
 pub mod run_stop;
 pub mod supervisor_follow;
 pub mod supervisor_reset;
+pub mod tool_brief;
 pub mod turns;
 pub mod work_node;
 pub mod work_node_hub;

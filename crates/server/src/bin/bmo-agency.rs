@@ -106,7 +106,7 @@ enum Verb {
   /// its shell hook, which closes a shell command's standard input, refuses one that starts Claude Code, and
   /// refuses what the job guard refuses of a job's.
   AgentStatus {
-    /// status, stop, failure, submit, start or shell.
+    /// status, stop, failure, submit, start, shell or tool.
     kind: Option<String>,
     #[arg(long, allow_hyphen_values = true)]
     place: Option<String>,
