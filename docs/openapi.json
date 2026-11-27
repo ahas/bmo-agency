@@ -18403,6 +18403,14 @@
             "description": "the words its answers carry before them in its owner's own account; null keeps the default",
             "default": null
           },
+          "accounts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SupervisorAccount"
+            },
+            "description": "its accounts on chat services, by service",
+            "default": []
+          },
           "icon": {
             "type": [
               "string",
@@ -18528,6 +18536,7 @@
           "ownerUnit",
           "aliases",
           "nameTag",
+          "accounts",
           "icon",
           "sessionScope",
           "turnShape",
@@ -18549,6 +18558,26 @@
           "resetPoint"
         ],
         "description": "Supervisor: one supervisor as its row holds it, on its one road."
+      },
+      "SupervisorAccount": {
+        "type": "object",
+        "properties": {
+          "service": {
+            "type": "string"
+          },
+          "number": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "number",
+          "secret"
+        ],
+        "description": "SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number\nthere and the name of the saved secret its sign-in is kept in."
       },
       "SupervisorRegistered": {
         "type": "object",
@@ -19086,26 +19115,6 @@
           "items"
         ],
         "description": "SupervisorAccounts: a supervisor's accounts on chat services, by service."
-      },
-      "SupervisorAccount": {
-        "type": "object",
-        "properties": {
-          "service": {
-            "type": "string"
-          },
-          "number": {
-            "type": "string"
-          },
-          "secret": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "service",
-          "number",
-          "secret"
-        ],
-        "description": "SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number\nthere and the name of the saved secret its sign-in is kept in."
       },
       "SupervisorAccountChange": {
         "type": "object",

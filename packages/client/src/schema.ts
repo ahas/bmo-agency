@@ -5262,6 +5262,11 @@ export interface components {
              * @default null
              */
             nameTag: string | null;
+            /**
+             * @description its accounts on chat services, by service
+             * @default []
+             */
+            accounts: components["schemas"]["SupervisorAccount"][];
             icon: string | null;
             sessionScope: string;
             turnShape: string;
@@ -5325,6 +5330,15 @@ export interface components {
              * @default null
              */
             resetPoint: number | null;
+        };
+        /**
+         * @description SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number
+         *     there and the name of the saved secret its sign-in is kept in.
+         */
+        SupervisorAccount: {
+            service: string;
+            number: string;
+            secret: string;
         };
         /** @description SupervisorRegistered: a supervisor registered, and what became of its brain. */
         SupervisorRegistered: {
@@ -5509,15 +5523,6 @@ export interface components {
         /** @description SupervisorAccounts: a supervisor's accounts on chat services, by service. */
         SupervisorAccounts: {
             items: components["schemas"]["SupervisorAccount"][];
-        };
-        /**
-         * @description SupervisorAccount: one of a supervisor's accounts on a chat service: the service's key, the account's number
-         *     there and the name of the saved secret its sign-in is kept in.
-         */
-        SupervisorAccount: {
-            service: string;
-            number: string;
-            secret: string;
         };
         /** @description SupervisorAccountChange: an account's number and secret, both to stand one, either to change one. */
         SupervisorAccountChange: {

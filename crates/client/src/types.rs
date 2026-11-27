@@ -3611,6 +3611,9 @@ pub struct Supervisor {
   /// the words its answers carry before them in its owner's own account; null keeps the default
   #[serde(default)]
   pub name_tag: Option<String>,
+  /// its accounts on chat services, by service
+  #[serde(default)]
+  pub accounts: Vec<SupervisorAccount>,
   pub icon: Option<String>,
   pub session_scope: String,
   pub turn_shape: String,

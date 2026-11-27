@@ -71,6 +71,7 @@ async fn gates_view(db: &DatabaseConnection, name: &str) -> Result<Value, Refuse
 pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Refused> {
   let db = &ground.db;
   let sampling = agent_sampling::view(db, &supervisor.name).await.map(|view| view["values"].clone()).ok();
+  let accounts = super::supervisor_accounts::accounts_of(db, &supervisor.name).await?;
   let road = supervisor.road.as_ref();
 
   Ok(json!({
@@ -80,6 +81,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "ownerUnit": supervisor.owner_unit,
     "aliases": supervisor.aliases,
     "nameTag": supervisor.name_tag,
+    "accounts": accounts,
     "icon": ROLES.icon("supervisor"),
     "sessionScope": supervisor.session_scope,
     "turnShape": supervisor.turn_shape,
