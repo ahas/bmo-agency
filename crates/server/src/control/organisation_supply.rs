@@ -66,8 +66,7 @@ async fn head_of(ground: &Ground, acting: Acting, unit: i64) -> Result<(), Refus
 
 /// Whether organisation supply stands open for the unit on the chain.
 async fn open_for_unit(ground: &Ground, unit: i64) -> Result<bool, Refused> {
-  let service = crate::apps::service(ground);
-  let answer = chain::resolve(&service, &ORGANISATION.sources.organisation_kind, Subject::Unit(unit))
+  let answer = chain::resolve(&ground.db, &ORGANISATION.sources.organisation_kind, Subject::Unit(unit))
     .await
     .map_err(|_| {
       Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")

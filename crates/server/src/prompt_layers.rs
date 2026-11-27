@@ -28,8 +28,8 @@ pub async fn declare(service: &AccountService) -> Result<(), String> {
 static LAST_READ: LazyLock<Mutex<HashMap<i64, Layers>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
 // One kind resolved for a person, the kinds declared again where it stood undeclared.
-async fn resolved(service: &AccountService, key: &str, person: i64) -> Result<Option<Value>, String> {
-  crate::chain::resolve(service, key, crate::chain::Subject::Person(person)).await
+async fn resolved(db: &impl ConnectionTrait, key: &str, person: i64) -> Result<Option<Value>, String> {
+  crate::chain::resolve(db, key, crate::chain::Subject::Person(person)).await
 }
 
 /// What the chain resolves for `person`, read afresh: the organisation's instructions, the persona's choice and the
@@ -47,13 +47,13 @@ pub fn personal_of(value: Option<&Value>) -> Personal {
 
 /// The organisation's instructions, the persona's choice and the person's own instructions the chain resolves for
 /// `person`, read afresh. The person's own stand only where the chain lets them give any.
-pub async fn read_chain(service: &AccountService, person: i64) -> Result<Read, String> {
+pub async fn read_chain(db: &impl ConnectionTrait, person: i64) -> Result<Read, String> {
   let words = &PROMPT_LAYERS;
   let (instructions, persona, allowed, personal) = futures_util::join!(
-    resolved(service, &words.organisation.kind.key, person),
-    resolved(service, &words.persona.kind.key, person),
-    resolved(service, &words.personal.allowed.key, person),
-    resolved(service, &words.personal.text.key, person),
+    resolved(db, &words.organisation.kind.key, person),
+    resolved(db, &words.persona.kind.key, person),
+    resolved(db, &words.personal.allowed.key, person),
+    resolved(db, &words.personal.text.key, person),
   );
   let texts: Vec<String> = instructions?
     .as_ref()
@@ -84,11 +84,7 @@ pub async fn read_chain(service: &AccountService, person: i64) -> Result<Read, S
 /// which each agent takes its part of, read off the chain for that person. Where the account service is named and
 /// does not answer, the layers this process last read for the account stand; with none read yet, the sentence of
 /// why is the error, so no turn goes out without its organisation's instructions.
-pub async fn of<C: ConnectionTrait>(
-  db: &C,
-  service: &AccountService,
-  owner: Option<i64>,
-) -> Result<Layers, String> {
+pub async fn of<C: ConnectionTrait>(db: &C, owner: Option<i64>) -> Result<Layers, String> {
   let Some(account) = owner else {
     return Ok(Layers {
       platform: true,
@@ -99,14 +95,7 @@ pub async fn of<C: ConnectionTrait>(
     .await
     .map_err(|refusal| refusal.to_string())?;
 
-  if service.address.is_empty() {
-    return Ok(Layers {
-      platform,
-      ..Layers::default()
-    });
-  }
-
-  match read_chain(service, account).await {
+  match read_chain(db, account).await {
     Ok(read) => {
       let layers = Layers {
         platform,

@@ -111,13 +111,13 @@ pub struct Personal {
 }
 
 /// What `person`'s personal tools may reach: the two flags resolved for them, each off where it does not resolve.
-pub async fn personal(service: &AccountService, person: &str) -> Personal {
+pub async fn personal(db: &sea_orm::DatabaseConnection, person: &str) -> Personal {
   let Ok(person) = person.parse::<i64>() else {
     return Personal::default();
   };
   let settings = &policy::organisation::ORGANISATION.personal_apps;
   let allows = |key: &'static str| async move {
-    crate::chain::resolve(service, key, crate::chain::Subject::Person(person))
+    crate::chain::resolve(db, key, crate::chain::Subject::Person(person))
       .await
       .is_ok_and(|answer| crate::chain::flag(answer.as_ref(), false))
   };
@@ -318,7 +318,7 @@ pub async fn write_for(ground: &Ground, file: &Path, person: &str, issued: &Issu
       let withheld = Withheld {
         apps: resolved.apps,
         account: person.to_owned(),
-        personal: personal(&service, person).await,
+        personal: personal(&ground.db, person).await,
         holder: issued.holder.clone(),
         line: issued.line.clone(),
         attached: resolved.attached,
@@ -409,7 +409,7 @@ pub async fn refresh(ground: &Ground, place: &Path) -> Option<Changed> {
       secrets: true,
     }
   } else {
-    personal(&service, &before.account).await
+    personal(&ground.db, &before.account).await
   };
 
   if resolved.apps == before.apps && personal == before.personal && resolved.attached == before.attached {

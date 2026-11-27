@@ -144,7 +144,7 @@ pub fn standing(answer: Option<&Value>) -> BTreeMap<String, Standing> {
 
 /// What the chain resolves for a subject, read afresh.
 pub async fn resolved(ground: &Ground, subject: Subject) -> Result<Option<Value>, Refused> {
-  chain::resolve(&crate::apps::service(ground), key(), subject)
+  chain::resolve(&ground.db, key(), subject)
     .await
     .map_err(|_| super::unchecked())
 }

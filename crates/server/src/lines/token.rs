@@ -322,8 +322,7 @@ async fn base_off(ground: &Ground, person: Option<&str>, variables: &mut BTreeMa
     return;
   };
 
-  match crate::chain::resolve(
-    &crate::apps::service(ground),
+  match crate::chain::resolve(&ground.db,
     BASE_LAYER,
     crate::chain::Subject::Person(person),
   )

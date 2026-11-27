@@ -299,7 +299,7 @@ async fn system<C: ConnectionTrait>(
   });
 
   let harnessed = crate::lines::pieces::takes_harness(provider);
-  let Ok(layers) = crate::prompt_layers::of(db, service, owner).await else {
+  let Ok(layers) = crate::prompt_layers::of(db, owner).await else {
     return Ok(String::new());
   };
 

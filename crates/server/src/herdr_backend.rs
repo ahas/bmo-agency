@@ -730,7 +730,7 @@ async fn system_of(
   };
 
   let layers =
-    crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), pinned.supervisor.owner_account)
+    crate::prompt_layers::of(&ground.db, pinned.supervisor.owner_account)
       .await?;
 
   harness_machine::supervisor_prompt::system(

@@ -43,7 +43,7 @@ impl Permission {
 /// A flag of the chain resolved for the person, allowed where nothing says otherwise; a chain that does not answer
 /// is refused, nothing guessed.
 pub async fn permission(ground: &Ground, key: &str, person: i64) -> Result<Permission, Refused> {
-  let answer = chain::resolve(&crate::apps::service(ground), key, Subject::Person(person))
+  let answer = chain::resolve(&ground.db, key, Subject::Person(person))
     .await
     .map_err(|_| super::unchecked())?;
 

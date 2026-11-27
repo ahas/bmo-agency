@@ -87,13 +87,7 @@ pub async fn platform(ground: &Ground, key: &str) -> Result<Option<Value>, Strin
 /// it says one, else the platform's word. None is no answer of the chain, which leaves the row and the default
 /// to stand.
 pub async fn for_person(ground: &Ground, key: &str, person: i64) -> Result<Option<String>, String> {
-  let service = crate::apps::service(ground);
-
-  if service.address.is_empty() {
-    return Ok(None);
-  }
-
-  let answer = crate::chain::resolve(&service, key, crate::chain::Subject::Person(person)).await?;
+  let answer = crate::chain::resolve(&ground.db, key, crate::chain::Subject::Person(person)).await?;
 
   Ok(answer.as_ref().and_then(|answer| said(&answer["value"])).map(as_text))
 }

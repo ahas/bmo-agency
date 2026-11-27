@@ -493,7 +493,7 @@ async fn around_role(
   let Some((seat, account)) = seat.and_then(|seat| Some((seat, seat.owner_account?))) else {
     return Ok(role);
   };
-  let layers = crate::prompt_layers::of(&ground.db, &crate::apps::service(ground), Some(account))
+  let layers = crate::prompt_layers::of(&ground.db, Some(account))
     .await
     .map_err(fault)?;
   let parts: Vec<String> = [layers.organisation, role, layers.personal.of(&seat.name)]

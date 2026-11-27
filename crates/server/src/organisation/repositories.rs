@@ -27,7 +27,7 @@ fn withheld() -> Refused {
 /// chain's `repositories.manage` resolves true for them, which it does where nothing says otherwise.
 pub async fn may_manage(ground: &Ground, acting: Acting) -> Result<(), Refused> {
   let Acting::Person(person) = acting else { return Ok(()) };
-  let answer = chain::resolve(&crate::apps::service(ground), key(), Subject::Person(person))
+  let answer = chain::resolve(&ground.db, key(), Subject::Person(person))
     .await
     .map_err(|_| super::unchecked())?;
 
@@ -58,7 +58,7 @@ pub async fn may_file_under_unit(ground: &Ground, acting: Acting, unit: i64) -> 
 
   heads(ground, acting, unit, "being added").await?;
 
-  let answer = chain::resolve(&crate::apps::service(ground), key(), Subject::Unit(unit))
+  let answer = chain::resolve(&ground.db, key(), Subject::Unit(unit))
     .await
     .map_err(|_| super::unchecked())?;
 
@@ -83,7 +83,7 @@ pub async fn works_on_unit(
     .with_code("foreign-repository")
   };
   let Some(account) = account else { return Err(foreign()) };
-  let answer = chain::resolve(&crate::apps::service(ground), key(), Subject::Person(account))
+  let answer = chain::resolve(&ground.db, key(), Subject::Person(account))
     .await
     .map_err(|_| super::unchecked())?;
 

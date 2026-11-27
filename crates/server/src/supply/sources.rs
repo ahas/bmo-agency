@@ -60,9 +60,7 @@ pub async fn units_for(ground: &Ground, account: i64, order: &[String]) -> Vec<i
 /// walk takes its units from this reading, and so does the line of the seats a run may take, which asks for the
 /// path itself and not for the supply flag's value.
 pub async fn path_for(ground: &Ground, account: i64) -> Vec<i64> {
-  let service = crate::apps::service(ground);
-
-  match chain::resolve(&service, &ORGANISATION.sources.organisation_kind, Subject::Person(account)).await {
+  match chain::resolve(&ground.db, &ORGANISATION.sources.organisation_kind, Subject::Person(account)).await {
     Ok(answer) => {
       let units = path_units(answer.as_ref());
 

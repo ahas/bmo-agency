@@ -22,22 +22,16 @@ pub fn unchecked() -> Refused {
   .with_code("access-unchecked")
 }
 
-/// Whether the caller heads the unit, as the delegation chain answers the unit's link of `key` to its writers
-/// alone; the platform's call always does.
+/// Whether the caller heads the unit, as the table of the units each account reaches says (`crate::unit_reach`);
+/// the platform's call always does. The kind of resource a head check stands for names no other reach: heading a
+/// unit is the whole of who changes its resources.
 pub async fn heads(
   ground: &crate::places::Ground,
   acting: crate::access::Acting,
-  key: &str,
+  _key: &str,
   unit: i64,
 ) -> Result<bool, Refused> {
   let crate::access::Acting::Person(person) = acting else { return Ok(true) };
-  let read = crate::chain::entry(&crate::apps::service(ground), key, &format!("unit:{unit}"), person)
-    .await
-    .map_err(|_| unchecked())?;
 
-  match read.status {
-    status if (200..300).contains(&status) => Ok(true),
-    403 | 404 => Ok(false),
-    _ => Err(unchecked()),
-  }
+  crate::unit_reach::heads(&ground.db, person, unit).await.map_err(|_| unchecked())
 }

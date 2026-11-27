@@ -8,6 +8,8 @@ mod m20270125_000002_agent_home_node;
 mod m20270125_000003_person_nodes_own;
 mod m20270126_000001_platform_ownership;
 mod m20270126_000002_slot_seat_units;
+mod m20270127_000001_unit_reach;
+mod m20270127_000002_subject_settings;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -34,6 +36,12 @@ pub const OWNERSHIP: &str = m20270126_000001_platform_ownership::NAME;
 /// The migration that lets a slot request keep the units of its account's path, so a unit's seats stand among
 /// the agents it may take and its account's cap counts them (docs/role-slots.md, 「Accounts」).
 pub const SEAT_UNITS: &str = m20270126_000002_slot_seat_units::NAME;
+
+/// The migration that stands the units each account reaches, as the service in front writes them.
+pub const UNIT_REACH: &str = m20270127_000001_unit_reach::NAME;
+
+/// The migration that stands the settings the agency declares, as the service in front resolves them per subject.
+pub const SUBJECT_SETTINGS: &str = m20270127_000002_subject_settings::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -230,6 +238,8 @@ impl MigratorTrait for Migrator {
       Box::new(m20270125_000003_person_nodes_own::Migration),
       Box::new(m20270126_000001_platform_ownership::Migration),
       Box::new(m20270126_000002_slot_seat_units::Migration),
+      Box::new(m20270127_000001_unit_reach::Migration),
+      Box::new(m20270127_000002_subject_settings::Migration),
     ]
   }
 
