@@ -18183,6 +18183,14 @@
             ],
             "description": "its call names as one line, joined by a comma and a space; null for none"
           },
+          "nameTag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "the words its answers carry before them in its owner's own account; null keeps the default",
+            "default": null
+          },
           "icon": {
             "type": [
               "string",
@@ -18307,6 +18315,7 @@
           "ownerAccount",
           "ownerUnit",
           "aliases",
+          "nameTag",
           "icon",
           "sessionScope",
           "turnShape",
@@ -19008,6 +19017,13 @@
               "type": "string"
             },
             "description": "The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none."
+          },
+          "nameTag": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Its name tag, one line of at most 40 characters, an emoji in it as written; null or blank takes it back to\nthe default."
           },
           "provider": {
             "type": [

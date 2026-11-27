@@ -191,6 +191,45 @@ async fn a_running_server_answers_a_supervisor_s_road_and_call_names_and_refuses
 
   assert_eq!(cleared["aliases"], Value::Null, "{cleared}");
 
+  // Its name tag is kept as written, an emoji in it; one out of shape is refused by its field, and null takes it
+  // back to the default (docs/supervisors.md, 「Its name tag」).
+  let tag = "\u{1F916} Agent B";
+  let (status, tagged) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent",
+    json!({ "nameTag": format!(" {tag} ") }),
+  )
+  .await;
+
+  assert_eq!((status, &tagged["nameTag"]), (200, &json!(tag)), "{tagged}");
+  assert_eq!(get(port, token, "/supervisors/chat-agent").await.1["nameTag"], json!(tag));
+
+  for bad in [json!("x".repeat(41)), json!("two\nlines"), json!(7)] {
+    let (status, refused) = send(
+      reqwest::Method::PATCH,
+      port,
+      token,
+      "/supervisors/chat-agent",
+      json!({ "nameTag": bad }),
+    )
+    .await;
+
+    assert_eq!((status, &refused["field"]), (400, &json!("nameTag")), "{bad}: {refused}");
+  }
+
+  let (_, untagged) = send(
+    reqwest::Method::PATCH,
+    port,
+    token,
+    "/supervisors/chat-agent",
+    json!({ "nameTag": null }),
+  )
+  .await;
+
+  assert_eq!(untagged["nameTag"], Value::Null, "{untagged}");
+
   let (status, refused) = send(
     reqwest::Method::POST,
     port,

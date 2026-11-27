@@ -52,6 +52,15 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   given」 below). A change of either moves that prompt: its next turn in each room is sent the prompt as it now
   is, and the session is then replaced while it is quiet (`docs/sessions.md`, 「Session replacement」).
 
+## Its name tag
+
+- **A supervisor may carry a name tag:** the words its answers carry before them where they go out in its
+  owner's own account rather than through an account of the supervisor's own, so a reader of the room tells
+  them from the owner's. One line of at most forty characters, an emoji in it as its owner writes it, kept and
+  answered as written; set and taken back by the supervisor's change (`docs/api.md`, 「supervisors」).
+- **None stands for the default,** which the one that sends composes from the supervisor's label: the
+  receiver's policy writes it.
+
 ## Its settings
 
 - **Every supervisor holds settings beside its row,** a row of the `supervisor_settings` table keyed by its

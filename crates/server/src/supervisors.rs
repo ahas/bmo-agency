@@ -63,6 +63,9 @@ pub struct Supervisor {
   pub owner_unit: Option<i64>,
   /// Its call names as the row keeps them, one line joined by commas (docs/supervisors.md, 「Its call names」).
   pub aliases: Option<String>,
+  /// The words its answers carry before them in its owner's own account, an emoji among them as its owner writes
+  /// it; none keeps the default (docs/supervisors.md, 「Its name tag」).
+  pub name_tag: Option<String>,
   pub icon: Option<String>,
   pub prompts: Option<String>,
   pub brain_folder: Option<String>,
@@ -121,6 +124,7 @@ impl Supervisor {
       owner_account: row.try_get("", "owner_account")?,
       owner_unit: row.try_get("", "owner_unit")?,
       aliases: row.try_get("", "aliases")?,
+      name_tag: row.try_get("", "name_tag")?,
       icon: row.try_get("", "icon")?,
       prompts: row.try_get("", "prompts")?,
       brain_folder: row.try_get("", "brain_folder")?,

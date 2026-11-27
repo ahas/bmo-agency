@@ -11,6 +11,7 @@ mod m20270126_000002_slot_seat_units;
 mod m20270127_000001_unit_reach;
 mod m20270127_000002_subject_settings;
 mod m20270127_000003_front_tables_gone;
+mod m20271127_000001_supervisor_name_tag;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -46,6 +47,9 @@ pub const SUBJECT_SETTINGS: &str = m20270127_000002_subject_settings::NAME;
 
 /// The migration that takes away the two tables the service in front wrote, the agency asking the authority instead.
 pub const FRONT_TABLES_GONE: &str = m20270127_000003_front_tables_gone::NAME;
+
+/// The migration that gives a supervisor its name tag.
+pub const SUPERVISOR_NAME_TAG: &str = m20271127_000001_supervisor_name_tag::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -245,6 +249,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270127_000001_unit_reach::Migration),
       Box::new(m20270127_000002_subject_settings::Migration),
       Box::new(m20270127_000003_front_tables_gone::Migration),
+      Box::new(m20271127_000001_supervisor_name_tag::Migration),
     ]
   }
 

@@ -5221,6 +5221,11 @@ export interface components {
             ownerUnit: number | null;
             /** @description its call names as one line, joined by a comma and a space; null for none */
             aliases: string | null;
+            /**
+             * @description the words its answers carry before them in its owner's own account; null keeps the default
+             * @default null
+             */
+            nameTag: string | null;
             icon: string | null;
             sessionScope: string;
             turnShape: string;
@@ -5521,6 +5526,11 @@ export interface components {
             label?: string | null;
             /** @description The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none. */
             aliases?: string[] | null;
+            /**
+             * @description Its name tag, one line of at most 40 characters, an emoji in it as written; null or blank takes it back to
+             *     the default.
+             */
+            nameTag?: string | null;
             /** @description Its road's provider; a changed provider or model drops the road's other fields not named. */
             provider?: string | null;
             model?: string | null;

@@ -251,7 +251,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   unit, only where they head it, and registers one under either (「Who a caller acts for」); the platform's own
   call writes the owner it is handed.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`; `aliases`, its call names as one line
-  joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `sessionScope`,
+  joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `nameTag`, the
+  words its answers carry in its owner's own account, or null for the default (`docs/supervisors.md`, 「Its name
+  tag」); `sessionScope`,
   `turnShape`, `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
   `thinking`, `answerTokens` and `advisor` (below), every turn of it going out there; `cardRank`, the rank of the demands of
   the runs for it, or null; `warming`, for each provider whether its prefix is kept warm there; `foldRatio`, its
@@ -309,7 +311,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   `made`, `kept` where one already stood under its key, `none` where no brain is deployed, or `failed`, the
   failure logged. The registration stands whatever the brain answers; the brain is filed under its owner's
   id as the account key where it names an owner, and under `AGENCY_BRAIN_ACCOUNT` where it names none.
-- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, the road —
+- **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, `nameTag` (one
+  line of at most forty characters, an emoji in it as written, or null or blank for the default, else refused 400
+  with `field` `nameTag`), the road —
   `provider` and `model`, both or neither, `effort`, `thinking`, `answerTokens` and `advisor` —, `warming`, `foldRatio`,
   `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and
   `voice`, each judged as the registration judges it; a road's fields it does not name keep what the road

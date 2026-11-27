@@ -35,6 +35,9 @@ use crate::queue::settings;
 use crate::road::{self, Ask, Row};
 use crate::supervisors::{self, Supervisor};
 
+/// The most characters a supervisor's name tag holds.
+const NAME_TAG_MOST: usize = 40;
+
 static NAME: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(&SUPERVISORS.name_pattern).expect("the supervisor name pattern reads"));
 
@@ -76,6 +79,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "ownerAccount": supervisor.owner_account,
     "ownerUnit": supervisor.owner_unit,
     "aliases": supervisor.aliases,
+    "nameTag": supervisor.name_tag,
     "icon": ROLES.icon("supervisor"),
     "sessionScope": supervisor.session_scope,
     "turnShape": supervisor.turn_shape,
@@ -551,6 +555,23 @@ impl Route for SupervisorChange {
       Some(_) => return Err(bad("label", CONTROL_WORDS.supervisor_roster.label.as_str())),
     };
     let aliases = call_names_of(&body)?.unwrap_or(held.aliases.clone());
+    // The name tag: a short line of its own, an emoji in it as written; null or blank takes it back to the default.
+    let name_tag = match body.get("nameTag") {
+      None => held.name_tag.clone(),
+      Some(Value::Null) => None,
+      Some(Value::String(tag)) if tag.trim().is_empty() => None,
+      Some(Value::String(tag))
+        if tag.trim().chars().count() <= NAME_TAG_MOST && !tag.contains(['\n', '\r']) =>
+      {
+        Some(tag.trim().to_owned())
+      }
+      Some(_) => {
+        return Err(bad(
+          "nameTag",
+          format!("A name tag is one line of at most {NAME_TAG_MOST} characters."),
+        ));
+      }
+    };
     let warming = match body.get("warming") {
       None => held.warming.clone(),
       Some(Value::Object(switches)) => {
@@ -605,7 +626,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider" = $3, "model" = $4, "effort" = $5, "thinking" = $6,
            "answer_tokens" = $7, "warming" = $8, "fold_ratio" = $9, "repository" = $10, "voice" = $11,
-           "updated_at" = $12, "card_rank" = $13, "aliases" = $14, "advisor" = $15
+           "updated_at" = $12, "card_rank" = $13, "aliases" = $14, "advisor" = $15, "name_tag" = $16
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -623,6 +644,7 @@ impl Route for SupervisorChange {
         card_rank.and_then(|rank| i32::try_from(rank).ok()).into(),
         aliases.into(),
         road.as_ref().and_then(|road| road.advisor.clone()).into(),
+        name_tag.into(),
       ],
     )
     .await?;

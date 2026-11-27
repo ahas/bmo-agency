@@ -7,7 +7,7 @@ use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::MigratorTrait;
 use store::migration::{
   BASELINE, BEFORE, FRONT_TABLES_GONE, MIGRATIONS_TABLE, Migrator, OWN_TABLES, OWNERSHIP, POST_BASELINE,
-  SEAT_UNITS, SUBJECT_SETTINGS, UNIT_REACH,
+  SEAT_UNITS, SUBJECT_SETTINGS, SUPERVISOR_NAME_TAG, UNIT_REACH,
 };
 
 use crate::support::scratch::Scratch;
@@ -18,6 +18,8 @@ const SEAT_UNITS_SQL: &str = include_str!("../../crates/store/src/migration/slot
 const UNIT_REACH_SQL: &str = include_str!("../../crates/store/src/migration/unit_reach.sql");
 const SUBJECT_SETTINGS_SQL: &str = include_str!("../../crates/store/src/migration/subject_settings.sql");
 const FRONT_TABLES_GONE_SQL: &str = include_str!("../../crates/store/src/migration/front_tables_gone.sql");
+const SUPERVISOR_NAME_TAG_SQL: &str =
+  include_str!("../../crates/store/src/migration/supervisor_name_tag.sql");
 
 async fn tables(scratch: &Scratch) -> Vec<String> {
   let rows = store::all(
@@ -220,6 +222,7 @@ fn every_run() -> Vec<String> {
       UNIT_REACH.to_owned(),
       SUBJECT_SETTINGS.to_owned(),
       FRONT_TABLES_GONE.to_owned(),
+      SUPERVISOR_NAME_TAG.to_owned(),
     ])
     .collect()
 }
@@ -261,6 +264,7 @@ async fn a_blank_database_gets_the_baseline_and_every_migration_made_since() {
   laid.db().execute_unprepared(UNIT_REACH_SQL).await.unwrap();
   laid.db().execute_unprepared(SUBJECT_SETTINGS_SQL).await.unwrap();
   laid.db().execute_unprepared(FRONT_TABLES_GONE_SQL).await.unwrap();
+  laid.db().execute_unprepared(SUPERVISOR_NAME_TAG_SQL).await.unwrap();
 
   assert_eq!(shape(migrated.db()).await, shape(laid.db()).await);
   assert_eq!(recorded(migrated.db()).await, every_run());

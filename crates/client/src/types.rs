@@ -3582,6 +3582,9 @@ pub struct Supervisor {
   pub owner_unit: Option<i64>,
   /// its call names as one line, joined by a comma and a space; null for none
   pub aliases: Option<String>,
+  /// the words its answers carry before them in its owner's own account; null keeps the default
+  #[serde(default)]
+  pub name_tag: Option<String>,
   pub icon: Option<String>,
   pub session_scope: String,
   pub turn_shape: String,
@@ -3706,6 +3709,10 @@ pub struct SupervisorChange {
   /// The whole list of its call names, at most ten, each 1 to 40 characters with no comma; null or empty for none.
   #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
   pub aliases: Option<Option<Vec<String>>>,
+  /// Its name tag, one line of at most 40 characters, an emoji in it as written; null or blank takes it back to
+  /// the default.
+  #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "present")]
+  pub name_tag: Option<Option<String>>,
   /// Its road's provider; a changed provider or model drops the road's other fields not named.
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub provider: Option<String>,
