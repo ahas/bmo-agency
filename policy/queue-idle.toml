@@ -9,6 +9,8 @@ check_seconds = 60
 launch_seconds = 60
 agent_idle_order = "The agent {agent} ({role} role, {provider}/{model}) is idle, and could take these items of this room, first in the queue's order first:\n{items}"
 agent_idle_item = "#{item} ({title})"
+# The step it recommends, under the items: the first of them launched on the agent.
+agent_idle_recommended = "Recommended: launch #{item} ({title}) on {agent}."
 draft_brief_lines = 6
 draft_brief_chars = 800
 draft_order = "Item #{item} ({title}) is a draft awaiting approval. Raised by: {raised_by}. Repository: {repository}. Its brief begins:\n{brief}"

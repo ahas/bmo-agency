@@ -14,6 +14,9 @@ pub struct QueueIdle {
   pub agent_idle_order: String,
   /// One item an idle agent could take, as `{items}` lists it: `{item}` and `{title}`.
   pub agent_idle_item: String,
+  /// The step the idle agent's notice recommends, the first item it could take launched on it: `{item}`, `{title}`
+  /// and `{agent}`.
+  pub agent_idle_recommended: String,
   /// How many of a draft's brief's first lines the supervisor is told.
   pub draft_brief_lines: usize,
   /// The most characters of those lines the supervisor is told.

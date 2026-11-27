@@ -273,6 +273,12 @@ fn an_idle_agent_is_told_in_its_orderer_s_room_with_its_road_and_the_room_s_item
     )
   );
 
+  // It recommends the first item it could take, launched on it, under the items.
+  assert!(
+    order.contains(&format!("Recommended: launch #{} ({}) on coder-a.", first.id, first.title)),
+    "{order}"
+  );
+
   // A room naming none goes to the owner's private room under a kind of its own, so the receiver, which hands it
   // and a room naming the owner's to one chat, never lets one replace the other.
   let owner = idle_instruction(&coder_a, &[&first], &room(None));

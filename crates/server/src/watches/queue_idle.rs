@@ -275,6 +275,18 @@ pub fn idle_instruction(agent: &RoleAgent, items: &[&Open], orderer: &Orderer) -
       ("items", &listed.join("\n")),
     ],
   );
+  // The step it recommends: the first item it could take, launched on it (docs/agent-control.md, 「An idle agent
+  // is told to the orderers of the items it could take」).
+  let order = match items.first() {
+    Some(first) => format!(
+      "{order}\n{}",
+      fill_marks(
+        &QUEUE_IDLE.agent_idle_recommended,
+        &[("item", &first.id.to_string()), ("title", &first.title), ("agent", &agent.name)]
+      )
+    ),
+    None => order,
+  };
 
   json!({
     "room": orderer.room,

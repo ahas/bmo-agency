@@ -3508,7 +3508,8 @@ them run a browser, and whose a place is.
   rooms the receiver hands to one chat never replace each other's notice: the agent's name, role, provider and
   model, and the items of that room
   it could take, each by number and title in the queue's order (the highest priority, then the earliest place,
-  then the lowest number). The supervisor's manual says to launch the first of them on the agent or say in one
+  then the lowest number), and under them the step it recommends, the first of them launched on the agent
+  (`agent_idle_recommended`). The supervisor's manual says to launch the first of them on the agent or say in one
   line why not. The notice is kept while the agent stays idle and withdrawn once it is not; it is owed again
   where the items of that room it could take change, so a room hears of an item that came to wait, and once a
   later stretch begins. A deployment that names no job service or no receiver tells nothing.
