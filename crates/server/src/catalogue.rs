@@ -13,6 +13,7 @@ use bmo_agency_client::{
   CatalogueApp, CatalogueApproval, CatalogueCopy, CatalogueList, CatalogueMay, CatalogueNotice,
   CatalogueReview, CatalogueServer, CatalogueSource, CatalogueVersion, PersonalAppPermissions,
 };
+use bmo_brain_client::DeclaredMemory;
 use policy::organisation::ORGANISATION;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -159,6 +160,8 @@ struct KeptVersion {
   version: String,
   source_hash: String,
   permissions: Asks,
+  #[serde(default)]
+  memories: Vec<Value>,
   shared_at: i64,
   review: Value,
   approval: KeptApproval,
@@ -1391,6 +1394,7 @@ pub async fn install(ground: &Ground, reader: &Reader, id: &str) -> Result<Catal
   let account = reader.account();
 
   install_version(ground, &account, &app, &latest.version, "self", place.company).await?;
+  settle_one(ground, &account, place.company, &app.id).await;
   write_own(ground, &app, place.person, Value::Bool(true)).await?;
   entry(ground, reader, id).await
 }
@@ -1416,6 +1420,7 @@ pub async fn update(ground: &Ground, reader: &Reader, id: &str) -> Result<Catalo
 
   if copy.version != latest.version {
     install_version(ground, &account, &app, &latest.version, &copy.how, place.company).await?;
+    settle_one(ground, &account, place.company, &app.id).await;
   }
 
   entry(ground, reader, id).await
@@ -1438,6 +1443,7 @@ pub async fn uninstall(ground: &Ground, reader: &Reader, id: &str) -> Result<Cat
   own_is_open(ground, &app, place.person).await?;
   write_own(ground, &app, place.person, Value::Bool(false)).await?;
   drop_copy(ground, &account, &app, place.company).await?;
+  settle_one(ground, &account, place.company, &app.id).await;
   entry(ground, reader, id).await
 }
 
@@ -1905,7 +1911,79 @@ async fn keep_now(ground: &Ground, account: &str) -> Result<(), String> {
     }
   }
 
+  // The copies as they now stand decide whose brains hold each item's memory pack.
+  let (apps, _) = listed(ground, place.company, None).await.map_err(said)?;
+  settle_lessons(ground, account, &apps).await;
+
   Ok(())
+}
+
+/// A version's memory pack as the lessons a holder declares (agency's `docs/person-nodes.md`, 「Shared apps」):
+/// each keyed under the item's key, written by the holder, and only a tip or a check that reads whole.
+pub fn pack_lessons(app_key: &str, holder: &str, memories: &[Value]) -> Vec<DeclaredMemory> {
+  memories
+    .iter()
+    .filter_map(|lesson| {
+      let text =
+        |field: &str| lesson.get(field).and_then(Value::as_str).filter(|text| !text.trim().is_empty());
+      let kind = text("type").filter(|kind| *kind == "tip" || *kind == "check")?;
+
+      Some(DeclaredMemory {
+        key: format!("{app_key}.{}", text("key")?),
+        kind: kind.to_owned(),
+        text: text("text")?.to_owned(),
+        actor_name: Some(holder.to_owned()),
+        subjects: vec![],
+        importance: lesson.get("importance").and_then(Value::as_i64),
+        valid_from: None,
+        recall_condition: Some(text("recallCondition")?.to_owned()),
+        release_condition: None,
+        labels: Default::default(),
+      })
+    })
+    .collect()
+}
+
+// One item's memory pack settled for an account as its copy now stands, after a change the person asked for.
+async fn settle_one(ground: &Ground, account: &str, company: i64, id: &str) {
+  if let Ok(app) = one(ground, company, id).await {
+    settle_lessons(ground, account, std::slice::from_ref(&app)).await;
+  }
+}
+
+// The holder an item's memory pack stands under for one account: one key per copy, so a copy's lessons are
+// stood and taken away apart from every other account's.
+fn lessons_holder(app: &Kept, account: &str) -> String {
+  format!("app-{}-{account}", app.key)
+}
+
+/// Each item's memory pack stood in the brains of an account's agents while the account holds a copy, the
+/// lessons of the copy's version, and taken away where it holds none or the version carries none (agency's
+/// `docs/person-nodes.md`, 「Shared apps」). Each lesson is keyed under its item, so no maker's key stands over
+/// another holder's, and only tips and checks stand, as the catalogue checked them.
+async fn settle_lessons(ground: &Ground, account: &str, apps: &[Kept]) {
+  for app in apps {
+    if !app.versions.iter().any(|version| !version.memories.is_empty()) {
+      continue;
+    }
+
+    let holder = lessons_holder(app, account);
+    let lessons = app
+      .installs
+      .get(account)
+      .and_then(|copy| app.version(&copy.version))
+      .map(|version| pack_lessons(&app.key, &holder, &version.memories))
+      .unwrap_or_default();
+    let done = if lessons.is_empty() {
+      ground.peers.brain.let_go_holder(&holder).await
+    } else {
+      ground.peers.brain.hold(&holder, account, &lessons).await
+    };
+
+    if let Err(why) = done {
+      eprintln!("catalogue: the lessons of {} for {account} were not settled: {why}", app.id);
+    }
+  }
 }
 
 // Which nodes' links were heard at the last pass, so a node heard again is kept once.

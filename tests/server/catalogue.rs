@@ -1136,3 +1136,33 @@ fn an_mcp_server_s_reach_reads_off_its_mcp_toml() {
   assert_eq!(local.command, Some(vec!["python3".to_owned(), "server.py".to_owned()]));
   assert!(catalogue::server_in("[app]").is_none());
 }
+
+#[test]
+fn a_versions_memory_pack_becomes_lessons_keyed_under_the_item_and_only_whole_tips_and_checks_stand() {
+  let pack = vec![
+    serde_json::json!({ "key": "notes-first", "type": "tip", "text": "Read the notes first.", "recallCondition": "the week is asked about", "importance": 6 }),
+    serde_json::json!({ "key": "verify", "type": "check", "text": "Check the date.", "recallCondition": "a date is written" }),
+    serde_json::json!({ "key": "a-fact", "type": "fact", "text": "Not a lesson.", "recallCondition": "never" }),
+    serde_json::json!({ "key": "no-condition", "type": "tip", "text": "Missing its situation." }),
+  ];
+  let lessons =
+    agency_server::catalogue::pack_lessons("shared-3-17-week", "app-shared-3-17-week-21", &pack);
+
+  assert_eq!(
+    lessons
+      .iter()
+      .map(|lesson| (lesson.key.as_str(), lesson.kind.as_str(), lesson.importance))
+      .collect::<Vec<_>>(),
+    [
+      ("shared-3-17-week.notes-first", "tip", Some(6)),
+      ("shared-3-17-week.verify", "check", None)
+    ]
+  );
+  assert!(
+    lessons
+      .iter()
+      .all(|lesson| lesson.actor_name.as_deref() == Some("app-shared-3-17-week-21"))
+  );
+  assert!(lessons.iter().all(|lesson| lesson.subjects.is_empty()));
+  assert!(agency_server::catalogue::pack_lessons("x", "y", &[]).is_empty());
+}

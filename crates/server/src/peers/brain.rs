@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use bmo_brain_client::{
   Brain as BrainMember, BrainClient, BrainKind, BrainsQuery, ClientFailure, ConsolidationQuery,
-  MemoriesQuery, NewBrain, NewMemory, PersonaQuery,
+  Declaration, DeclaredMemory, HolderReach, MemoriesQuery, NewBrain, NewMemory, PersonaQuery,
 };
 use serde::Deserialize;
 use serde_json::Value;
@@ -101,6 +101,20 @@ pub trait Brain: Send + Sync {
   }
   /// A sleep's summary written into the agent's brain: one reflection labelled with the day it slept for.
   fn slept<'a>(&'a self, _agent: &'a str, _date: &'a str, _summary: &'a str) -> Asking<'a, ()> {
+    Box::pin(async { Ok(()) })
+  }
+  /// A holder's lessons stood in the brains of the agents one account owns (the brain's `docs/design.md`,
+  /// 「What a holder leaves」); nothing where the account owns no agent's brain yet.
+  fn hold<'a>(
+    &'a self,
+    _holder: &'a str,
+    _account: &'a str,
+    _lessons: &'a [DeclaredMemory],
+  ) -> Asking<'a, ()> {
+    Box::pin(async { Ok(()) })
+  }
+  /// A holder's lessons taken out of every brain they stand in.
+  fn let_go_holder<'a>(&'a self, _holder: &'a str) -> Asking<'a, ()> {
     Box::pin(async { Ok(()) })
   }
 }
@@ -300,6 +314,35 @@ fn fault(why: ClientFailure) -> PeerFault {
 }
 
 impl Brain for PublishedBrain {
+  fn hold<'a>(
+    &'a self,
+    holder: &'a str,
+    account: &'a str,
+    lessons: &'a [DeclaredMemory],
+  ) -> Asking<'a, ()> {
+    Box::pin(async move {
+      let asked = Declaration {
+        held_by: holder.to_owned(),
+        memories: lessons.to_vec(),
+        within: Some(HolderReach {
+          kind: None,
+          account_key: account.to_owned(),
+          agent_key: None,
+        }),
+      };
+
+      match self.client.declare(&asked).await.map_err(fault) {
+        // The account owns no agent's brain yet: its copies are kept again as its PC is heard.
+        Err(PeerFault::Failed { status: 409, .. }) => Ok(()),
+        done => done.map(|_| ()),
+      }
+    })
+  }
+
+  fn let_go_holder<'a>(&'a self, holder: &'a str) -> Asking<'a, ()> {
+    Box::pin(async move { self.client.holder_withdraw(holder).await.map(|_| ()).map_err(fault) })
+  }
+
   fn make<'a>(&'a self, agent: &'a str, name: &'a str, owner: Option<i64>) -> Asking<'a, Made> {
     Box::pin(async move { self.made(agent, name, owner).await })
   }

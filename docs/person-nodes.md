@@ -482,6 +482,14 @@ reaches another company.
     where they hold no copy and may install received apps.
 - **A PC that cannot be reached is kept next time,** and nothing at home waits on it. A person's skills are kept
   whether or not their PC is heard, since they stand at home.
+- **An item's memory pack stands in its holder's agents' brains while they hold a copy** (the tool host's
+  `docs/catalogue.md`, 「Kinds」): the lessons of the copy's version, declared to the brain as one holder for that
+  item and that account, reaching the agents' brains the account owns, and each lesson keyed under the item's key so
+  no maker's key stands over another holder's. An install, an update and a drop settle it at once, and every keeping
+  of the person's copies settles every item's: a version moved onto declares its lessons in place of the last, and
+  a copy gone, a version carrying no pack, an app recalled or withdrawn so the copy went, withdraws the holder. An
+  account owning no agent's brain yet holds nothing until its copies are kept again. A unit an app is turned on for
+  holds it through each member's copy, so no unit's brain is written.
 - **What a reader is told:** the apps shared with them since they last looked, and the copies waiting for their
   confirmation, which the console lists as notices; and for a head, the versions waiting for their approval.
 
