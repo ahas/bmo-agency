@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-vue": "6.0.10",
-    "bmo-ui": "file:vendor/bmo-ui-1.1.0-0.nightly.20261127.tgz",
+    "bmo-ui": "file:vendor/bmo-ui-1.1.0-0.nightly.20261128.tgz",
     "vite": "8.3.4",
     "vue": "^3.5.24"
   }
