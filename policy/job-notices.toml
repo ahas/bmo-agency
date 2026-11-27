@@ -1,9 +1,9 @@
 # What an item's orderer is told of a change in the queue (docs/agent-control.md, 「An item's change is told to
 # its orderer」): how deep the chain of items an item was raised from is followed to find its orderer; the data
 # each order carries, its marks naming what it is filled with; and the word a notice names where the item goes
-# to any free checkout. An order carries the
-# change's data and a short marker, never an instruction: what to do with each kind stands in the
-# supervisor's manual (prompts/agents/chat/manual.md, 「THE QUEUE」).
+# to any free checkout. An order carries the change's data and a short marker, the next step its kind calls for
+# (`[next]`), and the queue's standing (`[catalogue]`); how each kind is handled whole stands in the supervisor's
+# manual (prompts/agents/chat/manual.md, 「THE QUEUE」).
 orderer_depth = 16
 any_worker = "any free checkout"
 
@@ -131,3 +131,30 @@ no_candidate = "no {role} agent switched on runs {model}"
 no_checkout = "no checkout of {assignee} is free"
 agents_busy = "every agent that could take it is busy: {agents}"
 could_start = "it can start now on {agents}"
+
+# The next step each kind of queue notice says under its order, by its event (docs/agent-control.md, 「Every queue
+# notice says its next step」): what the orderer does now with what the notice tells, said as one line.
+[next]
+agent-idle = "Next: launch the first item it can take on it now, or say in one line why that item waits."
+item-queue-paused = "Next: resume the queue, or move the item to a queue that gives leases."
+item-unlaunchable = "Next: set the item's assignee to a checkout agency holds."
+item-agent-refused = "Next: name an agent that takes jobs, or take the agent label off."
+item-role-unknown = "Next: set the item's role to one agency holds."
+item-no-candidate = "Next: change the item's model to one an agent of its role runs, or switch such an agent on."
+item-awaits-approval = "Next: approve the draft, send it back with what to change, or drop it."
+item-wait-ended = "Next: take the hold off and launch the item."
+item-moved-under-job = "Next: stop the job, or move the item back, as its change asks."
+item-closed = "Next: nothing, unless the owner asks for the item again."
+item-awaits-deploy = "Next: put each repository live once no related work is left."
+job-ended = "Next: relay the report to the owner and close the item as the todo procedure says."
+job-failed = "Next: read why it ended, then launch it again, mend what failed, or hold it with the reason."
+job-awaits-close = "Next: close the item, or give its lease back so it is open again."
+job-review = "Next: run the check the review asks, and pass the report or send it back."
+job-review-parked = "Next: answer the question the review stands on, or put it to the owner."
+job-waiting = "Next: free what the job waits for, or let it wait and say why."
+job-question-due = "Next: settle the question now with its recommended choice, or put it to the owner."
+job-question-settled = "Next: nothing; the job goes on with the answer."
+question-awaits-answer = "Next: answer the question, or put it to the owner."
+deploy-live = "Next: close each item whose every commit is now live."
+deploy-failed = "Next: name the commit that broke the deployment and send its item back to be mended."
+

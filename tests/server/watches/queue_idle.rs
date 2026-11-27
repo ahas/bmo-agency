@@ -1076,8 +1076,14 @@ async fn an_idle_agent_is_told_to_each_room_after_its_launch_seconds_again_for_a
     assert!(first.contains(word), "{word} in {first}");
   }
 
-  assert!(!first.contains("#93"), "an item whose notices are switched off is left out: {first}");
-  assert!(by_room["-9200"].contains("#92") && !by_room["-9200"].contains("#91"));
+  // What the notice tells is its data, above its next step and the queue's standing, which lists every item.
+  let data = |order: &str| order.split("\nNext: ").next().unwrap_or(order).to_owned();
+
+  assert!(
+    !data(first).contains("#93"),
+    "an item whose notices are switched off is left out: {first}"
+  );
+  assert!(data(&by_room["-9200"]).contains("#92") && !data(&by_room["-9200"]).contains("#91"));
 
   pass(db, &vars).await.unwrap();
   assert_eq!(idle_told(&peers).len(), 2, "nothing changed, nothing told");

@@ -11,6 +11,9 @@ pub struct JobNotices {
   /// The queue's standing every queue notice carries under its order (docs/agent-control.md, 「Every queue
   /// notice carries the queue's standing」).
   pub catalogue: Catalogue,
+  /// The next step each kind of queue notice says under its order, by the notice's event (docs/agent-control.md,
+  /// 「Every queue notice says its next step」); a kind it names none for says none.
+  pub next: std::collections::BTreeMap<String, String>,
   /// The word a launch notice names where the item goes to any free checkout.
   pub any_worker: String,
   /// An open item in a queue that gives no lease: `{item}`, `{title}` and `{queue}`.

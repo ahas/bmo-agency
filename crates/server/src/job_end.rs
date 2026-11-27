@@ -305,7 +305,7 @@ pub fn instruction_body(member: &Value, orderer: &crate::queue::orderer::Orderer
   let run = member["runId"].as_i64().filter(|run| *run != 0);
   json!({
     "room": orderer.room,
-    "said": { "order": order(member) },
+    "said": { "order": crate::job_notices::told("job-ended", order(member)) },
     "agentName": orderer.requester,
     "sort": "job",
     "kind": format!("job-ended:{item}"),

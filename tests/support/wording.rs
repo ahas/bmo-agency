@@ -1,4 +1,6 @@
-//! What a turn's text carries: the data of what changed, and no sentence telling the model what to do.
+//! What a turn's text carries: the data of what changed, and no sentence telling the model what to do but the one
+//! next-step line a queue notice says under its data (docs/agent-control.md, 「Every queue notice says its next
+//! step」), with the queue's standing under that.
 
 // The sentences a turn used to carry, before they moved into the session's system prompt. A notice that
 // brings one back has been written wrong even where its data still stands.
@@ -34,9 +36,13 @@ const INSTRUCTIONS: &[&str] = &[
   "job_replies",
 ];
 
-/// Fails where `text` carries a sentence telling the model what to do rather than what changed.
+/// Fails where `text` carries a sentence telling the model what to do rather than what changed, a queue notice's
+/// next-step line and the standing under it left aside: they are its one instruction, said by the policy apart from
+/// its data.
 pub fn assert_no_instruction(text: &str) {
+  let data = text.split("\nNext: ").next().unwrap_or(text);
+
   for phrase in INSTRUCTIONS {
-    assert!(!text.contains(phrase), "{phrase:?} in {text}");
+    assert!(!data.contains(phrase), "{phrase:?} in {data}");
   }
 }

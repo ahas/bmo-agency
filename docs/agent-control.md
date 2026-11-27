@@ -3537,6 +3537,15 @@ them run a browser, and whose a place is.
   `item-no-candidate`). A pair the values cannot hold, a role and a model each held but no agent of that role
   on that model, is told as `item-no-candidate` from the next minute pass after the item is filed.
 
+### Every queue notice says its next step
+
+- **Every queue notice's order says the next step its kind calls for,** in one line under the order, from the
+  policy's line for its event (`policy/job-notices.toml`, `[next]`): an idle agent's says to launch the first item it
+  can take on it now or to say why that item waits, a draft's to approve it, send it back or drop it, a job's end to
+  relay its report and close its item, a failed deployment's to name the commit that broke it, and every other kind
+  its own. A notice carries the change's data, its next step and the queue's standing under that (below); the
+  supervisor's manual holds how each kind is handled whole.
+
 ### Every queue notice carries the queue's standing
 
 - **Every order a queue notice carries has the queue's standing under it,** as the queue's minute pass last read

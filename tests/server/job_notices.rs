@@ -171,7 +171,7 @@ fn a_failed_job_is_an_instruction_in_the_owner_s_private_room_naming_the_job_its
 }
 
 #[test]
-fn every_queue_order_carries_its_data_and_no_instruction() {
+fn every_queue_order_carries_its_data_and_its_kinds_next_step() {
   let orderer = Orderer {
     room: Some(-1),
     requester: None,
@@ -210,6 +210,16 @@ fn every_queue_order_carries_its_data_and_no_instruction() {
     }
 
     assert_no_instruction(order);
+
+    // Its next step is its kind's own line from the policy, under its data.
+    let kind = notice["kind"].as_str().unwrap();
+    let event = kind.rsplit_once(':').map_or(kind, |(event, _)| event);
+    let next = policy::job_notices::JOB_NOTICES
+      .next
+      .get(event)
+      .unwrap_or_else(|| panic!("a next step for {event}"));
+
+    assert!(order.contains(&format!("\n{next}")), "{next} under {order}");
   }
 }
 

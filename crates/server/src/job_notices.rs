@@ -16,7 +16,7 @@ use crate::watches::closes::Close;
 /// An instruction for an orderer: an order under the sort `job` in its room, the owner's private room where it
 /// names none, of the row `event` about `number`, so a newer one of the same kind replaces one still pending.
 pub fn instruction(event: &str, number: i64, orderer: &Orderer, summary: String, order: String) -> Value {
-  let order = with_catalogue(order, crate::now_ms());
+  let order = told(event, order);
 
   json!({
     "room": orderer.room,
@@ -37,6 +37,17 @@ static CATALOGUE: std::sync::Mutex<Option<(i64, String)>> = std::sync::Mutex::ne
 /// The queue's standing the minute pass read at `at`, in epoch milliseconds, kept for the notices that follow.
 pub fn hold_catalogue(at: i64, text: String) {
   *CATALOGUE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((at, text));
+}
+
+/// A queue notice's order as it goes to its orderer: its next step under it, by its event's kind, and the queue's
+/// standing under that (docs/agent-control.md, 「Every queue notice says its next step」).
+pub fn told(event: &str, order: String) -> String {
+  let order = match JOB_NOTICES.next.get(event) {
+    Some(next) => format!("{order}\n{next}"),
+    None => order,
+  };
+
+  with_catalogue(order, crate::now_ms())
 }
 
 /// An order with the queue's standing under it, where the standing held is no older than the policy's freshness at
@@ -310,7 +321,7 @@ pub fn deploy_failed(
 
   json!({
     "room": orderer.room,
-    "said": { "order": order },
+    "said": { "order": told(event, order) },
     "agentName": Value::Null,
     "sort": "job",
     "kind": format!("{event}:{}", failure.unit),
@@ -350,7 +361,7 @@ pub fn deploy_live(
 
   json!({
     "room": orderer.room,
-    "said": { "order": order },
+    "said": { "order": told(event, order) },
     "agentName": Value::Null,
     "sort": "job",
     "kind": format!("{event}:{unit}"),
@@ -373,7 +384,7 @@ pub fn deploy_stalled(
 ) -> Value {
   json!({
     "room": room,
-    "said": { "order": order },
+    "said": { "order": told(event, order.to_owned()) },
     "agentName": Value::Null,
     "sort": "job",
     "kind": format!("{event}:{repository}"),

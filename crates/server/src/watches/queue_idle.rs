@@ -278,7 +278,7 @@ pub fn idle_instruction(agent: &RoleAgent, items: &[&Open], orderer: &Orderer) -
 
   json!({
     "room": orderer.room,
-    "said": { "order": order },
+    "said": { "order": job_notices::told("agent-idle", order) },
     "agentName": Value::Null,
     "sort": "job",
     "kind": format!("{IDLE_OWED}{}@{room}", agent.name),
