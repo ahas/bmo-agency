@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use policy::organisation::ORGANISATION;
 
 use crate::access::Acting;
-use crate::chain;
+
 use crate::control::Refused;
 use crate::places::Ground;
 
@@ -106,12 +106,15 @@ impl<'a> Reach<'a> {
       }
       (None, Some(unit)) => {
         let unit = whole(unit).ok_or_else(|| bad("unit: an organisation unit's id."))?;
-        let below = match subtree {
-          None => false,
-          Some(word) if word.trim() == "true" => true,
-          Some(_) => {
-            return Err(bad("unitSubtree: true, to take the unit and the units under it as well."));
-          }
+        // The units under it are the front's to name, resolved on its own organisation: the agency keeps none.
+        let below: Vec<i64> = match subtree {
+          None => Vec::new(),
+          Some(list) => list
+            .split(',')
+            .map(str::trim)
+            .filter(|one| !one.is_empty())
+            .map(|one| whole(one).ok_or_else(|| bad("unitSubtree: the ids of the units under the unit, by commas.")))
+            .collect::<Result<_, _>>()?,
         };
 
         if !reach.reaches_unit(Some(unit)).await? {
@@ -124,20 +127,11 @@ impl<'a> Reach<'a> {
           .with_code("forbidden"));
         }
 
-        if !below {
-          Kept::Units(vec![unit])
-        } else {
-          // The units under it are the account service's answer to the reader; where none answers, the named
-          // unit's own rows stand alone, nothing guessed.
-          let reader = acting.person();
-          let mut units = crate::organisation::resources::subtree(ground, unit, reader).await;
+        let mut units = vec![unit];
 
-          if !units.contains(&unit) {
-            units.push(unit);
-          }
+        units.extend(below.into_iter().filter(|one| *one != unit));
 
-          Kept::Units(units)
-        }
+        Kept::Units(units)
       }
     };
 
@@ -157,7 +151,7 @@ impl<'a> Reach<'a> {
           return Ok(*held);
         }
 
-        let reached = chain::writes_unit(&crate::apps::service(self.ground), key(), unit, person)
+        let reached = crate::unit_reach::heads(&self.ground.db, person, unit)
           .await
           .map_err(|_| super::unchecked())?;
 
@@ -309,23 +303,3 @@ fn owned(ids: &[i64]) -> String {
   }
 }
 
-/// The unit and every unit under it, as the account service's subtree answers them to the reader; empty where
-/// the reader does not reach the unit or nothing answers.
-pub async fn subtree(ground: &Ground, unit: i64, reader: Option<i64>) -> Vec<i64> {
-  let Ok(read) =
-    chain::read(&crate::apps::service(ground), &format!("/units/{unit}/subtree"), reader).await
-  else {
-    return Vec::new();
-  };
-
-  if !read.ok() {
-    return Vec::new();
-  }
-
-  read.body["units"]
-    .as_array()
-    .into_iter()
-    .flatten()
-    .filter_map(|one| one["id"].as_i64())
-    .collect()
-}

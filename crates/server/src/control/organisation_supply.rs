@@ -43,25 +43,15 @@ fn unit_of(call: &Call) -> Result<i64, Refused> {
     .ok_or_else(|| Refused::new(StatusCode::NOT_FOUND, fill_marks(&words().unknown, &[("id", "")])))
 }
 
-/// The caller as a head of the unit, or the owner: a person is taken where the delegation chain answers them the
-/// unit's link of organisation supply, which it answers its writers alone.
+/// The caller as a head of the unit, or the owner: a person is taken where the unit reach table says they head the
+/// unit (`crate::unit_reach`).
 async fn head_of(ground: &Ground, acting: Acting, unit: i64) -> Result<(), Refused> {
   let Acting::Person(person) = acting else { return Ok(()) };
-  let service = crate::apps::service(ground);
-  let read =
-    chain::entry(&service, &ORGANISATION.sources.organisation_kind, &format!("unit:{unit}"), person)
-      .await
-      .map_err(|_| {
-        Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
-      })?;
+  let heads = crate::unit_reach::heads(&ground.db, person, unit).await.map_err(|_| {
+    Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked")
+  })?;
 
-  match read.status {
-    status if (200..300).contains(&status) => Ok(()),
-    403 | 404 => Err(Refused::new(StatusCode::FORBIDDEN, &words().not_head).with_code("forbidden")),
-    _ => {
-      Err(Refused::new(StatusCode::SERVICE_UNAVAILABLE, &words().unchecked).with_code("access-unchecked"))
-    }
-  }
+  if heads { Ok(()) } else { Err(Refused::new(StatusCode::FORBIDDEN, &words().not_head).with_code("forbidden")) }
 }
 
 /// Whether organisation supply stands open for the unit on the chain.
