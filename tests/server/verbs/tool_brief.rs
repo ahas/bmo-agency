@@ -52,3 +52,30 @@ async fn nothing_read_hands_nothing_and_leaves_the_tool_to_its_next_call() {
   assert_eq!(brief(place.path(), &call).await, None);
   assert!(!place.path().join("tool-briefs").join("session-a.txt").exists());
 }
+
+#[test]
+fn a_servers_skill_is_read_from_its_deploy_tree_without_its_front_matter() {
+  let root = tempfile::tempdir().unwrap();
+  let skill = root.path().join("bmo-explorer/deploy/plugin/skills/bmo-explorer");
+
+  std::fs::create_dir_all(&skill).unwrap();
+  std::fs::create_dir_all(root.path().join("bmo-explorer/deploy/node_modules/x/skills/y")).unwrap();
+  std::fs::write(
+    root.path().join("bmo-explorer/deploy/node_modules/x/skills/y/SKILL.md"),
+    "---\nname: y\n---\nNot this one.\n",
+  )
+  .unwrap();
+  std::fs::write(
+    skill.join("SKILL.md"),
+    "---\nname: bmo-explorer\ndescription: x\n---\n\n# Explorer\n\nWalk first.\n",
+  )
+  .unwrap();
+
+  let read = agency_server::verbs::tool_brief::skill_of(root.path(), "explorer").unwrap();
+
+  assert!(read.starts_with("# Explorer"), "{read}");
+  assert!(read.contains("Walk first."));
+  assert!(!read.contains("name: bmo-explorer"));
+  assert_eq!(agency_server::verbs::tool_brief::skill_of(root.path(), "nobody"), None);
+  assert_eq!(agency_server::verbs::tool_brief::skill_of(root.path(), "../etc"), None);
+}

@@ -68,6 +68,65 @@ async fn used(args: &[&str]) -> Option<String> {
   output.status.success().then(|| String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
+/// The skill of a plugin's own MCP server, read from its service's deploy tree under `root` (the home's
+/// `.local/share`): the first `SKILL.md` standing in a `skills` folder of `bmo-<server>/deploy`, a few folders
+/// deep, its front matter left out and cut to the bound; none where no such file stands.
+pub fn skill_of(root: &Path, server: &str) -> Option<String> {
+  if server.is_empty() || !server.chars().all(|one| one.is_ascii_alphanumeric() || one == '-' || one == '_')
+  {
+    return None;
+  }
+
+  let found = find_skill(&root.join(format!("bmo-{server}")).join("deploy"), 0)?;
+  let text = std::fs::read_to_string(found).ok()?;
+  let body = match text.strip_prefix("---") {
+    Some(rest) => rest.split_once("\n---").map(|(_, body)| body.trim_start_matches('-')).unwrap_or(rest),
+    None => text.as_str(),
+  };
+  let body = body.trim();
+
+  (!body.is_empty()).then(|| body.chars().take(MANUAL_CHARS).collect())
+}
+
+// A `SKILL.md` in a `skills` folder at or under `folder`, the folders read in name order, five deep at most, past
+// the folders a build or a package manager fills.
+fn find_skill(folder: &Path, depth: usize) -> Option<PathBuf> {
+  if depth > 5 {
+    return None;
+  }
+
+  let mut entries: Vec<PathBuf> = std::fs::read_dir(folder)
+    .ok()?
+    .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+    .collect();
+
+  entries.sort();
+
+  for entry in &entries {
+    let named = entry.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+
+    if named == "SKILL.md"
+      && entry
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::file_name)
+        .is_some_and(|name| name == "skills")
+    {
+      return Some(entry.clone());
+    }
+  }
+
+  entries
+    .iter()
+    .filter(|entry| entry.is_dir())
+    .filter(|entry| {
+      let named = entry.file_name().and_then(|name| name.to_str()).unwrap_or_default();
+
+      !matches!(named, "node_modules" | "target" | ".git") && !named.starts_with('.')
+    })
+    .find_map(|entry| find_skill(entry, depth + 1))
+}
+
 // The tool's description and manual as the toolbook describes it, cut to the bound.
 async fn manual_of(tool: &str) -> Option<String> {
   let text = described_text(&used(&[tool, "--describe"]).await?);
@@ -159,9 +218,18 @@ pub async fn brief(place: &Path, payload: &Value) -> Option<String> {
   let situation = situation_of(&tool, payload);
   let (manual, lessons) = tokio::join!(manual_of(&tool), lessons_of(&situation));
   let mut parts = Vec::new();
+  let server = tool.split('/').next().unwrap_or_default().to_owned();
+  let skill_mark = format!("skill:{server}");
 
   if let Some(manual) = manual {
     parts.push(format!("How {tool} is used:\n{manual}"));
+  } else if !briefed(place, session).contains(&skill_mark)
+    && let Some(root) = std::env::home_dir().map(|home| home.join(".local/share"))
+    && let Some(skill) = skill_of(&root, &server)
+  {
+    // A plugin's own server the tool host does not describe: its skill, once a session.
+    parts.push(format!("How the {server} tools are used:\n{skill}"));
+    mark_briefed(place, session, &skill_mark);
   }
 
   if !lessons.is_empty() {

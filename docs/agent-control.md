@@ -4016,6 +4016,10 @@ Launch adapters require an installed archive before opening included work. Refus
   `tip` or `check` whose situation the tool's name and its arguments meet, `bmo/brain_list`, both under the run's own
   session token, and hands them to the program as the call's added context. It keeps the tools it briefed in the
   place, one file a session, so each tool is briefed once a session.
+- **A server the tool host does not describe hands its skill instead,** once a session: a plugin's own MCP server,
+  whose tools `bmo use --describe` does not know, has its skill read from its service's deploy tree, the
+  `SKILL.md` under a `skills` folder of `~/.local/share/bmo-<server>/deploy`, its front matter left out, and handed
+  with the first call of any of its tools in the session as the server's manual.
 - **A brief never stands in a call's way.** Where the token is missing, the tool host or the brain does not answer
   within a few seconds, or neither gives anything, the hook hands nothing and the call goes on as it would.
 - **What it hands is read, never written:** the manual is the tool's own and the lessons are the brain's; the hook
