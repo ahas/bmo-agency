@@ -37,6 +37,8 @@ use crate::supervisors::{self, Supervisor};
 
 /// The most characters a supervisor's name tag holds.
 const NAME_TAG_MOST: usize = 40;
+// The most characters a supervisor's icon name holds.
+const ICON_MOST: usize = 80;
 
 static NAME: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(&SUPERVISORS.name_pattern).expect("the supervisor name pattern reads"));
@@ -82,7 +84,7 @@ pub async fn view(ground: &Ground, supervisor: &Supervisor) -> Result<Value, Ref
     "aliases": supervisor.aliases,
     "nameTag": supervisor.name_tag,
     "accounts": accounts,
-    "icon": ROLES.icon("supervisor"),
+    "icon": supervisor.icon.as_deref().or(ROLES.icon("supervisor")),
     "sessionScope": supervisor.session_scope,
     "turnShape": supervisor.turn_shape,
     "brainFolder": supervisor.brain_folder,
@@ -574,6 +576,20 @@ impl Route for SupervisorChange {
         ));
       }
     };
+    // Its own icon, an icon name of the console's set; null or blank takes it back to the role's.
+    let icon = match body.get("icon") {
+      None => held.icon.clone(),
+      Some(Value::Null) => None,
+      Some(Value::String(icon)) if icon.trim().is_empty() => None,
+      Some(Value::String(icon))
+        if icon.trim().chars().count() <= ICON_MOST && !icon.contains(char::is_whitespace) =>
+      {
+        Some(icon.trim().to_owned())
+      }
+      Some(_) => {
+        return Err(bad("icon", format!("An icon is one icon name of at most {ICON_MOST} characters.")));
+      }
+    };
     let warming = match body.get("warming") {
       None => held.warming.clone(),
       Some(Value::Object(switches)) => {
@@ -628,7 +644,7 @@ impl Route for SupervisorChange {
       call.store(),
       r#"UPDATE "supervisors" SET "label" = $2, "provider" = $3, "model" = $4, "effort" = $5, "thinking" = $6,
            "answer_tokens" = $7, "warming" = $8, "fold_ratio" = $9, "repository" = $10, "voice" = $11,
-           "updated_at" = $12, "card_rank" = $13, "aliases" = $14, "advisor" = $15, "name_tag" = $16
+           "updated_at" = $12, "card_rank" = $13, "aliases" = $14, "advisor" = $15, "name_tag" = $16, "icon" = $17
          WHERE "name" = $1"#,
       vec![
         name.clone().into(),
@@ -647,6 +663,7 @@ impl Route for SupervisorChange {
         aliases.into(),
         road.as_ref().and_then(|road| road.advisor.clone()).into(),
         name_tag.into(),
+        icon.into(),
       ],
     )
     .await?;

@@ -253,7 +253,7 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **A supervisor answers its row:** `name`, `label`, `ownerAccount`; `aliases`, its call names as one line
   joined by a comma and a space, or null for none (`docs/supervisors.md`, 「Its call names」); `nameTag`, the
   words its answers carry in its owner's own account, or null for the default (`docs/supervisors.md`, 「Its name
-  tag」); `accounts`, its accounts on chat services, each `service`, `number` and `secret` (「Its accounts on chat
+  tag」); `icon`, its own icon, the role's where it holds none; `accounts`, its accounts on chat services, each `service`, `number` and `secret` (「Its accounts on chat
   services」); `sessionScope`,
   `turnShape`, `brainFolder`, `repository`, the repository its TODO items go to; its road, `provider`, `model`, `effort`,
   `thinking`, `answerTokens` and `advisor` (below), every turn of it going out there; `cardRank`, the rank of the demands of
@@ -320,7 +320,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   404 `not-found` where none stands. An unknown supervisor is 404 `not-found` on every one.
 - **`PATCH /supervisors/{supervisorName}` changes the fields the body names:** `label`, `aliases`, `nameTag` (one
   line of at most forty characters, an emoji in it as written, or null or blank for the default, else refused 400
-  with `field` `nameTag`), the road —
+  with `field` `nameTag`), `icon` (one icon name of the console's set, at most eighty characters with no space, or
+  null or blank for the role's, else refused 400 with `field` `icon`), the road —
   `provider` and `model`, both or neither, `effort`, `thinking`, `answerTokens` and `advisor` —, `warming`, `foldRatio`,
   `cardRank` (a whole number of zero or more, or null for none), `repository`, `gates`, `sampling` and
   `voice`, each judged as the registration judges it; a road's fields it does not name keep what the road
@@ -2320,6 +2321,9 @@ service.
   small-model instruction」); one that lacks a field is refused 400 naming it. The job keeps it, answers
   it, and its prompt renders it under the item's title. `POST /instruction-texts` answers `text`, the
   one line a work-order step is written as, composed from an instruction.
+- **A job's prompt names its item under its title,** the item's number in one line that says to name it wherever a
+  verb asks for the item, the close's `--todo` and `bmo todo` among them, so a job launched with no instruction
+  still closes onto its item.
 - **A job's prompt carries its item's newest notes, as many as fit the policy's bytes**
   (`policy/job-prompt.toml`, `[notes]`): the notes that do not fit are left out from the oldest, and one
   line says how many were left out and that they stand on the item. The report trailer every job is held

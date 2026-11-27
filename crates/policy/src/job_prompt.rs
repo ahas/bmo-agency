@@ -8,6 +8,8 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JobPrompt {
+  /// The line under a job's title naming its item, with `{item}` its number.
+  pub item: String,
   pub workbench: Workbench,
   pub notes: Notes,
   pub lent: Lent,

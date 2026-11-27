@@ -1,3 +1,7 @@
+# The line under a job's title naming the item it works on (docs/api.md, 「assignments and jobs」), with `{item}` its
+# number: every verb of the job that names its item, the close's `--todo` and `bmo todo` among them, takes this one.
+item = "This job works on item #{item}: name it as `{item}` wherever a verb asks for the item, `bmo job close --todo {item}` and `bmo todo --done {item}` among them."
+
 # The names under a worker's workbench agency keeps (docs/worker-bench.md, 「An item's scratch」): the
 # folder that holds each item's scratch, one folder per item number, and what an item's own database on
 # the store's cluster is named from, the item number and an underscore following it, which a job's

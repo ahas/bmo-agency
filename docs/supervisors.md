@@ -52,6 +52,14 @@ hands to a role. What each supervisor owns apart from the others is `docs/agent-
   given」 below). A change of either moves that prompt: its next turn in each room is sent the prompt as it now
   is, and the session is then replaced while it is quiet (`docs/sessions.md`, 「Session replacement」).
 
+## Its icon
+
+- **A supervisor has an icon of its own,** an icon name of the console's set, which the console draws it by on its
+  card and wherever it names it, so two supervisors read apart at a glance. One holding none is drawn by the
+  supervisor role's icon; one added from the console starts with the added supervisor's icon the policy names.
+- **It is changed with the supervisor's other fields** (`docs/api.md`, 「supervisors」), and null or blank takes it
+  back to the role's.
+
 ## Its name tag
 
 - **A supervisor may carry a name tag:** the words its answers carry before them where they go out in its

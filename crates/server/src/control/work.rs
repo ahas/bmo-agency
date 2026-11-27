@@ -780,6 +780,12 @@ fn prompt_of(item: &Value, instruction: Option<&Value>) -> String {
   let brief = item.get("brief").and_then(Value::as_str).unwrap_or_default();
   let mut prompt = format!("# {title}\n\n");
 
+  // The item's number, which every verb of the job naming its item takes (docs/api.md, 「assignments and jobs」).
+  if let Some(id) = item.get("id").and_then(Value::as_i64) {
+    prompt.push_str(&policy::job_prompt::JOB_PROMPT.item.replace("{item}", &id.to_string()));
+    prompt.push_str("\n\n");
+  }
+
   if let Some(instruction) = instruction {
     prompt.push_str(&instruction_prompt(instruction));
     prompt.push('\n');
