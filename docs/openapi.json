@@ -19702,6 +19702,13 @@
             "type": "boolean",
             "description": "whether a run stands let in on it now",
             "default": false
+          },
+          "runningWork": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "on a change, what the change does to the run it carries: `run-to-end`, the run finishing as it was admitted\nand the change holding from the next admission (docs/change-branches.md); absent where it carries none"
           }
         },
         "required": [

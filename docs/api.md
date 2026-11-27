@@ -489,7 +489,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   the same way. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
-  and answers 200. Both refuse 422 a role the store does not hold (`unknown-role`), a name out of the
+  and answers 200, with `runningWork` `run-to-end` where the agent carries a run: the run finishes as it was
+  admitted and the change holds from the next admission (`docs/change-branches.md`). Both refuse 422 a role the store does not hold (`unknown-role`), a name out of the
   pattern, a provider without a model or a model without a provider, a road judged as a supervisor's road is
   against the role's line, a bundle the policy does not declare, and a `followsAsker` that is not true, false or
   null; `POST` refuses 409 a name

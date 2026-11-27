@@ -5765,6 +5765,11 @@ export interface components {
              * @default false
              */
             carries: boolean;
+            /**
+             * @description on a change, what the change does to the run it carries: `run-to-end`, the run finishing as it was admitted
+             *     and the change holding from the next admission (docs/change-branches.md); absent where it carries none
+             */
+            runningWork?: string | null;
         };
         /**
          * @description RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,

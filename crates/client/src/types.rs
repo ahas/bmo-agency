@@ -3944,6 +3944,10 @@ pub struct RoleAgent {
   /// whether a run stands let in on it now
   #[serde(default)]
   pub carries: bool,
+  /// on a change, what the change does to the run it carries: `run-to-end`, the run finishing as it was admitted
+  /// and the change holding from the next admission (docs/change-branches.md); absent where it carries none
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub running_work: Option<String>,
 }
 
 /// RoleAgentPage: the agents, by role and name.

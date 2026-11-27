@@ -312,6 +312,8 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
   )
   .await;
   assert_eq!((status, &advised["advisor"]), (200, &json!("opus")), "{advised}");
+  // It carries no run, so the change says nothing of running work (docs/change-branches.md).
+  assert_eq!(advised.get("runningWork"), None, "{advised}");
 
   let (status, said) = ask(
     reqwest::Method::PATCH,

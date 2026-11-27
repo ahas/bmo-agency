@@ -545,10 +545,20 @@ impl Route for RoleAgentChange {
     queue_told(&call);
 
     let carrying = role_agents::carrying(db, &agent.role).await?;
+    let mut shown = view(&agent, role.follows_asker, &carrying);
 
-    Ok(answer(StatusCode::OK, view(&agent, role.follows_asker, &carrying)))
+    // The branch the change takes for the run it carries (docs/change-branches.md).
+    if shown["carries"] == json!(true) {
+      shown["runningWork"] = json!(RUN_TO_END);
+    }
+
+    Ok(answer(StatusCode::OK, shown))
   }
 }
+
+/// The branch of a change whose running work finishes as it started, the change holding from the next run
+/// (docs/change-branches.md).
+pub const RUN_TO_END: &str = "run-to-end";
 
 crate::moved!(RoleAgentChange);
 
