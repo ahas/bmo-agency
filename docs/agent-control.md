@@ -3537,6 +3537,20 @@ them run a browser, and whose a place is.
   `item-no-candidate`). A pair the values cannot hold, a role and a model each held but no agent of that role
   on that model, is told as `item-no-candidate` from the next minute pass after the item is filed.
 
+### Every queue notice carries the queue's standing
+
+- **Every order a queue notice carries has the queue's standing under it,** as the queue's minute pass last read
+  it: the agents idle now, each with its role and model, and every waiting item in the queue's order, the items of
+  a queue giving no lease after them, each with why it does not start — its queue gives no lease, no checkout
+  agency holds is of its assignee, its role is none agency holds, its `agent` label takes no launch, no agent of
+  its role switched on runs its model, no checkout it may go to is free, every agent that could take it is busy
+  (naming them), or it can start now on the idle agents naming them. The orderer reads the whole queue beside the
+  one change the notice tells, so an idle agent and the item it could take are never seen apart.
+- **The standing is the minute pass's,** read once each minute and carried while it is no older than the
+  policy's freshness (`policy/job-notices.toml`, `[catalogue]`); a notice owed before any pass has read the queue,
+  or once the standing is older, carries its order alone. The waiting items are listed up to the policy's most, the
+  rest counted in one line.
+
 ### An item's change is told to its orderer
 
 Every change of an item or of a job that calls for a judgement or an action is told to the supervisor that

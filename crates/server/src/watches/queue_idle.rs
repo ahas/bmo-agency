@@ -1034,6 +1034,119 @@ pub async fn tell_waits(db: &DatabaseConnection, vars: &BTreeMap<String, String>
 /// One pass: the label values published where they changed; the queue read; each idle agent, each open item that
 /// cannot go, each draft awaiting approval and each held item whose wait has ended told to its orderer; and the job
 /// service's events told.
+/// The queue's standing as every queue notice carries it (docs/agent-control.md, 「Every queue notice carries the
+/// queue's standing」), read at `at` in epoch milliseconds: the idle agents, each with its role and model, and the
+/// waiting items in the queue's order, the paused ones after them, each with why it does not start.
+pub fn catalogue(standing: &Standing, at: i64) -> String {
+  let words = &JOB_NOTICES.catalogue;
+  let minute = chrono::DateTime::from_timestamp_millis(at)
+    .map(|moment| moment.with_timezone(&chrono::Local).format("%H:%M").to_string())
+    .unwrap_or_default();
+  let mut lines = vec![fill_marks(&words.heading, &[("at", &minute)]), words.idle_heading.clone()];
+  let idle: Vec<&RoleAgent> = standing.agents.iter().filter(|agent| standing.free_agent(agent)).collect();
+
+  if idle.is_empty() {
+    lines.push(words.idle_none.clone());
+  }
+
+  for agent in &idle {
+    lines.push(fill_marks(
+      &words.idle_agent,
+      &[
+        ("agent", &agent.name),
+        ("role", &agent.role),
+        ("model", agent.model.as_deref().unwrap_or_default()),
+      ],
+    ));
+  }
+
+  let mut waiting: Vec<&Open> = standing.open.iter().collect();
+
+  waiting.sort_by_key(|item| item.place());
+
+  let mut paused: Vec<&Open> = standing.paused.iter().collect();
+
+  paused.sort_by_key(|item| item.place());
+  waiting.extend(paused);
+  lines.push(words.waiting_heading.clone());
+
+  if waiting.is_empty() {
+    lines.push(words.waiting_none.clone());
+  }
+
+  for item in waiting.iter().take(words.most_items) {
+    let why = why_waiting(standing, item, &idle);
+
+    lines.push(fill_marks(
+      &words.waiting_item,
+      &[("item", &item.id.to_string()), ("title", &item.title), ("why", &why)],
+    ));
+  }
+
+  if waiting.len() > words.most_items {
+    lines.push(fill_marks(&words.left_out, &[("n", &(waiting.len() - words.most_items).to_string())]));
+  }
+
+  lines.join("\n")
+}
+
+// Why one waiting item does not start, the first that holds in the order a launch meets them; an item an idle agent
+// could take now says which.
+fn why_waiting(standing: &Standing, item: &Open, idle: &[&RoleAgent]) -> String {
+  let why = &JOB_NOTICES.catalogue.why;
+  let assignee = item.assignee.clone().unwrap_or_else(|| JOB_NOTICES.any_worker.clone());
+
+  if item.paused {
+    return fill_marks(&why.paused, &[("queue", &item.queue)]);
+  }
+
+  if item.assignee.as_ref().is_some_and(|worker| !standing.known.contains(worker)) {
+    return fill_marks(&why.unlaunchable, &[("assignee", &assignee)]);
+  }
+
+  if item.agent.is_none() && !standing.roles.iter().any(|role| role == item.role()) {
+    return fill_marks(&why.role_unknown, &[("role", item.role())]);
+  }
+
+  if let Some(refused) = agent_refusal(standing, item) {
+    return fill_marks(&why.agent_refused, &[("why", &refused)]);
+  }
+
+  if let Some(model) = item.asked_model()
+    && item.agent.is_none()
+    && standing.candidates(item.role(), model).next().is_none()
+  {
+    return fill_marks(&why.no_candidate, &[("role", item.role()), ("model", model)]);
+  }
+
+  if !standing.free_for(item.assignee.as_deref()) {
+    return fill_marks(&why.no_checkout, &[("assignee", &assignee)]);
+  }
+
+  let ready: Vec<&str> = idle
+    .iter()
+    .filter(|agent| standing.could_take(agent, item))
+    .map(|agent| agent.name.as_str())
+    .collect();
+
+  if !ready.is_empty() {
+    return fill_marks(&why.could_start, &[("agents", &ready.join(", "))]);
+  }
+
+  let able: Vec<&str> = standing
+    .agents
+    .iter()
+    .filter(|agent| agent.enabled)
+    .filter(|agent| match &item.agent {
+      Some(name) => &agent.name == name,
+      None => agent.role == item.role() && item.model.as_deref().is_none_or(|model| agent.runs(model)),
+    })
+    .map(|agent| agent.name.as_str())
+    .collect();
+
+  fill_marks(&why.agents_busy, &[("agents", &able.join(", "))])
+}
+
 pub async fn pass(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
@@ -1048,6 +1161,8 @@ pub async fn pass(
   let open = open_items(&service).await?;
   let standing = held(db, open).await.map_err(|why| why.detail)?;
   let now = crate::now_ms();
+
+  crate::job_notices::hold_catalogue(now, catalogue(&standing, now));
 
   if let Err(why) = tell_idle(db, vars, &standing, now).await {
     eprintln!("queue: an idle agent was not told: {why}");

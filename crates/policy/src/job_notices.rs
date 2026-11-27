@@ -8,6 +8,9 @@ use serde::Deserialize;
 pub struct JobNotices {
   /// How many items up the chain an item was raised from are read to find its orderer.
   pub orderer_depth: usize,
+  /// The queue's standing every queue notice carries under its order (docs/agent-control.md, 「Every queue
+  /// notice carries the queue's standing」).
+  pub catalogue: Catalogue,
   /// The word a launch notice names where the item goes to any free checkout.
   pub any_worker: String,
   /// An open item in a queue that gives no lease: `{item}`, `{title}` and `{queue}`.
@@ -131,3 +134,51 @@ pub struct JobNotices {
 }
 
 crate::part!(pub JOB_NOTICES: JobNotices = "job-notices.toml");
+
+/// The queue's standing as a notice carries it: the idle agents and every waiting item with why it does not start.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Catalogue {
+  /// How old the standing may be, in seconds, for a notice to carry it.
+  pub fresh_seconds: u64,
+  /// The most waiting items it lists; the rest are counted in one line.
+  pub most_items: usize,
+  /// The heading over it, `{at}` the minute it was read.
+  pub heading: String,
+  /// The heading over the idle agents, and the line saying there is none.
+  pub idle_heading: String,
+  pub idle_none: String,
+  /// One idle agent: `{agent}`, `{role}` and `{model}`.
+  pub idle_agent: String,
+  /// The heading over the waiting items, and the line saying there is none.
+  pub waiting_heading: String,
+  pub waiting_none: String,
+  /// One waiting item: `{item}`, `{title}` and `{why}`.
+  pub waiting_item: String,
+  /// The line counting the items left out: `{n}`.
+  pub left_out: String,
+  /// Why an item does not start, each with its own marks.
+  pub why: CatalogueWhy,
+}
+
+/// Why a waiting item does not start, as the catalogue says it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CatalogueWhy {
+  /// Its queue gives no lease: `{queue}`.
+  pub paused: String,
+  /// No checkout agency holds is of its assignee: `{assignee}`.
+  pub unlaunchable: String,
+  /// Its `role` label names no role agency holds: `{role}`.
+  pub role_unknown: String,
+  /// Its `agent` label takes no launch: `{why}`.
+  pub agent_refused: String,
+  /// No agent of its role switched on runs its model: `{role}` and `{model}`.
+  pub no_candidate: String,
+  /// No checkout it may go to is free: `{assignee}`.
+  pub no_checkout: String,
+  /// Every agent that could take it is busy: `{agents}`.
+  pub agents_busy: String,
+  /// An idle agent could take it now: `{agents}`.
+  pub could_start: String,
+}

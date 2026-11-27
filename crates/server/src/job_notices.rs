@@ -16,6 +16,8 @@ use crate::watches::closes::Close;
 /// An instruction for an orderer: an order under the sort `job` in its room, the owner's private room where it
 /// names none, of the row `event` about `number`, so a newer one of the same kind replaces one still pending.
 pub fn instruction(event: &str, number: i64, orderer: &Orderer, summary: String, order: String) -> Value {
+  let order = with_catalogue(order, crate::now_ms());
+
   json!({
     "room": orderer.room,
     "said": { "order": order },
@@ -26,6 +28,27 @@ pub fn instruction(event: &str, number: i64, orderer: &Orderer, summary: String,
     "events": [format!("{event}:#{number}")],
     "run": Value::Null,
   })
+}
+
+// The queue's standing as the minute pass last read it, and when, which every queue notice carries under its order
+// while it is fresh (docs/agent-control.md, 「Every queue notice carries the queue's standing」).
+static CATALOGUE: std::sync::Mutex<Option<(i64, String)>> = std::sync::Mutex::new(None);
+
+/// The queue's standing the minute pass read at `at`, in epoch milliseconds, kept for the notices that follow.
+pub fn hold_catalogue(at: i64, text: String) {
+  *CATALOGUE.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((at, text));
+}
+
+/// An order with the queue's standing under it, where the standing held is no older than the policy's freshness at
+/// `now`; the order as it stands otherwise.
+pub fn with_catalogue(order: String, now: i64) -> String {
+  let held = CATALOGUE.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+  let fresh = i64::try_from(JOB_NOTICES.catalogue.fresh_seconds.saturating_mul(1000)).unwrap_or(i64::MAX);
+
+  match held {
+    Some((at, text)) if now.saturating_sub(at) <= fresh => format!("{order}\n\n{text}"),
+    _ => order,
+  }
 }
 
 fn title_of(item: &Value) -> &str {

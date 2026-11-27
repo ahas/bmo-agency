@@ -6,6 +6,7 @@
 # supervisor's manual (prompts/agents/chat/manual.md, 「THE QUEUE」).
 orderer_depth = 16
 any_worker = "any free checkout"
+
 paused_order = "Item #{item} ({title}) is open in the queue {queue}, which is paused or under a hold and gives no lease."
 unlaunchable_order = "Item #{item} ({title}) names {assignee} as its repository, which no checkout agency holds is of."
 agent_order = "Item #{item} ({title}) carries the label agent={label}, and no launch takes it: {why}"
@@ -104,3 +105,29 @@ answer_seconds = 30
 # How long after a job's end, a check of its review coming due or its wait beginning, the sender waits before it
 # owes a notice of it that was not owed yet itself: past the time the change's own path takes to owe it.
 owe_grace_seconds = 120
+
+# The queue's standing every queue notice carries under its order (docs/agent-control.md, 「Every queue notice
+# carries the queue's standing」): the idle agents and every waiting item with why it does not start, read by the
+# queue's minute pass and carried while it is no older than `fresh_seconds`, the waiting items listed up to
+# `most_items` in the queue's order.
+[catalogue]
+fresh_seconds = 300
+most_items = 15
+heading = "The queue as it stands ({at}):"
+idle_heading = "Idle agents:"
+idle_none = "- none"
+idle_agent = "- {agent} ({role}, {model})"
+waiting_heading = "Waiting items, and why each does not start:"
+waiting_none = "- none"
+waiting_item = "- #{item} {title}: {why}"
+left_out = "- {n} more waiting items are left out"
+
+[catalogue.why]
+paused = "its queue {queue} gives no lease"
+unlaunchable = "no checkout agency holds is of {assignee}"
+role_unknown = "its role {role} is none agency holds"
+agent_refused = "{why}"
+no_candidate = "no {role} agent switched on runs {model}"
+no_checkout = "no checkout of {assignee} is free"
+agents_busy = "every agent that could take it is busy: {agents}"
+could_start = "it can start now on {agents}"

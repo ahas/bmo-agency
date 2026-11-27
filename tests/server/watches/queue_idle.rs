@@ -17,7 +17,7 @@ use agency_server::role_agents::RoleAgent;
 use agency_server::watches::machine::{LaunchHeld, tell_launch_held};
 use agency_server::watches::queue_idle::{
   DRAFT_TOLD_PREFIX, Draft, IDLE_OWED, IDLE_SEEN_PREFIX, Open, Standing, approval_instruction, brief_head,
-  draft_of, drafts_due, held, idle_agents, idle_instruction, room_of, unlaunchable,
+  catalogue, draft_of, drafts_due, held, idle_agents, idle_instruction, room_of, unlaunchable,
 };
 use axum::body::Bytes;
 use axum::extract::State;
@@ -1272,4 +1272,67 @@ async fn an_item_naming_an_agent_or_a_role_no_launch_takes_is_told_once_and_at_o
   agents_changed(db, &vars).await;
 
   assert_eq!(refused(&peers)[5], ("item-agent-refused:144".to_owned(), json!(-1440)));
+}
+
+// "Every queue notice carries the queue's standing": the idle agents with their roles and models, and each waiting
+// item in the queue's order with why it does not start.
+#[test]
+fn the_catalogue_names_the_idle_agents_and_why_each_waiting_item_does_not_start() {
+  let mut ready = for_coder(1);
+  let mut busy = for_coder(2);
+  let mut no_model = for_coder(3);
+  let mut no_checkout = Open {
+    role: Some("coder".to_owned()),
+    ..open(4, Some("w2"))
+  };
+  let mut paused = for_coder(5);
+
+  ready.position = 1;
+  busy.position = 2;
+  busy.agent = Some("coder-busy".to_owned());
+  no_model.position = 3;
+  no_model.model = Some("model-none".to_owned());
+  no_checkout.position = 4;
+  paused.paused = true;
+  paused.queue = "held-queue".to_owned();
+
+  let standing = Standing {
+    agents: vec![coder("coder-free", "model-a"), coder("coder-busy", "model-a")],
+    carrying: vec!["coder-busy".to_owned()],
+    roles: vec!["coder".to_owned()],
+    paused: vec![paused],
+    ..standing(vec![no_checkout, no_model, busy, ready], &["w1"])
+  };
+  let text = catalogue(&standing, 0);
+  let lines: Vec<&str> = text.lines().collect();
+
+  assert!(lines.contains(&"- coder-free (coder, model-a)"), "{text}");
+  assert!(!text.contains("- coder-busy (coder"), "a busy agent is no idle one: {text}");
+
+  let first = |id: &str| lines.iter().position(|line| line.starts_with(&format!("- #{id} "))).unwrap();
+
+  assert!(lines[first("1")].ends_with("it can start now on coder-free"), "{text}");
+  assert!(
+    lines[first("2")].ends_with("every agent that could take it is busy: coder-busy"),
+    "{text}"
+  );
+  assert!(lines[first("3")].ends_with("no coder agent switched on runs model-none"), "{text}");
+  assert!(lines[first("4")].ends_with("no checkout of w2 is free"), "{text}");
+  assert!(lines[first("5")].ends_with("its queue held-queue gives no lease"), "{text}");
+  assert!(
+    first("1") < first("2") && first("4") < first("5"),
+    "the queue's order, the paused after: {text}"
+  );
+}
+
+// "carried while it is no older than the policy's freshness"
+#[test]
+fn a_notice_carries_the_standing_while_it_is_fresh_and_its_order_alone_after() {
+  agency_server::job_notices::hold_catalogue(1_000, "The queue as it stands".to_owned());
+
+  assert_eq!(
+    agency_server::job_notices::with_catalogue("order".to_owned(), 2_000),
+    "order\n\nThe queue as it stands"
+  );
+  assert_eq!(agency_server::job_notices::with_catalogue("order".to_owned(), 1_000 + 300_001), "order");
 }
