@@ -1,6 +1,7 @@
 //! The ledger's runs whose turn ended without closing them (docs/run-records.md, 「The run ledger」): a job's run
-//! whose job has ended with no turn of it going, and the run of a turn agency carries, a chat turn's or a role
-//! session's, that no turn kept in flight carries, each closed as cut with a line in its log saying why.
+//! whose job has ended with no turn of it going, the run of a turn agency carries, a chat turn's or a role
+//! session's, that no turn kept in flight carries, and a translation's run no translation of this process still goes
+//! under, each closed as cut with a line in its log saying why.
 
 use std::collections::HashSet;
 
@@ -23,6 +24,10 @@ pub const CUT: &str = "cut";
 pub const JOB_ENDED: &str =
   "Closed as cut: its job had ended and no turn of it was going, so nothing else would close this run.";
 
+/// Why a translation's run is closed by the pass.
+pub const TRANSLATION_LOST: &str =
+  "Closed as cut: no translation was going under this run any more, so nothing else would close it.";
+
 /// Why the run of a turn agency carries is closed by the pass.
 pub const TURN_LOST: &str =
   "Closed as cut: no turn was going under this run any more, so nothing else would close it.";
@@ -33,9 +38,9 @@ pub async fn pass(ground: &Ground) -> Result<usize, Refusal> {
   let open = all(
     &ground.db,
     r#"SELECT "id", "agent", "work_unit", "chat_id", "started_at", "carried" FROM "runs"
-       WHERE "finished_at" IS NULL AND ("work_unit" LIKE 'job-%' OR "carried")
+       WHERE "finished_at" IS NULL AND ("work_unit" LIKE 'job-%' OR "carried" OR "work_unit" LIKE $1)
        ORDER BY "id""#,
-    vec![],
+    vec![format!("{}:%", crate::translate::KEY).into()],
   )
   .await?;
   // The runs the turns kept in flight carry, read once for the pass; where they cannot be read, no carried run is
@@ -66,6 +71,9 @@ pub async fn pass(ground: &Ground) -> Result<usize, Refusal> {
           && kept.as_ref().is_some_and(|kept| !kept.contains(&id)) =>
       {
         TURN_LOST
+      }
+      None if !carried && now - started_at > TURN_GRACE_MS && crate::translate::left_behind(&unit) => {
+        TRANSLATION_LOST
       }
       _ => continue,
     };

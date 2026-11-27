@@ -150,7 +150,9 @@ about a message is not agency's: the judgement records belong to the units that 
   agency's start and on the executions' clock closes every such run, writing in its log the line that says
   why: a job's run whose job has ended, no turn of it carried by this process nor kept in flight; and the run
   of a turn agency carries, a chat turn's or a role session's, begun more than two minutes ago and carried by
-  no turn kept in flight, which every turn going is. Any other run is left as it stands.
+  no turn kept in flight, which every turn going is; and a translation's run begun more than two minutes ago that
+  no translation of this process still goes under, its request having been let go or its process gone. Any other
+  run is left as it stands.
 - **Every turn of a round is a run of its own:** the round's own turn and each question, item and
   check of the receiver's draft process go out as turns naming the same round, so each opens its run
   under that round and keeps its own spend. A round's usage is the sum of its runs', and how it divides

@@ -4,7 +4,8 @@
 //! purpose asked.
 
 use policy::roles::ROLES;
-use std::sync::{Arc, LazyLock};
+use std::collections::HashSet;
+use std::sync::{Arc, LazyLock, Mutex};
 
 use bmo_agency_client::TranslationTerm;
 use harness_providers::registered::Registered;
@@ -36,6 +37,34 @@ pub const LINE: &str = "translate";
 
 // The agent folder the purposes' instructions stand in, and the folder a run apart works in.
 const AGENT: &str = "translator";
+
+// The work units of the translations this process has going: a run it opened stands here until its translation
+// ends, or until the request carrying it is let go, which drops what holds it.
+static GOING: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+// One translation's place among those going, given up when it is dropped.
+struct Going(String);
+
+impl Going {
+  fn new(unit: &str) -> Self {
+    GOING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).insert(unit.to_owned());
+
+    Self(unit.to_owned())
+  }
+}
+
+impl Drop for Going {
+  fn drop(&mut self) {
+    GOING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&self.0);
+  }
+}
+
+/// Whether the run of a work unit is a translation's that nothing in this process carries any more, so nothing would
+/// close it (docs/run-records.md, 「The run ledger」).
+pub fn left_behind(unit: &str) -> bool {
+  unit.strip_prefix(KEY).is_some_and(|rest| rest.starts_with(':'))
+    && !GOING.lock().unwrap_or_else(std::sync::PoisonError::into_inner).contains(unit)
+}
 
 // The card the translations out at once on a registration share.
 static TRANSLATING: LazyLock<Arc<cards::Sharing>> = LazyLock::new(Arc::default);
@@ -340,6 +369,7 @@ async fn recorded(
   let db = &ground.db;
   let at = crate::now_ms();
   let unit = format!("{KEY}:{at}:{}", RECORDED.fetch_add(1, std::sync::atomic::Ordering::Relaxed));
+  let _going = Going::new(&unit);
   let ledger = run_ledger::open(
     db,
     &run_ledger::Opening {

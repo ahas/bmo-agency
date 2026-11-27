@@ -137,3 +137,34 @@ async fn a_run_whose_turn_ended_without_closing_it_is_closed_as_cut_and_its_log_
   assert_eq!(told, 2, "each run's log says why it was closed");
   assert_eq!(pass(&ground).await.unwrap(), 0, "a second pass finds nothing left");
 }
+
+// A translation's run its request let go of, or whose process went, is closed as cut once past the grace; a young
+// one is left to its translation, and a unit that only begins with the word is no translation's.
+#[tokio::test]
+async fn a_translation_s_run_no_translation_goes_under_is_closed_as_cut() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = ground(&scratch, home.path());
+  let old = now_ms() - 10 * 60 * 1000;
+  let fresh = now_ms() - 10 * 1000;
+
+  scratch
+    .run(
+      r#"INSERT INTO "runs"
+           ("id", "agent", "chat_id", "work_unit", "depth", "started_at", "finished_at", "outcome", "carried")
+         VALUES (1, 'translator', NULL, 'translate:1:1', 0, $1, NULL, NULL, false),
+                (2, 'translator', NULL, 'translate:1:2', 0, $2, NULL, NULL, false),
+                (3, 'translator', NULL, 'translated:1:3', 0, $1, NULL, NULL, false)"#,
+      vec![old.into(), fresh.into()],
+    )
+    .await;
+
+  assert_eq!(pass(&ground).await.unwrap(), 1);
+  assert_eq!(outcome(&scratch, 1).await.as_deref(), Some(CUT));
+  assert_eq!(outcome(&scratch, 2).await, None, "a young translation's run is left to it");
+  assert_eq!(
+    outcome(&scratch, 3).await,
+    None,
+    "a unit that only begins with the word is no translation's"
+  );
+}
