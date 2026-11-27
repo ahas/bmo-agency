@@ -322,11 +322,10 @@ fn key_of_scope() -> &'static str {
 
 /// Where the person stands, as their chain's path for the share scope names it, and the scope it resolves.
 pub async fn place_of(ground: &Ground, person: i64) -> Result<Place, Fault> {
-  let answer =
-    chain::resolve_remote(&crate::apps::service(ground), key_of_scope(), Subject::Person(person))
-      .await
-      .map_err(|_| Fault::Unchecked)?
-      .ok_or(Fault::Unchecked)?;
+  let answer = chain::resolve(&crate::apps::service(ground), key_of_scope(), Subject::Person(person))
+    .await
+    .map_err(|_| Fault::Unchecked)?
+    .ok_or(Fault::Unchecked)?;
   let units = units_in(&chain::path_of(&answer));
   let company = *units.first().ok_or_else(|| Fault::OtherCompany(format!("the person {person}")))?;
   let ceiling = answer["value"]
@@ -344,7 +343,7 @@ pub async fn place_of(ground: &Ground, person: i64) -> Result<Place, Fault> {
 
 // The units from a unit's company down to it, as its chain's path names them.
 async fn unit_path(ground: &Ground, unit: i64) -> Result<Vec<i64>, Fault> {
-  let answer = chain::resolve_remote(&crate::apps::service(ground), key_of_scope(), Subject::Unit(unit))
+  let answer = chain::resolve(&crate::apps::service(ground), key_of_scope(), Subject::Unit(unit))
     .await
     .map_err(|_| Fault::Unchecked)?
     .ok_or_else(|| Fault::NotFound(format!("no unit {unit} stands")))?;
@@ -472,7 +471,7 @@ impl Asked {
       return known.clone();
     }
 
-    let answer = chain::resolve_remote(&crate::apps::service(ground), key, Subject::Person(person))
+    let answer = chain::resolve(&crate::apps::service(ground), key, Subject::Person(person))
       .await
       .ok()
       .flatten();

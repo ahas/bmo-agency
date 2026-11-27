@@ -17,7 +17,6 @@ use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::routing::{get, put};
-
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
@@ -52,8 +51,6 @@ struct Stub {
   resolved: Arc<Mutex<Vec<(String, Value)>>>,
   values: Arc<Mutex<Vec<(String, String, Value)>>>,
   writes: Arc<Mutex<Vec<Recorded>>>,
-  // The agency the test stands, whose tables the stub's settings are written into, as the front writes them.
-  ground: Arc<Mutex<Option<Arc<Ground>>>>,
 }
 
 impl Stub {
@@ -61,21 +58,9 @@ impl Stub {
     *self.sections.lock().unwrap() = grants.to_vec();
   }
 
-  /// Who heads which unit, written into the agency's unit reach table as the front writes it.
-  async fn head(&self, heads: &[(i64, i64)]) {
+  /// The pairs the chain answers a unit's link to: who heads which unit.
+  fn head(&self, heads: &[(i64, i64)]) {
     *self.heads.lock().unwrap() = heads.to_vec();
-
-    let rows: Vec<agency_server::unit_reach::Reached> = heads
-      .iter()
-      .map(|(account, unit)| agency_server::unit_reach::Reached {
-        account: *account,
-        unit: *unit,
-        write: true,
-      })
-      .collect();
-    let ground = self.ground.lock().unwrap().clone().expect("the agency stands");
-
-    agency_server::unit_reach::replace(&ground.db, &rows).await.unwrap();
   }
 
   /// The units standing under the unit a subtree is asked for.
@@ -83,24 +68,10 @@ impl Stub {
     *self.subtree.lock().unwrap() = units.to_vec();
   }
 
-  /// A setting's value for the member, written into the agency's subject settings as the front writes it.
-  async fn resolve_to(&self, kind: &str, value: Value) {
-    let rows: Vec<agency_server::chain::Held> = {
-      let mut held = self.resolved.lock().unwrap();
-      held.retain(|(key, _)| key != kind);
-      held.push((kind.to_owned(), value));
-      held
-        .iter()
-        .map(|(key, value)| agency_server::chain::Held {
-          subject: format!("person:{MEMBER}"),
-          key: key.clone(),
-          value: json!({ "value": value }),
-        })
-        .collect()
-    };
-    let ground = self.ground.lock().unwrap().clone().expect("the agency stands");
-
-    agency_server::chain::replace_held(&ground.db, &rows).await.unwrap();
+  fn resolve_to(&self, kind: &str, value: Value) {
+    let mut held = self.resolved.lock().unwrap();
+    held.retain(|(key, _)| key != kind);
+    held.push((kind.to_owned(), value));
   }
 
   fn writes(&self) -> Vec<Recorded> {
@@ -273,8 +244,6 @@ async fn stand(scratch: &Scratch, home: &std::path::Path) -> (u16, Stub, Arc<Gro
   let stub = Stub::default();
   let address = account_service(stub.clone()).await;
   let ground = ground(scratch, home, &address).await;
-
-  *stub.ground.lock().unwrap() = Some(ground.clone());
 
   (front(ground.clone()).await, stub, ground)
 }
@@ -462,7 +431,7 @@ async fn the_list_of_each_resource_answers_a_member_their_own_rows_and_their_uni
   let parts = [("/supervisors", "sup-"), ("/role-agents", "seat-"), ("/repositories", "repo-")];
 
   // A head of unit 5 sees its own account's rows and unit 5's, never the platform's.
-  stub.head(&[(MEMBER, 5)]).await;
+  stub.head(&[(MEMBER, 5)]);
 
   for (path, prefix) in parts {
     let (status, body) = member_get(port, path).await;
@@ -476,7 +445,7 @@ async fn the_list_of_each_resource_answers_a_member_their_own_rows_and_their_uni
   }
 
   // Heading nothing, a member's list holds their own account's rows alone.
-  stub.head(&[]).await;
+  stub.head(&[]);
 
   for (path, prefix) in parts {
     let (status, body) = member_get(port, path).await;
@@ -520,8 +489,8 @@ async fn the_owner_params_narrow_lists_and_a_member_names_only_what_they_reach()
     supervisor(&scratch, &format!("sup-{side}"), account, unit).await;
   }
 
-  // Member 7 heads units 5 and 7, and the caller names 7 as standing under 5.
-  stub.head(&[(MEMBER, 5), (MEMBER, 7)]).await;
+  // Member 7 heads units 5 and 7; the account service answers 7 as standing under 5.
+  stub.head(&[(MEMBER, 5), (MEMBER, 7)]);
   stub.under(&[5, 7]);
 
   let (status, body) = member_get(port, "/supervisors?unit=5").await;
@@ -530,7 +499,7 @@ async fn the_owner_params_narrow_lists_and_a_member_names_only_what_they_reach()
   let (status, body) = member_get(port, "/supervisors?ownerAccount=7").await;
   assert_eq!((status, shown(&body, "name", "sup-")), (200, names(&["sup-seven"])), "{body}");
 
-  let (status, body) = member_get(port, "/supervisors?unit=5&unitSubtree=7").await;
+  let (status, body) = member_get(port, "/supervisors?unit=5&unitSubtree=true").await;
   assert_eq!(
     (status, shown(&body, "name", "sup-")),
     (200, names(&["sup-unit5", "sup-unit7"])),
@@ -545,7 +514,6 @@ async fn the_owner_params_narrow_lists_and_a_member_names_only_what_they_reach()
     ("/supervisors?ownerAccount=7&unit=5", 400),
     ("/supervisors?unit=not-a-number", 400),
     ("/supervisors?unit=5&unitSubtree=false", 400),
-    ("/supervisors?unit=5&unitSubtree=7,x", 400),
   ] {
     let (status, body) = member_get(port, path).await;
 
@@ -602,7 +570,7 @@ async fn a_head_files_a_supervisor_a_seat_and_a_model_under_their_unit_and_a_str
   let home = tempfile::tempdir().unwrap();
   let (port, stub, _ground) = stand(&scratch, home.path()).await;
 
-  stub.head(&[(MEMBER, 5)]).await;
+  stub.head(&[(MEMBER, 5)]);
 
   let (status, body) = send(
     port,
@@ -662,7 +630,7 @@ async fn a_head_files_a_supervisor_a_seat_and_a_model_under_their_unit_and_a_str
   assert_eq!(status, 200, "{body}");
 
   // A member heading nothing files nothing there and changes nothing of the unit's.
-  stub.head(&[]).await;
+  stub.head(&[]);
 
   for (method, path, body) in [
     (
@@ -764,7 +732,7 @@ async fn a_run_stands_under_its_agent_s_owners_and_the_list_narrows_by_them() {
   );
 
   // A head of unit 5: the run of the unit's agent alone.
-  stub.head(&[(MEMBER, 5)]).await;
+  stub.head(&[(MEMBER, 5)]);
 
   let (status, body) = member_get(port, "/runs").await;
   assert_eq!((status, shown(&body, "agentName", "")), (200, names(&["sup-unit"])), "{body}");
@@ -773,7 +741,7 @@ async fn a_run_stands_under_its_agent_s_owners_and_the_list_narrows_by_them() {
   assert_eq!((status, shown(&body, "agentName", "")), (200, names(&["sup-unit"])), "{body}");
 
   // Heading nothing: neither the unit's run nor the platform's stands in the list.
-  stub.head(&[]).await;
+  stub.head(&[]);
 
   let (status, body) = member_get(port, "/runs").await;
   assert_eq!(status, 200, "{body}");
@@ -859,11 +827,11 @@ async fn a_provider_turned_off_below_the_person_closes_the_walk() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let stub = Stub::default();
+
+  stub.resolve_to("provider.deepseek.offered", json!(false));
+
   let address = account_service(stub.clone()).await;
   let ground = ground(&scratch, home.path(), &address).await;
-
-  *stub.ground.lock().unwrap() = Some(ground.clone());
-  stub.resolve_to("provider.deepseek.offered", json!(false)).await;
 
   let closed = walk(&ground).await.expect("a turned-off provider leaves no source");
 
@@ -873,7 +841,7 @@ async fn a_provider_turned_off_below_the_person_closes_the_walk() {
 
   // Where the chain says the provider stands, the walk itself goes on: the run closes now only for what no
   // source of it holds, not for the provider being off.
-  stub.resolve_to("provider.deepseek.offered", json!(true)).await;
+  stub.resolve_to("provider.deepseek.offered", json!(true));
 
   let closed = walk(&ground).await.expect("the person holds no personal source here");
 
@@ -960,7 +928,7 @@ async fn a_member_reads_the_log_of_the_agents_they_reach_alone() {
   line(&scratch, "sup-plain", "r-plain", AT, "the platform's").await;
 
   // A head of unit 5: their own lines and the unit's, and no line of the platform's agent.
-  stub.head(&[(MEMBER, 5)]).await;
+  stub.head(&[(MEMBER, 5)]);
 
   let (status, body) = member_get(port, "/log-lines?runId=r-seven").await;
   assert_eq!((status, texts(&body)), (200, vec!["mine".to_owned()]), "{body}");
@@ -984,7 +952,7 @@ async fn a_member_reads_the_log_of_the_agents_they_reach_alone() {
   assert!(body["items"].as_array().is_some_and(|items| items.is_empty()), "{body}");
 
   // Heading nothing: the unit's lines fall away, one's own stand.
-  stub.head(&[]).await;
+  stub.head(&[]);
 
   let (_, body) = member_get(port, "/log-lines?runId=r-unit").await;
   assert!(texts(&body).is_empty(), "{body}");
@@ -1085,7 +1053,7 @@ async fn a_member_s_usage_stands_over_only_the_work_they_reach() {
   let window = "&after=0&before=4000000000000";
 
   // The head of unit 5: their own account's turns, the unit's under the platform-named key, and no others'.
-  stub.head(&[(MEMBER, 5)]).await;
+  stub.head(&[(MEMBER, 5)]);
 
   let (status, body) = member_get(port, &format!("/usage?groupBy=account{window}")).await;
   assert_eq!(status, 200, "{body}");
@@ -1098,7 +1066,7 @@ async fn a_member_s_usage_stands_over_only_the_work_they_reach() {
   assert!(group(&body, "g-test")["contextTokens"].is_null(), "no others' sessions show: {body}");
 
   // Heading nothing: the unit's run falls away too, the account's stands.
-  stub.head(&[]).await;
+  stub.head(&[]);
 
   let (_, body) = member_get(port, &format!("/usage?groupBy=account{window}")).await;
   assert_eq!(group_keys(&body), names(&["7"]), "{body}");

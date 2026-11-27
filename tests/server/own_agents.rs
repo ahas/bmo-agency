@@ -83,7 +83,6 @@ async fn the_supplied_set_is_the_composition_with_each_seat_s_origin_and_the_per
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
-  crate::support::front::resolve_all(&ground.db, &vars["WEB_ADDRESS"], &vars["WEB_TOKEN"]).await;
 
   scratch
     .run(

@@ -14,6 +14,7 @@ use agency_server::apps::{self, Changed, Personal, Withheld};
 use agency_server::person_nodes::Caller;
 use axum::extract::{Path, Query, State};
 use serde_json::{Value, json};
+use tool_call::account_service::AccountService;
 
 use crate::support::grounds::{ground_with, seeded_with};
 use crate::support::rows;
@@ -81,6 +82,13 @@ async fn account_service(table: Table) -> String {
   address
 }
 
+fn reached(address: &str) -> AccountService {
+  AccountService {
+    address: address.to_owned(),
+    token: "chain-token".to_owned(),
+  }
+}
+
 fn keys(apps: &[&str]) -> BTreeSet<String> {
   apps.iter().map(|app| (*app).to_owned()).collect()
 }
@@ -91,15 +99,28 @@ fn keys(apps: &[&str]) -> BTreeSet<String> {
 #[tokio::test]
 async fn an_app_not_both_offered_and_on_for_the_person_is_withheld() {
   let address = account_service(table()).await;
-  let scratch = Scratch::new().await;
+  let service = reached(&address);
 
-  // With nothing written, no app is known, so none is withheld.
-  assert_eq!(apps::resolve(scratch.db(), COMPANY_PERSON).await.unwrap(), keys(&[]));
+  assert_eq!(apps::resolve(&service, COMPANY_PERSON).await.unwrap(), keys(&[]));
+  assert_eq!(apps::resolve(&service, OTHER_PERSON).await.unwrap(), keys(&["almanac", "ledger"]));
 
-  crate::support::front::resolve_all(scratch.db(), &address, "chain-token").await;
+  let refused = apps::resolve(
+    &AccountService {
+      token: "wrong".to_owned(),
+      ..service.clone()
+    },
+    COMPANY_PERSON,
+  )
+  .await
+  .unwrap_err();
 
-  assert_eq!(apps::resolve(scratch.db(), COMPANY_PERSON).await.unwrap(), keys(&[]));
-  assert_eq!(apps::resolve(scratch.db(), OTHER_PERSON).await.unwrap(), keys(&["almanac", "ledger"]));
+  assert!(refused.contains("401"), "{refused}");
+  assert!(
+    apps::resolve(&AccountService::default(), COMPANY_PERSON)
+      .await
+      .unwrap_err()
+      .contains("WEB_ADDRESS")
+  );
 }
 
 // "Turning off takes effect from the next turn": the place's file resolved again as a turn begins names the apps
@@ -117,7 +138,6 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     (agency_server::personal_apps::POCKET_VARIABLE.to_owned(), empty_registry(home.path())),
   ]);
   let ground = ground_with(scratch.db().clone(), home.path(), &more);
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
   let place = home.path().join("place");
   let file = apps::place_file(&place);
 
@@ -142,7 +162,6 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     .lock()
     .unwrap()
     .insert(("personal-apps.network".to_owned(), COMPANY_PERSON.to_owned()), false);
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
   assert_eq!(apps::refresh(&ground, &place).await, None);
   assert_eq!(
     apps::read(&file).unwrap().personal,
@@ -157,7 +176,6 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     .lock()
     .unwrap()
     .insert(("app.almanac.on".to_owned(), COMPANY_PERSON.to_owned()), false);
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
 
   let changed = apps::refresh(&ground, &place).await.unwrap();
 
@@ -183,7 +201,6 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     .lock()
     .unwrap()
     .insert(("app.almanac.on".to_owned(), COMPANY_PERSON.to_owned()), true);
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
   assert_eq!(apps::refresh(&ground, &place).await.unwrap().on, ["almanac"]);
 
   // An account service that cannot be asked leaves the file as it stood.
@@ -197,8 +214,6 @@ async fn a_turn_resolves_its_place_s_apps_again_and_says_what_changed() {
     .lock()
     .unwrap()
     .insert(("app.almanac.on".to_owned(), COMPANY_PERSON.to_owned()), false);
-
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
   assert_eq!(apps::refresh(&gone, &place).await, None);
   assert_eq!(apps::read(&file).unwrap().apps, Some(keys(&[])));
 
@@ -269,7 +284,6 @@ async fn a_person_s_record_names_its_withheld_apps_and_the_deployment_s_own_none
     (agency_server::personal_apps::POCKET_VARIABLE.to_owned(), empty_registry(home.path())),
   ]);
   let ground = seeded_with(db, home.path(), &more).await;
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
 
   rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;
   rows::supervisor(db, "u9", &[("owner_account", 9i64.into())]).await;
@@ -478,7 +492,6 @@ async fn a_person_whose_chain_turns_the_base_off_has_their_record_say_so() {
     ("BMO_MCP_HOST_ISSUER_TOKEN".to_owned(), "issuer".to_owned()),
   ]);
   let ground = seeded_with(db, home.path(), &more).await;
-  crate::support::front::resolve_all(&ground.db, &more["WEB_ADDRESS"], &more["WEB_TOKEN"]).await;
 
   rows::supervisor(db, "u7", &[("owner_account", 7i64.into())]).await;
   rows::supervisor(db, "u8", &[("owner_account", 8i64.into())]).await;

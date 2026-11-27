@@ -118,7 +118,6 @@ pub mod translate;
 pub mod turn_keys;
 pub mod turn_marks;
 pub mod turn_pickup;
-pub mod unit_reach;
 pub mod usage_windows;
 
 pub mod verbs;

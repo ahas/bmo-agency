@@ -101,18 +101,19 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   on where the person may read any one of the five sections; a read under `/models` or `/model-catalogue` needs that
   route's own section, and every change needs its own route's write. What the console reads of the agents
   for its own bookkeeping, outside agent management's screen, carries no key and is the deployment's own.
-- Agency keeps no permission of its own and no organisation: the console's sections are the only permission, and
-  the units each account heads and the settings each person's and unit's chain resolves stand in two tables the
-  console writes whole (「What the front writes」).
-- **A member's change of a repository needs repository management** as the subject settings hold it, and a repository
+- Agency keeps no permission and no organisation of its own: the console's sections are the only permission, and
+  what the organisation says — who heads a unit, the units under it, a setting's value for a person or a unit — is
+  asked of the authority when a judgement needs it (「Calls agency makes」), never copied. An authority that is named
+  and does not answer makes the call 503 `access-unchecked`, so no access is guessed.
+- **A member's change of a repository needs repository management** on the delegation chain, and a repository
   an organisation unit owns is changed by that unit's heads (`docs/repositories.md`, 「Who may add and change a
   repository」 and 「An organisation's repository」). The same rule stands the other resources an organisation
   unit holds: a supervisor, a role agent's seat and a registered model filed under the unit, and the run
   records of the agents seated on it, belong to that unit's heads alone — heading the unit is the whole of who
-  may, the unit reach table being the head check (「What the front writes」), where a head of a unit heads the
-  units below it as the console wrote them. **Such a call asks no
+  may, the chain's answer of who writes the unit's link of `agency.unit-resources.manage` being the head
+  check, and a head of a unit heading the units below it as the chain answers them. **Such a call asks no
   console section:** a member's `POST` naming `ownerUnit` — a `POST /models` naming `unit` — and a change or
-  removal of a row a unit owns are judged by the head check alone, which refuses anyone else.
+  removal of a row a unit owns asks no section; the chain's head check refuses anyone else.
 - **A section's write reaches a member's own rows alone.** Every row of agent management but a role is filed
   under the login account it belongs to, its `ownerAccount`, the user id `Owner-Key` names, or under an
   organisation unit, its `ownerUnit`, or under neither, the platform's; a body naming both owners is refused.
@@ -131,8 +132,8 @@ a field's exact shape matters, the OpenAPI document is the one to read.
   `/models` and `/runs` answer a member the rows filed under their own account and those filed under the units
   they head, a head above heading the units below; rows of the platform's and of another account stand in no
   member's list, and the read of a single row the reader does not reach is answered as none stood there. Each
-  list takes `ownerAccount`, `unit`, and `unitSubtree` with `unit` — the ids of the units under it, by commas, as
-  the caller resolves them on its organisation — and answers only the rows both named and reached; a
+  list takes `ownerAccount`, `unit`, and `unitSubtree=true` with `unit` — the named unit and every unit under
+  it, the units below read off the account service — and answers only the rows both named and reached; a
   member may name their own account and a unit they head alone, refused 403 `forbidden` otherwise, and values
   that are not ids or name both axes at once are refused 400. The administrator's and the deployment's own
   calls name any owner and reach every row.
@@ -417,11 +418,10 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | DELETE | `/role-agents/{agentName}` | Remove an agent that carries no run. |
 | POST | `/composed-agents/{ownerAccount}` | Make a person's agents as the sign-up composition resolved for them says. |
 | GET | `/signup-composition` | The sign-up composition standing for a unit or a person, and the subject's own link. |
-| POST | `/signup-composition/judge` | Judge a sign-up composition's value; the front writes it on its chain (「What the front writes」). |
+| POST | `/signup-composition/judge` | Judge a sign-up composition's value, which the console then writes on its chain. |
 
 - **The agents an account is given** are `docs/role-agents.md`, 「The agents an account is given」: the
-  composition is a setting the console writes on its chain once agency has judged it and resolves into the subject
-  settings, the agents made by the
+  composition is a setting of the delegation chain agency judges and the console writes, the agents made by the
   deployment's own call alone, and a role off for a member refused their `POST /role-agents` with 403
   `role-off`.
 
@@ -507,14 +507,14 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/own-agents/{ownerAccount}/{agentName}/back` | Stand a seat supplied to the person again as supplied, made where it no longer stands. |
 | DELETE | `/own-agents/{ownerAccount}/{agentName}` | Remove an agent of the person's own; a supplied one is switched off instead. |
 | GET | `/own-instructions/{ownerAccount}` | A person's own instructions, whether they may give any, and the organisation's, which stand before them. |
-| POST | `/own-instructions/{ownerAccount}/judge` | Judge a person's own instructions; the front writes them on its chain (「What the front writes」). |
+| POST | `/own-instructions/{ownerAccount}/judge` | Judge a person's own instructions, which the console then writes on their own link of its chain. |
 
 - **What they do is `docs/role-agents.md`, 「A person's own agents」, and `docs/prompt-layers.md`, 「The person's
   instructions」.** A caller naming a person with `Owner-Key` and `Owner-Role: member` acts on that person's own
   account alone, any other account in the path refused 403 `forbidden`; the deployment's own caller acts on the
   account the path names, as the console does for the signed-in person. These paths stand under no part of agent
-  management: whether the person may make a change is the subject settings' word for that person, as the console
-  resolved it, never a console section.
+  management: whether the person may make a change is the delegation chain's word for that person, never a console
+  section.
 - **`GET /own-agents/{ownerAccount}`** answers `account`; `add` and `road`, each `allowed` and `from`, the link that
   said it where one did; `roles`, every role the store holds, each with `role`, `label`, `description`, `line`,
   `off` and `offFrom`, `most`, the most agents of one role a person holds, and `agents`, the seats supplied in their
@@ -542,10 +542,11 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 - **`GET /own-instructions/{ownerAccount}`** answers `allowed` (`allowed`, `from`), `all`, `agents` (a text by an
   agent's name, the names of agents the person no longer holds left out), `named` (the person's supervisors and role
   agents, each `name`, `label`, `kind` and `role`), `organisation` (every link's text of the organisation's
-  instructions, outermost first, each `from` and `text`) and `mostCharacters`, as the subject settings hold them.
-  **`POST /own-instructions/{ownerAccount}/judge`** takes `all` and `agents` and answers the value the front writes
-  on its chain; 403 `instructions-withheld`, 422 `bad-instructions` for a text out of shape and 422
-  `unknown-agent` for a name that is no agent of the person's.
+  instructions, outermost first, each `from` and `text`) and `mostCharacters`. **`POST
+  /own-instructions/{ownerAccount}/judge`** takes `all` and `agents` and answers `{ value }`, the value the console
+  writes on the person's link, null for none; 403 `instructions-withheld`, 422 `bad-instructions` for a text out of
+  shape and 422 `unknown-agent` for a name that is no agent of the person's. Agency writes nothing on the chain.
+- Every route answers 503 `access-unchecked` where the account service does not answer.
 
 ### prompt-documents
 
@@ -916,7 +917,7 @@ neither, the newest. `more` says whether more runs lie beyond the page in the di
 older ones, or with `after` newer ones. It narrows by `live` — `true` the runs still open, `false` the
 closed ones —, by `agentName`, by `roomId`, by `round`, and by `names`, a comma-separated list each
 matched against a run's work unit and its round, every filter named holding at once; `search` answers instead
-every run that carried that search, newest first. By `ownerAccount`, `unit` and `unitSubtree` (the ids of the units under it) it narrows
+every run that carried that search, newest first. By `ownerAccount`, `unit` and `unitSubtree=true` it narrows
 to one owner's runs — a unit and, with the subtree, every unit under it (「Who a caller acts for」) — and a
 member sees only the runs standing under the accounts and units they reach. A query naming anything else, or a
 value that does not read as its filter's kind, is refused 400. Each run answers `ownerAccount` and `ownerUnit`,
@@ -1497,8 +1498,9 @@ takes `place` or `enabled`; turning a refused key on clears `refusedAt`. `DELETE
 person is 404 `unknown-supply`.
 
 **Organisation supply** (`docs/supply.md`, 「Organisation supply」) is a unit's own keys and Claude accounts,
-for a head of the unit and the owner: a person is taken as a head where the unit reach table says they head it
-(「What the front writes」), anyone else refused 403 `forbidden`. `GET /organisation-supply/{unit}` answers `unit`, `open`, whether
+for a head of the unit and the owner: a person is taken as a head where the delegation chain answers them the
+unit's link of `supply.organisation`, anyone else refused 403 `forbidden`, and a check the account service did
+not answer 503 `access-unchecked`. `GET /organisation-supply/{unit}` answers `unit`, `open`, whether
 organisation supply stands open for the unit on the chain, and `items`, each `id` (`key-<n>` for a gateway key,
 `account-<id>` for a Claude account), `road`, `secret`, `name` for an account, `enabled` and `refusedAt`. `POST`
 takes `road` and `secret`, one plain file name in the unit's `units/<unit>/` space: a gateway road adds a key
@@ -1524,8 +1526,9 @@ registration's name>`), `url`, `modelName`, the model the server serves, `keyNam
 null, `contextTokens`, `enabled` and `addedAt`. `PUT /personal-models/{name}` takes `url`, an `http` chat
 completions address, `modelName`, `keyName`, one plain name in their `users/<user>/` space or null, and
 `contextTokens` where they name one, and answers 201 for one made and 200 for one changed; refused 403
-`personal-local-ai-withheld` where the subject settings forbid it, 409 `no-pc` where the person holds no PC of their
-own, and 400 with `field` for a name, an address, a model, a key's name or a window out of their rules. `PATCH` takes `enabled`; `DELETE` answers 204 and is
+`personal-local-ai-withheld` where the chain forbids it, 409 `no-pc` where the person holds no PC of their own, 400
+with `field` for a name, an address, a model, a key's name or a window out of their rules, and 503
+`access-unchecked` where the account service did not answer. `PATCH` takes `enabled`; `DELETE` answers 204 and is
 refused as the registry refuses the removal of a registration something names. A name of no local AI of theirs
 is 404 `unknown-model`.
 
@@ -1643,14 +1646,14 @@ new login the same way where it names neither, a name another account holds 409 
 | GET | `/settings` | Agency's own switches: the research supervisor, the downgrade return, the DeepSeek top-up's card and login, and the deploy queue's flush minutes. |
 | PATCH | `/settings` | Change agency's switches. |
 
-- **These four switches are agency's own settings rows**, read and written here; agency asks nobody about them.
-  A person's research supervisor may differ from the platform's where the console resolved one for that person
-  on its chain and wrote it into the subject settings (「What the front writes」).
+- **These four switches are agency's own settings rows**, read and written here; the read and the write ask
+  nobody. The research supervisor stands for a person too, where the authority resolves one on its chain for
+  them (below).
 - **`researchSupervisor`** names the supervisor whose brain a run of the search or browse line writes into
   (`docs/agent-roles.md`, 「The voyager and the seeker roles」), and the one whose brain a run of the worker
   line reads and writes its lessons into (「The bundles」 there), or null for none. The kind
   `agency.research-supervisor` stands at the platform and at units: for a run, the nearest link of the person
-  the run stands for names the supervisor, as the subject settings hold it; the read here answers the platform's word. `PATCH /settings` takes a
+  the run stands for names the supervisor; the read here answers the platform's word. `PATCH /settings` takes a
   supervisor the store holds, or null; another name is refused 400 with `field`. `downgradeReturn` is always
   null.
 - **`deepseekCardSecret`** names the console secret, of the kind `card`, the DeepSeek top-up reads its card
@@ -1873,8 +1876,8 @@ where the shell stands in an agent's program, else the owner.
 - **Refusals:** an account with no runner, its PC shared or absent, is 409 `no-runner`; a PC that cannot be reached
   is 502 `runner-unreached`; the runner's refusal, a build that failed or the tool host's refusal is 422
   `app-refused` with its words; a person whose chain does not let them put an app is 403 `personal-apps-withheld`,
-  and one whose app asks for a permission their chain leaves off is 403 `permission-withheld`, naming it, each as
-  the subject settings hold it; going back with no older version kept is 409
+  and one whose app asks for a permission their chain leaves off is 403 `permission-withheld`, naming it; an
+  account service that cannot be asked is 503 `access-unchecked`; going back with no older version kept is 409
   `no-older-version`; an app the account holds none of is 404 `not-found`; a name outside an app's alphabet is 400;
   an MCP server asking for a secret the account's secret space holds no file of is 409 `secret-missing`, naming it.
 
@@ -2658,28 +2661,6 @@ route. A caller uses one of them and writes no client of its own.
 - **Version and types.** The package carries the repository's version, and a test fails where the
   committed types differ from what `docs/openapi.json` generates.
 
-## What the front writes
-
-The service in front of agency — in a BMO deployment, the console — keeps the organisation and the delegation
-chain; agency keeps neither and asks nobody. It declares the settings agency reads on its own chain, resolves them,
-and writes agency two tables whole, which agency reads for every unit's reach and every chained setting. These
-routes answer the deployment's own caller alone: a call carrying `Owner-Key` is refused 403 `forbidden`.
-
-| Method | Path | Does |
-|---|---|---|
-| GET | `/setting-kinds` | `kinds`: every setting agency declares, each as the front declares it on its chain — its key, what it is for, its shape, its choices, its mode, the levels it stands on and its default; `reads`, the keys of the kinds the front declares that agency reads as well; and `prefixes`, the heads of the kinds others declare that agency reads, an app's own `app.` settings among them. The front resolves all three into the subject settings. |
-| GET | `/unit-reach` | `items`: every account's reach of every unit, `{ account, unit, write }`, `write` saying the account heads the unit. |
-| PUT | `/unit-reach` | The table replaced whole by `items`, answered as it now stands. |
-| GET | `/subject-settings` | `items`: every subject's resolution of every setting, `{ subject, key, value }`, the subject `person:<id>` or `unit:<id>`, the value the chain's resolution as the front received it. |
-| PUT | `/subject-settings` | The table replaced whole by `items`, answered as it now stands; a subject named otherwise is refused 400. |
-| POST | `/signup-composition/judge` | A composition's `value` judged as agency reads it, each role one it holds and each count a whole number, answered as `{ value }`, null to follow the link above; the front writes it on its chain. |
-| POST | `/own-instructions/{ownerAccount}/judge` | A person's own instructions, `all` and `agents` by name, judged as agency reads them — whether they may give any, each agent one they may give one to — answered as `{ value }`, null for none; the front writes it on its chain. |
-
-- **An empty table is no reach and no setting:** with nothing written, no account heads any unit and every chained
-  setting falls back to its default, so agency installed without a front runs every account on its own.
-- **What a table says goes as it stands:** agency does not check a row against anything; the front is trusted as
-  its token is.
-
 ## Calls agency makes
 
 Agency reaches upstreams through what their repositories publish: brain, node, arbiter,
@@ -2731,12 +2712,21 @@ service's `GET /items` with `label` `close-phase`, and, in the base checkout of 
 waiting, `git ls-remote` for its remote's `main` and the testbed's verb `bmo-testbed deploy --commit <commit>
 --message <why>` (the testbed's `docs/boundary.md`, 「`deploy`」), which starts the deployment in a unit of its
 own and returns; and once an hour GitHub's search through
-`gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). Of the account service agency asks only what the app store reads and writes in a person's name: the chain's groups
-and units it shares an app along, and the rules and values that turn an app on or off for a unit or a person
-(「catalogue」), reached at `WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE` names, else from the web
-unit's `env/web.env` under the data root. Nothing else of the organisation or the chain is asked: who may do what is
-the console's to judge before it calls, and the units each account heads and the settings resolved per person and
-unit are the tables the console writes (「What the front writes」). Each is the
+`gh api graphql`, a search for the owner's login (`user:`) (`docs/pull-request-reviews.md`). What the organisation says is
+asked of the authority when a judgement needs it and kept nowhere (「Who a caller acts for」 above): in a BMO
+deployment the web's account service, reached at `WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE`
+names, else from the web unit's `env/web.env` under the data root where the process's environment names neither.
+Where none is named, agency stands alone: no account heads any unit, and every chained setting says nothing, so
+its default stands. Whether a person heads a unit is the chain's answer of who writes the unit's link of the
+resource's kind, `GET /chain/kinds/{key}/links/unit:<id>` in the person's name, and the units under a unit are
+`GET /units/{unit}/subtree` in the reader's name. The authority is asked, as a record is issued for a person's account and as a resident program's turn begins, for the
+declared kinds with `GET /chain/kinds` and for each app's two settings for that person with `GET
+/chain/kinds/{key}/resolve?person=` (`docs/tools.md`, 「The apps a person reaches」). As its server stands, and
+again where a resolution finds one undeclared, it declares the settings its prompt layers read with `PUT
+/chain/kinds/{key}`, `agency.org-instructions`, `agency.persona`, `agency.personal-instructions` and
+`agency.personal-instructions.text`, and as a prompt of an agent of an account is composed it asks them for that
+person with `GET /chain/kinds/{key}/resolve?person=` (`docs/prompt-layers.md`, 「The settings agency declares」).
+Each is the
 documented route of the unit that holds what must reach it; agency keeps no client of these units and no
 store of their rows. A consumer registered at the `supply` hook is asked at the address it registered and never
 at one agency knows of itself (「Hook points」); as a person's run moves to another supply source or finds none

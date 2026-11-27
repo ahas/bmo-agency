@@ -199,9 +199,6 @@
       "name": "own-agents"
     },
     {
-      "name": "front"
-    },
-    {
       "name": "nodes"
     },
     {
@@ -1871,8 +1868,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
+              "type": "boolean",
+              "description": "with unit: that unit and every unit under it"
             }
           }
         ]
@@ -3253,8 +3250,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
+              "type": "boolean",
+              "description": "with unit: that unit and every unit under it"
             }
           }
         ]
@@ -6953,8 +6950,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
+              "type": "boolean",
+              "description": "with unit: that unit and every unit under it"
             }
           }
         ]
@@ -8002,8 +7999,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
+              "type": "boolean",
+              "description": "with unit: that unit and every unit under it"
             }
           }
         ]
@@ -8587,7 +8584,7 @@
         "tags": [
           "roles"
         ],
-        "summary": "The sign-up composition standing for a unit or a person, as the subject settings resolve it.",
+        "summary": "The sign-up composition standing for a unit or a person, as the authority resolves it.",
         "responses": {
           "200": {
             "description": "Answered.",
@@ -8604,11 +8601,15 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "422": {
+            "$ref": "#/components/responses/AccessUnchecked"
           }
         },
         "x-codes": [
           "unauthorized",
-          "bad-request"
+          "bad-request",
+          "access-unchecked"
         ],
         "parameters": [
           {
@@ -8664,130 +8665,6 @@
             }
           }
         }
-      }
-    },
-    "/setting-kinds": {
-      "get": {
-        "operationId": "settingKinds",
-        "tags": [
-          "front"
-        ],
-        "summary": "Every setting the agency reads, as the front declares it on its chain.",
-        "responses": {
-          "200": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "forbidden"
-        ]
-      }
-    },
-    "/unit-reach": {
-      "get": {
-        "operationId": "unitReach",
-        "tags": [
-          "front"
-        ],
-        "summary": "Every account's reach of every unit, as the front wrote it.",
-        "responses": {
-          "200": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "forbidden"
-        ]
-      },
-      "put": {
-        "operationId": "setUnitReach",
-        "tags": [
-          "front"
-        ],
-        "summary": "Replace the unit reach table whole.",
-        "responses": {
-          "200": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "forbidden",
-          "bad-request"
-        ]
-      }
-    },
-    "/subject-settings": {
-      "get": {
-        "operationId": "subjectSettings",
-        "tags": [
-          "front"
-        ],
-        "summary": "Every subject's resolution of every setting, as the front wrote it.",
-        "responses": {
-          "200": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "forbidden"
-        ]
-      },
-      "put": {
-        "operationId": "setSubjectSettings",
-        "tags": [
-          "front"
-        ],
-        "summary": "Replace the subject settings whole.",
-        "responses": {
-          "200": {
-            "description": "Answered."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          }
-        },
-        "x-codes": [
-          "unauthorized",
-          "forbidden",
-          "bad-request"
-        ]
       }
     },
     "/role-agents/{agentName}": {
@@ -8932,8 +8809,8 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "description": "with unit: the ids of the units under it, by commas, as the caller resolves them"
+              "type": "boolean",
+              "description": "with unit: that unit and every unit under it"
             }
           }
         ]

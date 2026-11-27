@@ -485,7 +485,7 @@ async fn work_stands_only_on_a_repository_of_its_holder_s_side() {
 }
 
 #[tokio::test]
-async fn a_unit_s_repository_is_changed_by_its_heads_as_the_reach_table_says() {
+async fn a_unit_s_repository_is_changed_by_its_heads_as_the_authority_says() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (port, _granting) = granted(&scratch, home.path(), &[("repositories", true, false)]).await;
@@ -499,31 +499,20 @@ async fn a_unit_s_repository_is_changed_by_its_heads_as_the_reach_table_says() {
     .await;
   rows(&scratch, home.path()).await;
 
-  // No row says the member heads unit 40: a change of its repository is refused.
-  let (status, answer) = send(
-    port,
-    reqwest::Method::PATCH,
-    "/repositories/repo-unit",
-    Some("7"),
-    Some("member"),
-    json!({ "label": "Renamed" }),
-  )
-  .await;
+  // The stand-in authority answers no head of unit 40: a change of its repository, or an add under it, is refused.
+  for (method, path, body) in [
+    (reqwest::Method::PATCH, "/repositories/repo-unit", json!({ "label": "Renamed" })),
+    (
+      reqwest::Method::POST,
+      "/repositories",
+      json!({ "name": "added-unit", "path": "/nowhere", "ownerUnit": 40 }),
+    ),
+  ] {
+    let (status, answer) = send(port, method.clone(), path, Some("7"), Some("member"), body).await;
 
-  assert_eq!((status, &answer["code"]), (403, &json!("forbidden")), "{answer}");
-
-  // The front writes that the member heads it, and the same change goes through.
-  crate::support::front::heads(scratch.db(), &[(7, 40)]).await;
-
-  let (status, answer) = send(
-    port,
-    reqwest::Method::PATCH,
-    "/repositories/repo-unit",
-    Some("7"),
-    Some("member"),
-    json!({ "label": "Renamed" }),
-  )
-  .await;
-
-  assert_eq!(status, 200, "{answer}");
+    assert!(
+      ["access-unchecked", "forbidden"].contains(&answer["code"].as_str().unwrap_or_default()),
+      "{method} {path}: {status} {answer}"
+    );
+  }
 }

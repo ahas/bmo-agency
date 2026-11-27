@@ -448,11 +448,6 @@ async fn stood() -> Stood {
   ]);
   let ground = seeded_with(scratch.db(), home.path(), &variables).await;
 
-  // The front writes what the account service holds: the head of unit 40, and every setting resolved.
-  crate::support::front::heads(scratch.db(), &[(HEAD, 40)]).await;
-  crate::support::front::resolve_all(scratch.db(), &variables["WEB_ADDRESS"], &variables["WEB_TOKEN"])
-    .await;
-
   scratch
     .run(
       &format!(
@@ -805,18 +800,11 @@ impl Stood {
   }
 
   // The chain lets the company's personal tools reach the network and secrets.
-  async fn reach_allowed(&self) {
-    {
-      let mut links = self.chain.links.lock().unwrap();
+  fn reach_allowed(&self) {
+    let mut links = self.chain.links.lock().unwrap();
 
-      links.insert(("personal-apps.network".to_owned(), "unit:3".to_owned()), json!(true));
-      links.insert(("personal-apps.secrets".to_owned(), "unit:3".to_owned()), json!(true));
-    }
-
-    // The front writes the agency what the chain now resolves.
-    let vars = self.ground.vars();
-
-    crate::support::front::resolve_all(&self.ground.db, &vars["WEB_ADDRESS"], &vars["WEB_TOKEN"]).await;
+    links.insert(("personal-apps.network".to_owned(), "unit:3".to_owned()), json!(true));
+    links.insert(("personal-apps.secrets".to_owned(), "unit:3".to_owned()), json!(true));
   }
 }
 
@@ -955,7 +943,7 @@ async fn an_mcp_server_is_put_under_its_own_key_shared_and_installed_carrying_it
   let maker_asks = stood.mcp_pc(MAKER).await;
   let mate_asks = stood.mcp_pc(TEAMMATE).await;
 
-  stood.reach_allowed().await;
+  stood.reach_allowed();
 
   // The maker's secret is not saved yet: the place wants it, and the put is refused naming it.
   assert!(matches!(

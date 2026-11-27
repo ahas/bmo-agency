@@ -479,12 +479,13 @@ async fn named_agents(ground: &Ground, person: i64) -> Result<Vec<Value>, Refuse
 }
 
 async fn instructions_view(ground: &Ground, person: i64) -> Result<Value, Refused> {
+  let service = crate::apps::service(ground);
   let words = &PROMPT_LAYERS;
   let unchecked = |_| crate::organisation::unchecked();
   let (allowed, text, organisation) = futures_util::join!(
     own_agents::permission(ground, &words.personal.allowed.key, person),
-    chain::resolve(&ground.db, &words.personal.text.key, Subject::Person(person)),
-    chain::resolve(&ground.db, &words.organisation.kind.key, Subject::Person(person)),
+    chain::resolve(&service, &words.personal.text.key, Subject::Person(person)),
+    chain::resolve(&service, &words.organisation.kind.key, Subject::Person(person)),
   );
   let allowed = allowed?;
   let kept =

@@ -10,6 +10,7 @@ mod m20270126_000001_platform_ownership;
 mod m20270126_000002_slot_seat_units;
 mod m20270127_000001_unit_reach;
 mod m20270127_000002_subject_settings;
+mod m20270127_000003_front_tables_gone;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -43,9 +44,12 @@ pub const UNIT_REACH: &str = m20270127_000001_unit_reach::NAME;
 /// The migration that stands the settings the agency declares, as the service in front resolves them per subject.
 pub const SUBJECT_SETTINGS: &str = m20270127_000002_subject_settings::NAME;
 
+/// The migration that takes away the two tables the service in front wrote, the agency asking the authority instead.
+pub const FRONT_TABLES_GONE: &str = m20270127_000003_front_tables_gone::NAME;
+
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
-pub const OWN_TABLES: [&str; 67] = [
+pub const OWN_TABLES: [&str; 65] = [
   "supervisors",
   "roles",
   "role_seeded",
@@ -111,8 +115,6 @@ pub const OWN_TABLES: [&str; 67] = [
   "personal_supply",
   "supply_reservations",
   "supply_settlements",
-  "unit_reach",
-  "subject_settings",
 ];
 
 /// The record an install from before 1.0.0 holds once every migration of its last release ran. Its schema is
@@ -242,6 +244,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20270126_000002_slot_seat_units::Migration),
       Box::new(m20270127_000001_unit_reach::Migration),
       Box::new(m20270127_000002_subject_settings::Migration),
+      Box::new(m20270127_000003_front_tables_gone::Migration),
     ]
   }
 

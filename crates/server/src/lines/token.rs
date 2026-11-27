@@ -312,7 +312,7 @@ pub const BRAIN_BASE: &str = "BMO_BRAIN_BASE";
 
 /// The delegation chain's kind saying whether the platform's base is read for a person, which the brain's
 /// deployment declares (the brain's `docs/design.md`, 「The layers a reading takes」).
-pub const BASE_LAYER: &str = "brain.global";
+const BASE_LAYER: &str = "brain.global";
 
 // The record's variables told to turn the base off where it acts for a person whose chain says the base is not read
 // for them (docs/tools.md, 「A tool's folder」); nothing where it reads, where the kind is not declared or
@@ -322,7 +322,13 @@ async fn base_off(ground: &Ground, person: Option<&str>, variables: &mut BTreeMa
     return;
   };
 
-  match crate::chain::resolve(&ground.db, BASE_LAYER, crate::chain::Subject::Person(person)).await {
+  match crate::chain::resolve(
+    &crate::apps::service(ground),
+    BASE_LAYER,
+    crate::chain::Subject::Person(person),
+  )
+  .await
+  {
     Ok(answer) if !crate::chain::flag(answer.as_ref(), true) => {
       variables.insert(BRAIN_BASE.to_owned(), "off".to_owned());
     }

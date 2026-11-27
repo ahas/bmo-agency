@@ -172,6 +172,17 @@ impl Places {
     }));
 
     if own {
+      let declaring = self.clone();
+
+      // The settings agency reads off the delegation chain, declared on the authority as the server stands
+      // (docs/prompt-layers.md, 「The settings agency declares」); a resolution that finds a kind undeclared
+      // declares them again.
+      tokio::spawn(async move {
+        if let Err(why) = crate::chain::declare(&crate::apps::service(&declaring.ground)).await {
+          eprintln!("agency: the delegation chain's kinds were not declared: {why}");
+        }
+      });
+
       let linking = self.clone();
 
       tokio::spawn(every("node links' clock", Duration::ZERO, LINKS_PASS, move || {

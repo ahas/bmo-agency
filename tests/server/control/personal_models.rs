@@ -168,7 +168,6 @@ async fn a_person_adds_a_local_ai_tried_from_their_pc_under_their_chain() {
     ("WEB_TOKEN".to_owned(), "chain-token".to_owned()),
   ]);
   let ground = ground_with(scratch.db().clone(), home.path(), &variables);
-  crate::support::front::resolve_all(&ground.db, &variables["WEB_ADDRESS"], &variables["WEB_TOKEN"]).await;
   let roots = ground.roots.clone();
   let env = roots.data.join("env").join("users").join("7");
 

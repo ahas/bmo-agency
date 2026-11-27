@@ -2,8 +2,8 @@
 //! judges no person's permission — the service in front of it does, before a call is made — and keeps only the
 //! line between owners. A caller carrying no `Owner-Key` is the deployment's own and keeps every row; one
 //! carrying `Owner-Role: administrator` is the platform's and keeps every row too. A member, named by the key the
-//! front hands on, changes only the rows filed under their own account and those of the units the unit reach
-//! table says they head (`crate::unit_reach`), files what they add under their own account, and changes no
+//! front hands on, changes only the rows filed under their own account and those of the units the authority says
+//! they head (`crate::organisation::heads`), files what they add under their own account, and changes no
 //! role, the roles being the platform's presets. A supervisor's or another holder's work stands only on a
 //! repository of its own side (「works_on」).
 

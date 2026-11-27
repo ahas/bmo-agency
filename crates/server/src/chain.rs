@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use policy::organisation::ORGANISATION;
 use policy::prompt_layers::{Kind, PROMPT_LAYERS};
+use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tool_call::account_service::AccountService;
 
@@ -25,6 +26,14 @@ impl Subject {
       Self::Unit(unit) => ("unit", unit.to_string()),
     }
   }
+}
+
+/// What the account service answers a kind's resolution: what its links said, or that it said nothing — the kind
+/// undeclared or the subject not standing there.
+enum Said {
+  Resolved(Value),
+  Undeclared,
+  Nothing,
 }
 
 /// What the account service answered a call made in a person's name: its status and its body.
@@ -107,15 +116,6 @@ pub fn kinds() -> Vec<Kind> {
   kinds
 }
 
-/// The kinds agency reads that others declare: the organisation supply a person's path stands on, and whether the
-/// platform's brain base is read for a person.
-pub fn read_beyond() -> Vec<String> {
-  vec![
-    policy::organisation::ORGANISATION.sources.organisation_kind.clone(),
-    crate::lines::token::BASE_LAYER.to_owned(),
-  ]
-}
-
 /// The body the account service takes a kind's declaration in.
 pub fn declaration(kind: &Kind) -> Value {
   let mut body = json!({
@@ -172,36 +172,42 @@ pub async fn declare(service: &AccountService) -> Result<(), String> {
 }
 
 // One kind resolved for a subject.
-
-/// One kind resolved for a subject, as the service in front of the agency resolved it and wrote it whole into the
-/// subject settings (docs/api.md, 「Settings the agency declares」); a subject that holds no row for the kind says
-/// nothing, and the kind's default stands. Nothing is asked of another service.
-pub async fn resolve(
-  db: &impl sea_orm::ConnectionTrait,
+async fn said(
+  client: &reqwest::Client,
+  service: &AccountService,
   key: &str,
   subject: Subject,
-) -> Result<Option<Value>, String> {
-  let (kind, id) = subject.query();
-  let row = store::one(
-    db,
-    r#"SELECT "value"::text AS "value" FROM "subject_settings" WHERE "subject" = $1 AND "key" = $2"#,
-    vec![format!("{kind}:{id}").into(), key.into()],
-  )
-  .await
-  .map_err(|why| why.to_string())?;
+) -> Result<Said, String> {
+  let answer = client
+    .get(format!("{}/chain/kinds/{key}/resolve", service.address))
+    .bearer_auth(&service.token)
+    .query(&[subject.query()])
+    .send()
+    .await
+    .map_err(|why| format!("the account service was not reached: {why}"))?;
+  let status = answer.status();
 
-  row
-    .map(|row| row.try_get::<String>("", "value"))
-    .transpose()
-    .map_err(|why| why.to_string())?
-    .map(|text| serde_json::from_str(&text).map_err(|why| why.to_string()))
-    .transpose()
+  if status == StatusCode::NOT_FOUND {
+    let body: Value = answer.json().await.unwrap_or(Value::Null);
+
+    return Ok(if body["code"] == "no-such-kind" { Said::Undeclared } else { Said::Nothing });
+  }
+
+  if !status.is_success() {
+    return Err(format!("the account service answered {}", status.as_u16()));
+  }
+
+  answer
+    .json()
+    .await
+    .map(Said::Resolved)
+    .map_err(|why| format!("the account service's answer does not read: {why}"))
 }
 
-/// One kind resolved for a subject by asking the account service, for the app store alone, which still reads and
-/// writes the chain in a person's name until its own judgements move to the front (docs/api.md, 「Calls agency
-/// makes」); a kind or subject the service does not hold says nothing.
-pub async fn resolve_remote(
+/// One kind resolved for a subject, every kind declared again and the kind asked once more where it stood
+/// undeclared; a kind that stays undeclared, or a subject the service does not hold, says nothing. Where no
+/// account service is named, nothing is said either.
+pub async fn resolve(
   service: &AccountService,
   key: &str,
   subject: Subject,
@@ -210,76 +216,23 @@ pub async fn resolve_remote(
     return Ok(None);
   }
 
-  let (kind, id) = subject.query();
-  let answer = client()
-    .get(format!("{}/chain/kinds/{key}/resolve", service.address))
-    .query(&[(kind, id)])
-    .bearer_auth(&service.token)
-    .send()
-    .await
-    .map_err(|why| format!("the account service was not reached: {why}"))?;
+  let client = client();
 
-  match answer.status().as_u16() {
-    200..=299 => answer
-      .json()
-      .await
-      .map(Some)
-      .map_err(|why| format!("the resolution does not read: {why}")),
-    404 => Ok(None),
-    status => Err(format!("the account service answered the resolution of {key} with {status}")),
+  match said(&client, service, key, subject).await? {
+    Said::Resolved(answer) => Ok(Some(answer)),
+    Said::Nothing => Ok(None),
+    Said::Undeclared => {
+      if let Err(why) = declare(service).await {
+        eprintln!("agency: its delegation chain kinds were not declared: {why}");
+        return Ok(None);
+      }
+
+      match said(&client, service, key, subject).await? {
+        Said::Resolved(answer) => Ok(Some(answer)),
+        Said::Nothing | Said::Undeclared => Ok(None),
+      }
+    }
   }
-}
-
-/// One subject's value of one setting, as the service in front wrote it.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct Held {
-  pub subject: String,
-  pub key: String,
-  pub value: Value,
-}
-
-/// Every subject's value the agency holds, by subject and key.
-pub async fn every_held(db: &impl sea_orm::ConnectionTrait) -> Result<Vec<Held>, String> {
-  let rows = store::all(db, r#"SELECT "subject", "key", "value"::text AS "value" FROM "subject_settings" ORDER BY "subject", "key""#, vec![])
-    .await
-    .map_err(|why| why.to_string())?;
-
-  rows
-    .into_iter()
-    .map(|row| {
-      Ok(Held {
-        subject: row.try_get("", "subject").map_err(|why| why.to_string())?,
-        key: row.try_get("", "key").map_err(|why| why.to_string())?,
-        value: serde_json::from_str(&row.try_get::<String>("", "value").map_err(|why| why.to_string())?)
-          .map_err(|why| why.to_string())?,
-      })
-    })
-    .collect()
-}
-
-/// The subject settings replaced whole by the rows given, in one transaction.
-pub async fn replace_held<C: sea_orm::ConnectionTrait + sea_orm::TransactionTrait>(
-  db: &C,
-  rows: &[Held],
-) -> Result<(), String> {
-  let tx = db.begin().await.map_err(|why| why.to_string())?;
-
-  store::run(&tx, r#"DELETE FROM "subject_settings""#, vec![])
-    .await
-    .map_err(|why| why.to_string())?;
-
-  for row in rows {
-    store::run(
-      &tx,
-      r#"INSERT INTO "subject_settings" ("subject", "key", "value") VALUES ($1, $2, $3::jsonb)
-         ON CONFLICT ("subject", "key") DO UPDATE SET "value" = excluded."value""#,
-      vec![row.subject.clone().into(), row.key.clone().into(), row.value.to_string().into()],
-    )
-    .await
-    .map_err(|why| why.to_string())?;
-  }
-
-  tx.commit().await.map_err(|why| why.to_string())
 }
 
 // A call made in a person's name, its answer whole.

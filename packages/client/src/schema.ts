@@ -2055,7 +2055,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The sign-up composition standing for a unit or a person, as the subject settings resolve it. */
+        /** The sign-up composition standing for a unit or a person, as the authority resolves it. */
         get: operations["signupComposition"];
         put?: never;
         post?: never;
@@ -2076,59 +2076,6 @@ export interface paths {
         put?: never;
         /** Judge a sign-up composition's value and answer it as the front writes it on its chain. */
         post: operations["judgeSignupComposition"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/setting-kinds": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every setting the agency reads, as the front declares it on its chain. */
-        get: operations["settingKinds"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/unit-reach": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every account's reach of every unit, as the front wrote it. */
-        get: operations["unitReach"];
-        /** Replace the unit reach table whole. */
-        put: operations["setUnitReach"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/subject-settings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Every subject's resolution of every setting, as the front wrote it. */
-        get: operations["subjectSettings"];
-        /** Replace the subject settings whole. */
-        put: operations["setSubjectSettings"];
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8672,7 +8619,7 @@ export interface operations {
                 limit?: number;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: string;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -9424,7 +9371,7 @@ export interface operations {
                 tier?: string;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: string;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -11470,7 +11417,7 @@ export interface operations {
             query?: {
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: string;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -12041,7 +11988,7 @@ export interface operations {
                 role?: string;
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: string;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;
@@ -12362,6 +12309,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            422: components["responses"]["AccessUnchecked"];
         };
     };
     judgeSignupComposition: {
@@ -12386,108 +12334,6 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             422: components["responses"]["BadComposition"];
-        };
-    };
-    settingKinds: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    unitReach: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    setUnitReach: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    subjectSettings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-        };
-    };
-    setSubjectSettings: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Answered. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
         };
     };
     deleteRoleAgent: {
@@ -12547,7 +12393,7 @@ export interface operations {
             query?: {
                 ownerAccount?: number;
                 unit?: number;
-                unitSubtree?: string;
+                unitSubtree?: boolean;
             };
             header?: never;
             path?: never;

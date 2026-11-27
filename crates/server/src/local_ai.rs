@@ -191,8 +191,9 @@ pub async fn allowed(ground: &Ground, account: i64) -> Result<bool, String> {
     return Ok(true);
   }
 
+  let service = crate::apps::service(ground);
   let answer =
-    chain::resolve(&ground.db, &ORGANISATION.personal_local_ai.key, Subject::Person(account)).await?;
+    chain::resolve(&service, &ORGANISATION.personal_local_ai.key, Subject::Person(account)).await?;
 
   Ok(chain::flag(answer.as_ref(), true))
 }

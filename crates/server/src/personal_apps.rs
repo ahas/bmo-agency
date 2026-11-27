@@ -259,12 +259,13 @@ async fn may_put(ground: &Ground, account: &str, manifest: Option<&str>, make: b
   }
 
   let person = Subject::Person(account.parse().map_err(|_| Fault::Unchecked)?);
+  let service = crate::apps::service(ground);
   let settings = &ORGANISATION.personal_apps;
   let flag = |key: &'static str, fallback: bool| {
-    let db = ground.db.clone();
+    let service = service.clone();
 
     async move {
-      chain::resolve(&db, key, person)
+      chain::resolve(&service, key, person)
         .await
         .map(|answer| chain::flag(answer.as_ref(), fallback))
         .map_err(|_| Fault::Unchecked)
@@ -302,6 +303,7 @@ async fn may_ask(ground: &Ground, account: &str, network: bool, secrets: bool) -
   }
 
   let person = Subject::Person(account.parse().map_err(|_| Fault::Unchecked)?);
+  let service = crate::apps::service(ground);
   let settings = &ORGANISATION.personal_apps;
 
   for (asked, said, key) in [
@@ -312,7 +314,7 @@ async fn may_ask(ground: &Ground, account: &str, network: bool, secrets: bool) -
       continue;
     }
 
-    let allowed = chain::resolve(&ground.db, key, person)
+    let allowed = chain::resolve(&service, key, person)
       .await
       .map(|answer| chain::flag(answer.as_ref(), false))
       .map_err(|_| Fault::Unchecked)?;

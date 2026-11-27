@@ -87,7 +87,6 @@ async fn the_supply_reads_name_who_stands_each_provider_off() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (address, serving) = chain_service().await;
-  crate::support::front::resolve_all(scratch.db(), &address, "chain").await;
   let ground = ground_on_chain(scratch.db().clone(), home.path(), address);
 
   agency_server::control::harness::set_provider_enabled(&ground.db, "openrouter", false)
@@ -152,7 +151,6 @@ async fn a_closed_road_carries_nothing_its_open_key_would_carry() {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (address, serving) = chain_service().await;
-  crate::support::front::resolve_all(scratch.db(), &address, "chain").await;
   let ground = ground_on_chain(scratch.db().clone(), home.path(), address);
 
   crate::server::supply::personal_key(&ground.db, "deepseek").await;
@@ -180,7 +178,6 @@ async fn the_models_of_a_provider_leave_out_what_another_owns_and_what_no_standi
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (address, serving) = chain_service().await;
-  crate::support::front::resolve_all(scratch.db(), &address, "chain").await;
   let ground = ground_on_chain(scratch.db().clone(), home.path(), address);
 
   for name in ["mine", "open-router", "team-router", "theirs"] {

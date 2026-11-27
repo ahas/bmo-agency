@@ -277,7 +277,7 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A setting of the delegation chain,** the kind `signup.composition`: a JSON object, `nearest`, held at the
   platform's link, a unit's and a person's, a head writing a unit's and a person's, a lock keeping the links
   below from changing it. Agency declares it with its other kinds (`docs/prompt-layers.md`, 「The settings
-  agency declares」) and judges and writes its value itself.
+  agency declares」) and judges its value, which the console then writes on its chain.
 - **A composition names roles under `roles`,** each with `off`, whether the people under the link may not use
   the role, and `agents`, the roads of the agents a person is given of it, each a `provider`, a `model` and an
   `effort`, or none of them for the road of the role's agent of no account, at most the policy's number of them (`policy/organisation.toml`). A role named nowhere stands as the
@@ -294,11 +294,10 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **A role off for a person takes no agent of theirs:** a member's `POST /role-agents` for it is refused 403
   `role-off`. Where the account service does not answer, the role stands on.
 - **`GET /signup-composition`** with `unit` or `person` answers what stands for the subject, each role with
-  `off`, `agents` and `from`, the link that said them, and, for a caller the console names, the subject's own
-  link as the chain answers it to them. **`PUT /signup-composition/{link}`** with `value` judges a composition
-  — its shape, every role one the store holds, every road against its role's line — and writes it on the chain
-  in the caller's name, null following the link above; the chain's answer, its refusal among them, is the
-  route's.
+  `off`, `agents` and `from`, the link that said them. **`POST /signup-composition/judge`** with `value` judges a
+  composition — its shape, every role one the store holds, every road against its role's line — and answers it as
+  `{ value }`, null following the link above; the console writes it on its chain in the person's name, and the
+  chain's refusal is the console's to answer.
 
 ## A person's own agents
 

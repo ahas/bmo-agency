@@ -113,10 +113,6 @@ async fn made_for(layers: Value) -> Vec<RoleAgent> {
   let scratch = Scratch::new().await;
   let home = tempfile::tempdir().unwrap();
   let (address, serving) = account_service(layers).await;
-
-  // The front resolves the person's settings on its chain and writes them into the agency's subject settings.
-  crate::support::front::resolve(scratch.db(), &address, "chain", &[PERSON], &[]).await;
-
   let vars =
     BTreeMap::from([("WEB_ADDRESS".to_owned(), address), ("WEB_TOKEN".to_owned(), "chain".to_owned())]);
   let ground = ground_with(scratch.db().clone(), home.path(), &vars);
