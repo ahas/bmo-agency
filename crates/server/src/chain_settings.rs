@@ -1,11 +1,9 @@
-//! Agency's own settings as they stand on the delegation chain (docs/api.md, 「settings」;
+//! Agency's own settings that a person's organisation may also set (docs/api.md, 「settings」;
 //! docs/prompt-layers.md, 「The settings agency declares」): the research supervisor, the minutes between two
-//! flushes of the deploy queue, and the two DeepSeek secret names. The platform's word on each is the value of
-//! the platform's link, which the administrator's account writes; the research supervisor stands under units
-//! too, and the nearest link of the person a run serves names that run's supervisor. Values that stood in rows
-//! of agency's settings table move to the platform's links once, as the server stands; where no account service
-//! is named, or none answers, the rows and the policy's defaults stand, so a setting is never lost to a service
-//! that is down.
+//! flushes of the deploy queue, and the two DeepSeek secret names. The platform's word on each is the row of
+//! agency's settings table, written through agency's own routes; the research supervisor stands for a person too,
+//! where the service in front wrote that person's value into the subject settings. Where neither says one, the
+//! policy's default stands. Nothing is asked of another service.
 
 use policy::organisation::ORGANISATION;
 use serde_json::Value;
@@ -65,22 +63,15 @@ fn said(value: &Value) -> Option<Value> {
   }
 }
 
-/// The platform's word on a standing: the platform link's own value where it says one; none where no account
-/// service is named, the deployment names no administrator, or the link says nothing.
+/// The platform's word on a standing: the settings row it stands under, where that says one.
 pub async fn platform(ground: &Ground, key: &str) -> Result<Option<Value>, String> {
-  let service = crate::apps::service(ground);
+  let Some(standing) = of(key) else { return Ok(None) };
+  let held = crate::queue::settings::get(&ground.db, standing.row).await.map_err(|why| why.to_string())?;
 
-  if service.address.is_empty() {
-    return Ok(None);
-  }
-
-  let Some(admin) = administrator(ground).await? else {
-    return Ok(None);
-  };
-
-  let answered = crate::chain::entry(&service, key, "platform", admin).await?;
-
-  Ok(if answered.ok() { said(&answered.body["value"]) } else { None })
+  Ok(held.filter(|text| !text.trim().is_empty()).map(|text| match standing.amount {
+    true => text.trim().parse::<i64>().map(Value::from).unwrap_or(Value::String(text)),
+    false => Value::String(text),
+  }))
 }
 
 /// The word the chain gives the person for a standing that reaches them: the nearest link of their path where
@@ -102,46 +93,15 @@ fn as_text(value: Value) -> String {
   }
 }
 
-/// The platform's text word on a standing: the chain's platform link where it says one, else the row the value
-/// stood under until it moved.
+/// The platform's text word on a standing, none where its row says none.
 pub async fn text(ground: &Ground, standing: &Standing) -> Result<Option<String>, String> {
-  if let Some(value) = platform(ground, standing.key).await? {
-    return Ok(Some(as_text(value)));
-  }
-
-  crate::queue::settings::get(&ground.db, standing.row)
-    .await
-    .map(|held| held.filter(|text| !text.trim().is_empty()))
-    .map_err(|why| why.to_string())
+  Ok(platform(ground, standing.key).await?.map(as_text))
 }
 
-/// The platform's word on a standing, written where it belongs: on the platform's link, in the
-/// administrator's name, where an account service is named; into the settings row where none is. Null gives
-/// the value back to the kind's default.
+/// The platform's word on a standing written into its settings row. Null gives the value back to the kind's
+/// default.
 pub async fn write(ground: &Ground, standing: &Standing, value: Value) -> Result<(), String> {
-  let service = crate::apps::service(ground);
-
-  if service.address.is_empty() {
-    return write_row(ground, standing, value).await;
-  }
-
-  let Some(admin) = administrator(ground).await? else {
-    return Err("the deployment names no administrator, so no one writes the platform's link".to_owned());
-  };
-
-  let answered = crate::chain::write_value(&service, standing.key, "platform", admin, value).await?;
-
-  match answered.status {
-    200..=299 => {
-      // The row of the standing goes with the write, so the older word never shadows the chain's.
-      let _ = crate::queue::settings::forget(&ground.db, standing.row).await;
-
-      Ok(())
-    }
-    404 => Err(format!("the account service does not hold the kind {}", standing.key)),
-    409 => Err(format!("a lock withholds the value of {}", standing.key)),
-    status => Err(format!("the account service answered the write of {} with {status}", standing.key)),
-  }
+  write_row(ground, standing, value).await
 }
 
 // The settings row of a standing, written or given back.
@@ -158,62 +118,6 @@ async fn write_row(ground: &Ground, standing: &Standing, value: Value) -> Result
   result.map_err(|why| why.to_string())
 }
 
-/// The values that stood in rows of agency's settings table moved onto the platform's links once: where the
-/// chain is reached and a link holds no word yet, the row's word stands there and the row goes; where the
-/// chain already says one, the older row goes; where the chain does not answer, every row stands until a
-/// later stand moves it.
-pub async fn seed_once(ground: &Ground) -> Result<(), String> {
-  let service = crate::apps::service(ground);
-
-  if service.address.is_empty() {
-    return Ok(());
-  }
-
-  let Some(admin) = administrator(ground).await? else {
-    return Ok(());
-  };
-
-  for standing in standing() {
-    let held = crate::queue::settings::get(&ground.db, standing.row)
-      .await
-      .map_err(|why| why.to_string())?
-      .filter(|text| !text.trim().is_empty());
-    let Some(text) = held else { continue };
-
-    let current = platform(ground, standing.key).await;
-
-    if matches!(current, Ok(Some(_))) {
-      let _ = crate::queue::settings::forget(&ground.db, standing.row).await;
-      continue;
-    }
-
-    if current.is_err() {
-      continue;
-    }
-
-    let value = if standing.amount {
-      match text.trim().parse::<i64>() {
-        Ok(minutes) => Value::from(minutes),
-        Err(_) => continue,
-      }
-    } else {
-      Value::String(text)
-    };
-
-    match crate::chain::write_value(&service, standing.key, "platform", admin, value).await {
-      Ok(answered) if answered.ok() => {
-        let _ = crate::queue::settings::forget(&ground.db, standing.row).await;
-      }
-      Ok(answered) => eprintln!(
-        "agency: the setting {} was not moved onto the chain: it answered {}",
-        standing.key, answered.status
-      ),
-      Err(why) => eprintln!("agency: the setting {} was not moved onto the chain: {why}", standing.key),
-    }
-  }
-
-  Ok(())
-}
 
 /// The standing of one kind, none where the kind is not one the chain holds.
 pub fn of(kind: &str) -> Option<Standing> {

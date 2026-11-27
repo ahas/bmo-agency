@@ -11,17 +11,13 @@ use harness_machine::supervisor_prompt::{Layers, Personal, organisation};
 use policy::prompt_layers::{Kind, PROMPT_LAYERS};
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
-use tool_call::account_service::AccountService;
+
 
 /// The body the account service takes a kind's declaration in.
 pub fn declaration(kind: &Kind) -> Value {
   crate::chain::declaration(kind)
 }
 
-/// Every kind agency declares, declared on the account service (`crate::chain::declare`).
-pub async fn declare(service: &AccountService) -> Result<(), String> {
-  crate::chain::declare(service).await
-}
 
 // The last layers this process read off the chain for each account, which a turn stands on while the account
 // service does not answer.
