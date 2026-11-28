@@ -4368,6 +4368,12 @@ export interface components {
              */
             heldFor: string | null;
             /**
+             * @description Why its turn last ended short, as a code: the engine's error kind (`rate_limit`, `overloaded`, ...), or
+             *     `loop` for a job stopped for its loop; none where its turns ended as they should.
+             * @default null
+             */
+            endCause: string | null;
+            /**
              * @description What chose its provider and model; none for a job launched before it was kept.
              * @default null
              */

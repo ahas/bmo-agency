@@ -2030,6 +2030,11 @@ by `itemId`; by `roomId`; by `repositoryName`, the jobs in any checkout of that 
 the jobs in that one checkout; by `roleName`; and by `holderName`, every filter named holding at once. A query
 naming anything else, or a value that does not read as its filter's kind, is refused 400.
 
+- **A job names why its turn last ended short** as `endCause`, a code: the engine's error kind its turn ended on
+  (`rate_limit`, `overloaded`, `billing_error`, `authentication_error` and the like, as the engine names it), or
+  `loop` for a job stopped for making the same call again and again (`docs/agent-control.md`, 「A call made again
+  and again is told in the turn」); none where its turns ended as they should. The job's end tells it to the
+  orderer in a line of its own.
 - **A job's `state` is one of five,** and every route that answers a job — the list, one job, a launch, a
   change, a stop and a review — answers whichever it stands in: `starting`, launched and its turn not yet
   going; `running`, a turn of its work going; `reviewing`, its turn answered and its report under the

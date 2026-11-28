@@ -681,7 +681,9 @@ async fn open_items_that_cannot_go_are_told_once_to_their_orderer_and_a_merged_o
     "each in its orderer's room, a derived item's in its parent's"
   );
 
+  // What the notice tells is its data, above its next step and the queue's standing, which lists every item.
   let order = order_of(&peers, &agent_idle);
+  let order = order.split("\nNext: ").next().unwrap_or(&order).to_owned();
 
   assert!(
     order.contains("#91") && !order.contains("#95"),

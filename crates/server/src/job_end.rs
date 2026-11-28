@@ -288,6 +288,11 @@ pub fn order(member: &Value) -> String {
     )
   };
 
+  // Why its turn ended short, as a code, where one was kept (docs/api.md, 「assignments and jobs」).
+  if let Some(cause) = member["endCause"].as_str().filter(|cause| !cause.is_empty()) {
+    text.push_str(&format!("\n\nWhy it ended short: {cause}."));
+  }
+
   if keeps_lease(member) {
     let lease = member["leaseId"].as_i64().unwrap_or_default();
 

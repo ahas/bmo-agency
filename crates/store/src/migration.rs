@@ -14,6 +14,7 @@ mod m20270127_000003_front_tables_gone;
 mod m20271127_000001_supervisor_name_tag;
 mod m20271128_000001_supervisor_accounts;
 mod m20271129_000001_job_start_told;
+mod m20271129_000002_job_end_cause;
 
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement, TransactionTrait};
 use sea_orm_migration::prelude::*;
@@ -58,6 +59,9 @@ pub const SUPERVISOR_ACCOUNTS: &str = m20271128_000001_supervisor_accounts::NAME
 
 /// The migration that marks when a job's orderer was told it stood starting too long.
 pub const JOB_START_TOLD: &str = m20271129_000001_job_start_told::NAME;
+
+/// The migration that keeps why a job's turn last ended short.
+pub const JOB_END_CAUSE: &str = m20271129_000002_job_end_cause::NAME;
 
 /// Every table the store's migrations make, beside the record of what ran: what reads every table of the
 /// store reads these and no other service's beside them (docs/store.md, 「Its tables」).
@@ -261,6 +265,7 @@ impl MigratorTrait for Migrator {
       Box::new(m20271127_000001_supervisor_name_tag::Migration),
       Box::new(m20271128_000001_supervisor_accounts::Migration),
       Box::new(m20271129_000001_job_start_told::Migration),
+      Box::new(m20271129_000002_job_end_cause::Migration),
     ]
   }
 

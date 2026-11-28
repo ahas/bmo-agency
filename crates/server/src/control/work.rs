@@ -544,7 +544,8 @@ const JOB_COLUMNS: &str = r#""id", "item_id", "lease_id", "holder_name", "assign
   "session_id", "run_id", "run_name", "room_id", "state", "outcome", "report", "token_count",
   "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "instruction",
   "started_at", "ended_at", "prompt", "prompt_english", "roads", "held_for", "chosen_by", "review_stages",
-  "review_stage", "review_round", "review_check", "rejections", "review_question", "review_parked", "item_agent""#;
+  "review_stage", "review_round", "review_check", "rejections", "review_question", "review_parked", "item_agent",
+  "end_cause""#;
 
 /// What a job's turn spent, apart; none until the turn ends and where its road reported no figures.
 fn usage_of(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
@@ -596,6 +597,7 @@ fn job_value(row: &QueryResult) -> Result<Value, sea_orm::DbErr> {
       .and_then(|text| serde_json::from_str::<Value>(&text).ok())
       .unwrap_or_else(|| json!([])),
     "heldFor": row.try_get::<Option<String>>("", "held_for")?,
+    "endCause": row.try_get::<Option<String>>("", "end_cause")?,
     "chosenBy": row.try_get::<Option<String>>("", "chosen_by")?,
     "review": crate::job_review::value(row)?,
     "startedAt": row.try_get::<i64>("", "started_at")?,
@@ -1499,6 +1501,7 @@ pub async fn job_turn_ended(ground: &Ground, id: i64, end: agent_session::TurnEn
       return;
     }
   };
+  noted_cause(ground, id, &end).await;
   let ended = ended_of(ground, ledger, end).await;
 
   finish(ground, id, Ok(Some(ended))).await;
@@ -2372,6 +2375,7 @@ pub async fn carry_job<C: Carrier>(
     }
 
     spent = summed(spent, turn_spent(&end));
+    noted_cause(ground, job.id, &end).await;
 
     let (outcome, report) = ended_by(end.outcome, end.answer.clone(), end.reason.clone());
 
@@ -3745,6 +3749,24 @@ async fn kept_prompt(db: &sea_orm::DatabaseConnection, id: i64, prompt: &str) {
 }
 
 // What a job's turn's end makes of the job, its run closed with it.
+/// Why a job's turn ended short kept on the job, as the engine's error kind names it; a turn the engine names no
+/// error for leaves what stands.
+async fn noted_cause(ground: &Ground, id: i64, end: &agent_session::TurnEnd) {
+  let Some(kind) = end.engine_error.as_ref().and_then(|engine| engine.kind.clone()) else {
+    return;
+  };
+
+  if let Err(why) = run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "end_cause" = $1 WHERE "id" = $2"#,
+    vec![kind.into(), id.into()],
+  )
+  .await
+  {
+    eprintln!("job {id}: why its turn ended was not kept: {}", why.detail);
+  }
+}
+
 async fn ended_of(ground: &Ground, ledger: i64, end: agent_session::TurnEnd) -> Ended {
   let spent = turn_spent(&end);
   let context = end.reply.as_ref().and_then(|reply| reply.context_tokens);

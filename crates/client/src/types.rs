@@ -2272,6 +2272,10 @@ pub struct Job {
   /// Why the job waits, where no provider of its order can answer now; none whenever a turn is out.
   #[serde(default)]
   pub held_for: Option<String>,
+  /// Why its turn last ended short, as a code: the engine's error kind (`rate_limit`, `overloaded`, ...), or
+  /// `loop` for a job stopped for its loop; none where its turns ended as they should.
+  #[serde(default)]
+  pub end_cause: Option<String>,
   /// What chose its provider and model; none for a job launched before it was kept.
   #[serde(default)]
   pub chosen_by: Option<JobChoice>,

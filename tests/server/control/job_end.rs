@@ -382,3 +382,15 @@ async fn a_test_server_s_environment_carries_no_peer_of_the_deployment() {
     );
   }
 }
+
+// A job whose turn ended short says why, in a line of its own; one that ended as it should says nothing of it.
+#[test]
+fn a_job_that_ended_short_says_why() {
+  let mut looped = member(Some("It kept listing the same folder."), Some("stopped"));
+
+  looped["state"] = json!("stopped");
+  looped["endCause"] = json!("loop");
+
+  assert!(order(&looped).contains("Why it ended short: loop."), "{}", order(&looped));
+  assert!(!order(&member(Some("Done."), None)).contains("Why it ended short"));
+}

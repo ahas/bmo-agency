@@ -1202,6 +1202,16 @@ async fn followed(
         eprintln!("{}: job {job} was not marked stopped for its loop: {}", turn.run, refused.detail);
       }
 
+      if let Err(why) = store::run(
+        &ground.db,
+        r#"UPDATE "jobs" SET "end_cause" = 'loop' WHERE "id" = $1"#,
+        vec![job.into()],
+      )
+      .await
+      {
+        eprintln!("{}: job {job}'s loop was not kept as why it ended: {}", turn.run, why.detail);
+      }
+
       println!("{}: {}", turn.run, why);
       following.log.write(&ground.db, Line::note(&why)).await;
       surface_interrupt(ground, &turn.run, pane).await;

@@ -16125,6 +16125,14 @@
             "description": "Why the job waits, where no provider of its order can answer now; none whenever a turn is out.",
             "default": null
           },
+          "endCause": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why its turn last ended short, as a code: the engine's error kind (`rate_limit`, `overloaded`, ...), or\n`loop` for a job stopped for its loop; none where its turns ended as they should.",
+            "default": null
+          },
           "chosenBy": {
             "anyOf": [
               {
@@ -16176,6 +16184,7 @@
           "instruction",
           "roads",
           "heldFor",
+          "endCause",
           "chosenBy",
           "review",
           "startedAt",
