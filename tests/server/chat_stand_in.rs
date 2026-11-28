@@ -219,6 +219,58 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
     Some(home_dir.to_string_lossy().as_ref())
   );
   assert_eq!(composed.window.map(|window| window.context_tokens), Some(131_072));
+  assert_eq!(
+    env.get("CLAUDE_CODE_ATTRIBUTION_HEADER").map(String::as_str),
+    Some("0"),
+    "a road whose provider does not bill by the attribution block drops it, so the prefix holds still"
+  );
+}
+
+// A member of the Anthropic API's road keeps Claude Code's attribution block, by which the API bills the request
+// and without which it refuses it as though the credit were spent (docs/own-llm.md, 「How requests go」).
+#[tokio::test]
+async fn an_anthropic_member_step_keeps_claude_code_s_attribution_block() {
+  let home = tempfile::tempdir().unwrap();
+  let scratch = Scratch::new().await;
+  let ground = ground_on(scratch.db().clone(), home.path(), &[]);
+  let key = ground.roots.data.join("env/llm-gateway.key");
+
+  std::fs::create_dir_all(key.parent().unwrap()).unwrap();
+  std::fs::write(&key, "sk-gateway\n").unwrap();
+  std::fs::set_permissions(&key, std::fs::Permissions::from_mode(0o600)).unwrap();
+
+  let held = GatewayModel {
+    name: "claude-model".into(),
+    label: "Claude Model".into(),
+    home: ground.roots.data.join("claude-roads/anthropic/claude-model"),
+    context_tokens: 200_000,
+    answer_tokens: 32_000,
+    thinking: true,
+    registration: None,
+    road: Some("anthropic"),
+  };
+  let composed = compose_stand_in(
+    &ground,
+    &ground.machine(),
+    &chat_run(home.path()),
+    &step("anthropic", "claude-model"),
+    &Door::Gateway {
+      held: Box::new(held),
+      placement: None,
+    },
+    &[3],
+    1,
+  )
+  .await
+  .unwrap();
+  let env = &composed.command.env;
+
+  assert_eq!(env.get("ANTHROPIC_BASE_URL").map(String::as_str), Some("http://127.0.0.1:18030"));
+  assert_eq!(
+    env.get("CLAUDE_CODE_ATTRIBUTION_HEADER"),
+    None,
+    "the attribution block stays on: {env:?}"
+  );
 }
 
 // A role's run in a place of its own on Claude Code (docs/person-nodes.md, 「Which node is a person's」): Claude

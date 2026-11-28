@@ -87,6 +87,11 @@ pub struct Declared {
   /// the owner chooses one (docs/provider-presence.md, 「A provider's workspace」); none where it takes none.
   #[serde(default)]
   pub workspace_header: Option<String>,
+  /// Whether a request on its road keeps the attribution block Claude Code puts at its head, since the
+  /// provider bills the request by it (docs/own-llm.md, 「How requests go」); left off, the block is dropped
+  /// so a backend's prefix cache holds.
+  #[serde(default)]
+  pub keeps_attribution: bool,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,
   /// The route its turns take through dsh, where it has one.

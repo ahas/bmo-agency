@@ -19,6 +19,11 @@ owners_engine = false
 # the owner chooses it, or leaves the key's default (docs/provider-presence.md, 「A provider's workspace」).
 workspace_header = "anthropic-workspace-id"
 
+# Its API bills a request by the attribution block Claude Code puts at the head of it, and refuses one without
+# it as though the key's credit were spent, so a run on its road keeps the block (docs/own-llm.md, 「How
+# requests go」).
+keeps_attribution = true
+
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
 # holds no row for (docs/sessions.md, 「Session compaction」): half the window.
 fold_ratio = 0.5

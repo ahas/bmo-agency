@@ -836,6 +836,15 @@ pub fn fold_share(window: i64, answer: i64) -> String {
 /// none, so both are told this one, which no request reaches (docs/own-llm.md, 「How requests go」).
 const NO_WAIT_MS: i64 = 2_147_483_647;
 
+/// Whether a run on the model keeps Claude Code's attribution block: a member of a road whose provider bills a
+/// request by it (docs/own-llm.md, 「How requests go」); a registration never does.
+fn keeps_attribution(held: &GatewayModel) -> bool {
+  held
+    .road
+    .and_then(harness_providers::provider)
+    .is_some_and(|provider| provider.declared().keeps_attribution)
+}
+
 /// What Claude Code is pointed at the gateway with for a run on a registration, under the name the run is
 /// sent as (docs/own-llm.md, 「How requests go」): no login of its own, the registration's home, the
 /// gateway's address, the name in every model slot, the subagent's among them, so a subagent the program
@@ -865,7 +874,7 @@ pub(crate) fn gateway_variables(
     ("ANTHROPIC_DEFAULT_SONNET_MODEL", Some(name.to_owned())),
     ("ANTHROPIC_DEFAULT_HAIKU_MODEL", Some(name.to_owned())),
     ("CLAUDE_CODE_SUBAGENT_MODEL", Some(name.to_owned())),
-    ("CLAUDE_CODE_ATTRIBUTION_HEADER", Some("0".to_owned())),
+    ("CLAUDE_CODE_ATTRIBUTION_HEADER", (!keeps_attribution(held)).then(|| "0".to_owned())),
     ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Some(held.context_tokens.to_string())),
     ("CLAUDE_CODE_MAX_OUTPUT_TOKENS", Some(answer_tokens.to_string())),
     (claude::COMPACT_SHARE, Some(fold_share(held.context_tokens, answer_tokens))),

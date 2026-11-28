@@ -1084,7 +1084,9 @@ never the model's name.
     retry reads the prompt again from its start. The gateway retries nothing. A new session its node refuses before any answer
     is placed on the next node (「Nodes and sessions」 above).
   - **The prefix stays still:** the attribution header is off, since the block Claude Code otherwise puts
-    at the head of every request changes each time and defeats the backend's prefix cache. The traffic
+    at the head of every request changes each time and defeats the backend's prefix cache. A provider
+    that bills a request by that block declares that it keeps it, and a run on its road leaves the block
+    on: the Anthropic API refuses a request without it as though the key's credit were spent. The traffic
     Claude Code sends to its own services beside the model is off.
   - **Thinking is an effort word:** a run with thinking on is sent `medium`, which Claude Code sends as
     `thinking` of type `adaptive`; one with it off is sent `low` with its thinking tokens at zero, so it
