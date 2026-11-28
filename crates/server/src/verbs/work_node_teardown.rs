@@ -1,7 +1,7 @@
 //! An account's isolation node taken down (docs/account-isolation.md, 「Taking it down」): the setup's inverse. The
 //! units this machine's user keeps for the node stopped; where the account's user stands, the system units its
-//! programs run in stopped, its processes still left killed and the user taken away with its home; its firewall
-//! table taken away; and the node's folder under the data root and its workplace row. A part already gone is
+//! programs run in stopped and its processes still left killed; its firewall table taken away; the user taken away
+//! with its home; and the node's folder under the data root and its workplace row. A part already gone is
 //! nothing to do, and any node that is not an isolation node is refused.
 
 use std::path::{Path, PathBuf};
@@ -146,7 +146,9 @@ pub async fn tear_down<C: ConnectionTrait>(
 
     let wants = machine_wants();
 
-    if let Some(uid) = uid_of(&isolation.user).await {
+    let uid = uid_of(&isolation.user).await;
+
+    if let Some(uid) = uid {
       if !wants.is_empty() {
         return Err(VerbError::Refused(format!(
           "{node}: the user {} could not be taken away: {}",
@@ -155,20 +157,25 @@ pub async fn tear_down<C: ConnectionTrait>(
         )));
       }
 
-      remove_user(&isolation, uid).await.map_err(VerbError::Refused)?;
-      done.user = true;
-      done
-        .lines
-        .push(format!("{node}: the user {} was taken away with its home", isolation.user));
+      end_processes(&isolation, uid).await.map_err(VerbError::Refused)?;
     }
 
-    // A table stands only where the sandbox stood it, which needs what the machine would want for it.
+    // A table stands only where the sandbox stood it, which needs what the machine would want for it. It goes
+    // before the user, so no table outlives the user whose id it is keyed on, which a later user may be given.
     if wants.is_empty() {
       done.firewall = drop_firewall(&isolation.user).await.map_err(VerbError::Refused)?;
 
       if done.firewall {
         done.lines.push(format!("{node}: its firewall table was taken away"));
       }
+    }
+
+    if uid.is_some() {
+      remove_user(&isolation).await.map_err(VerbError::Refused)?;
+      done.user = true;
+      done
+        .lines
+        .push(format!("{node}: the user {} was taken away with its home", isolation.user));
     }
   }
 
@@ -185,8 +192,8 @@ pub async fn tear_down<C: ConnectionTrait>(
   Ok(done)
 }
 
-// The user's numeric id, where it stands.
-async fn uid_of(user: &str) -> Option<u32> {
+/// The user's numeric id, where it stands.
+pub(crate) async fn uid_of(user: &str) -> Option<u32> {
   let done = tokio::process::Command::new("id")
     .args(["-u", user])
     .stdin(Stdio::null())
@@ -254,9 +261,9 @@ async fn as_root(program: &str, args: &[&str]) -> super::work_node_setup::ShellR
   captured(command).await
 }
 
-// The user taken away: the system units its programs run in stopped, its processes still left killed and waited
-// on, and the user with its home removed. Done only once the user and its home no longer stand.
-async fn remove_user(isolation: &Isolation, uid: u32) -> Result<(), String> {
+// The user's programs ended: the system units they run in stopped, and its processes still left killed and waited
+// on. Done only once no process of the user is left.
+async fn end_processes(isolation: &Isolation, uid: u32) -> Result<(), String> {
   let programs = &ACCOUNT_ISOLATION.user_programs;
   let user = isolation.user.as_str();
 
@@ -292,7 +299,19 @@ async fn remove_user(isolation: &Isolation, uid: u32) -> Result<(), String> {
     tokio::time::sleep(Duration::from_millis(100)).await;
   }
 
-  let removed = as_root(&programs.userdel, &["--remove", user]).await;
+  Ok(())
+}
+
+// The user taken away with its home, once its programs have ended. Done only once the user and its home no longer
+// stand.
+async fn remove_user(isolation: &Isolation) -> Result<(), String> {
+  let user = isolation.user.as_str();
+
+  if !account_user(user) {
+    return Err(format!("{user} is no isolation node's user"));
+  }
+
+  let removed = as_root(&ACCOUNT_ISOLATION.user_programs.userdel, &["--remove", user]).await;
 
   if uid_of(user).await.is_some() || isolation.home.symlink_metadata().is_ok() {
     return Err(format!(
@@ -304,8 +323,8 @@ async fn remove_user(isolation: &Isolation, uid: u32) -> Result<(), String> {
   Ok(())
 }
 
-// The user's firewall table taken away; whether it stood.
-async fn drop_firewall(user: &str) -> Result<bool, String> {
+/// An isolation node's user's firewall table, named after the user, taken away; whether it stood.
+pub(crate) async fn drop_firewall(user: &str) -> Result<bool, String> {
   if !account_user(user) {
     return Err(format!("{user} is no isolation node's user"));
   }

@@ -91,6 +91,11 @@ every node shares are `docs/work-nodes.md`.
     firewall's program the sandbox stands the network rule with; a machine where
     one of them does not stand at its path, or whose system manager is not systemd, which the sandbox needs, is
     refused before any step runs, the answer naming each program missing and the path it was looked for at.
+  - **No other node's table holds the user:** the firewall keeps the user a table is keyed on by its numeric
+    id, and the system hands a freed id to the next system user made, so a table left standing by a user taken
+    away would hold a later user given its id to the old user's ports. Each setup and sync that may write
+    therefore takes away, once the user stands, every table of the policy's prefix but the user's own that is keyed
+    on the user's id; a table it cannot read or take away leaves the setup refused, said.
   - **Then every step of a node's setup,** each command run in the sandbox as the account's user: the tools
     installed into its home, the code copied, the binaries built, the herdr session stood.
   - **A copy is written by the account's user alone:** the owner's user reads the tree and streams it, and the
@@ -109,10 +114,11 @@ every node shares are `docs/work-nodes.md`.
   good runs it for the account's isolation node (`docs/api.md`, 「owners and organisation units removed for good」).
   It takes, in this order:
   - the units this machine's user keeps for the node: its link, its setup, its check and its sync;
-  - where the account's user stands: every system unit a program of the user runs in stopped, every process of the
-    user still left killed, and the user taken away with its home — its workplace, its logins, its scratch folder
-    and the link's folder in it;
-  - the user's firewall table, where this machine can stand an isolation node;
+  - where the account's user stands: every system unit a program of the user runs in stopped and every process of
+    the user still left killed;
+  - the user's firewall table, where this machine can stand an isolation node, taken before the user so that no
+    table outlives the user whose id it is keyed on;
+  - the user taken away with its home — its workplace, its logins, its scratch folder and the link's folder in it;
   - what this machine keeps of the node: its folder under the data root's `nodes/`, its setup record and its
     link's spec and state among it, and its workplace row.
 - **A part already gone is nothing to do,** never a failure: a user, a table, a unit, a folder or a row that does not
@@ -159,7 +165,10 @@ every node shares are `docs/work-nodes.md`.
     refused;
   - an isolation node's link starts its far end as the account's user with no new privileges, mirrors a place both
     ways through it, lets a program of the node reach the home bridge in the link's folder for the policy's verbs
-    alone, run as the owner's user, and leaves nothing of the account's running once the link ends.
+    alone, run as the owner's user, and leaves nothing of the account's running once the link ends;
+  - a table of another isolation node's user stood keyed on the account's user's id, as one a user taken away
+    leaves for the next user given its id, refuses the account its tool host's port until a setup's door is opened
+    again, which takes that table away and leaves the account's own, so the account reaches the port.
 - **The teardown is a test of its own,** on the same machines: a throwaway account's user made by the setup's first
   step, its sandbox run so its firewall table stands and a process of it left standing, is taken away by the
   teardown with its home, its process and its table, and a second teardown finds nothing to do; a node that is no
@@ -174,6 +183,6 @@ every node shares are `docs/work-nodes.md`.
 |---|---|---|
 | the scope | the owner's and the deployment's runs as the owner's user; every other account's on its own node | — |
 | an isolation node | named by agency per account, placed for an account with no PC; its user, home and sandbox made by its setup; its link the local transport | — |
-| the teardown | the setup's inverse, `node work teardown`, run by an account's removal for good: its units, its user's units and processes, its user and home, its firewall table, its folder and its row, each passed over where it does not stand | — |
+| the teardown | the setup's inverse, `node work teardown`, run by an account's removal for good: its units, its user's units and processes, its firewall table, its user and home, its folder and its row, each passed over where it does not stand | — |
 | the check | the tests above, a real user each | — |
 | a check on this machine | a throwaway account's isolation node stood up by the setup verb whole, its tools installed and its binaries built in its home; its link connected, the far end, its herdr session and its agent host each running as the account's user with no new privileges and the homes read-only; and a program in a pane of that session refused the hub's settings file, the owner's home, a write there and `sudo`, while it wrote its own home; a live isolation node's sandbox refused every port of this machine's loopback but the tool host's, this machine's own addresses and the private network, shown no other user's process, while it reached the world and its own programs ran | — |

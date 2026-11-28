@@ -12,7 +12,8 @@ use tokio::io::AsyncWriteExt;
 
 use super::work_node::{captured, said_tail, say};
 use super::work_node_setup::{COPY_LEFT_OUT, SetupHands, SetupShell, ShellRun, shell_word};
-use crate::account_isolation::{Isolation, machine_wants};
+use super::work_node_teardown::{drop_firewall, uid_of};
+use crate::account_isolation::{Isolation, machine_wants, tables_keyed_on};
 
 /// The system's own directories every command of the setup starts on; the setup lays the workplace's ahead of them.
 const SYSTEM_PATH: &str = "/usr/local/bin:/usr/bin:/bin";
@@ -31,12 +32,16 @@ impl IsolatedDoor {
   /// the user is not and `make` lets the door write, or why it could not be; `ports` are the ports of this machine's
   /// loopback the sandbox's network rule leaves the node, the same its link's sandbox leaves it.
   pub async fn open(isolation: &Isolation, make: bool, ports: &[u16]) -> Result<Self, String> {
-    if !user_exists(&isolation.user).await {
+    if uid_of(&isolation.user).await.is_none() {
       if !make {
         return Err(format!("the user {} is not made; run the setup", isolation.user));
       }
 
       make_user(isolation).await?;
+    }
+
+    if make {
+      drop_tables_keyed_on_user(isolation).await?;
     }
 
     Ok(Self {
@@ -234,17 +239,6 @@ fn tar_pattern(pattern: &str) -> String {
   }
 }
 
-async fn user_exists(user: &str) -> bool {
-  tokio::process::Command::new("id")
-    .args(["-u", user])
-    .stdin(Stdio::null())
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .status()
-    .await
-    .is_ok_and(|status| status.success())
-}
-
 async fn command_output(program: &str, args: &[&str]) -> Option<String> {
   let done = tokio::process::Command::new(program)
     .args(args)
@@ -254,6 +248,45 @@ async fn command_output(program: &str, args: &[&str]) -> Option<String> {
     .ok()?;
 
   done.status.success().then(|| String::from_utf8_lossy(&done.stdout).trim().to_owned())
+}
+
+// Every firewall table of another isolation node's user that is keyed on this user's id taken away, as root, so no
+// table a user gone left standing holds this one (docs/account-isolation.md, 「Standing it up」). A machine whose
+// firewall's program does not stand has no table to take; one whose ruleset cannot be read, or a table taken, is
+// refused.
+async fn drop_tables_keyed_on_user(isolation: &Isolation) -> Result<(), String> {
+  if !machine_wants().is_empty() {
+    return Ok(());
+  }
+
+  let Some(uid) = uid_of(&isolation.user).await else {
+    return Err(format!("the user {} does not stand", isolation.user));
+  };
+  let mut list = tokio::process::Command::new("sudo");
+
+  list.args(["-n", ACCOUNT_ISOLATION.user_programs.nft.as_str(), "-j", "list", "ruleset"]);
+
+  let listed = captured(list).await;
+  let ruleset: serde_json::Value = match serde_json::from_str(&listed.stdout) {
+    Ok(ruleset) if listed.code == 0 => ruleset,
+    _ => {
+      return Err(format!(
+        "the firewall's ruleset could not be read for {}: {}",
+        isolation.user,
+        said_tail(&listed.stderr)
+      ));
+    }
+  };
+
+  for table in tables_keyed_on(&ruleset, uid, &isolation.user) {
+    drop_firewall(&table).await?;
+    say(&format!(
+      "{}: took away the firewall table {table}, left keyed on the id {uid} the user {} holds",
+      isolation.node, isolation.user
+    ));
+  }
+
+  Ok(())
 }
 
 // The account's system user made, as root, with its home fresh: a member of its own group alone, its home left to

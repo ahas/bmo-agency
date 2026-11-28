@@ -141,6 +141,36 @@ fn runnable(path: &Path) -> bool {
   std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
 }
 
+/// The firewall tables of the policy's prefix, but the user's own, that hold a rule keyed on the user's numeric id,
+/// read off the ruleset as the firewall's program prints it in JSON. The firewall keeps the user a rule names by its
+/// id, which the system hands again to a user made after one taken away, so such a table is one a user gone left
+/// standing, and it would hold the user given its id to that user's ports.
+pub fn tables_keyed_on(ruleset: &serde_json::Value, uid: u32, own: &str) -> Vec<String> {
+  let entries = ruleset["nftables"].as_array().map(Vec::as_slice).unwrap_or_default();
+  let mut tables: Vec<String> = entries
+    .iter()
+    .filter_map(|entry| entry.get("rule"))
+    .filter(|rule| rule["family"] == "inet")
+    .filter(|rule| rule["expr"].as_array().is_some_and(|exprs| exprs.iter().any(|expr| keys_on(expr, uid))))
+    .filter_map(|rule| rule["table"].as_str())
+    .filter(|table| *table != own && table.starts_with(&ACCOUNT_ISOLATION.user_prefix))
+    .map(str::to_owned)
+    .collect();
+
+  tables.sort();
+  tables.dedup();
+  tables
+}
+
+// Whether a rule's expression matches the sending socket's user against the id given.
+fn keys_on(expr: &serde_json::Value, uid: u32) -> bool {
+  let matched = &expr["match"];
+
+  matched["op"] == "=="
+    && matched["left"]["meta"]["key"] == "skuid"
+    && matched["right"].as_u64() == Some(u64::from(uid))
+}
+
 /// The isolation node's name for an account, whatever the account is.
 pub fn node_name(account: &str) -> String {
   format!("{}{account}", ACCOUNT_ISOLATION.node_prefix)

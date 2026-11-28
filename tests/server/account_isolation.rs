@@ -4,6 +4,8 @@
 //! loopback and a sight of another user's process, and is allowed its own home and the tool host's port; while
 //! a program of the owner's user still reads and writes them. The user is real and is taken away again with its
 //! firewall table, so the test runs where this machine's user holds passwordless sudo, as the deployment's does. A
+//! table another isolation node's user left keyed on the account's user's id is taken away once the setup's door is
+//! opened again, which leaves the account its ports (docs/account-isolation.md, 「Standing it up」). A
 //! copy into the node whose writing side ends early fails at once, which needs no user. The teardown takes such a
 //! user away again with its home, its processes and its firewall table, refuses any node that is no isolation node,
 //! and finds nothing to do where nothing stands (docs/account-isolation.md, 「Taking it down」).
@@ -26,20 +28,39 @@ impl Drop for MadeUser {
   }
 }
 
-// The user, any process of it a test left standing, and the firewall table its sandbox stood, which is named after it.
+// The user, any process of it a test left standing, and the firewall table its sandbox stood, which is named after it,
+// the table before the user, so it never outlives the user whose id it is keyed on.
 fn remove_user(user: &str) {
   for line in [
     &["pkill", "-KILL", "-u", user][..],
-    &["userdel", "--remove", user],
     &["nft", "delete", "table", "inet", user],
+    &["userdel", "--remove", user],
   ] {
-    let _ = Command::new("sudo")
-      .arg("-n")
-      .args(line)
-      .stdin(Stdio::null())
-      .stdout(Stdio::null())
-      .stderr(Stdio::null())
-      .status();
+    as_root(line);
+  }
+}
+
+fn as_root(line: &[&str]) -> bool {
+  Command::new("sudo")
+    .arg("-n")
+    .args(line)
+    .stdin(Stdio::null())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status()
+    .is_ok_and(|status| status.success())
+}
+
+fn table_stands(table: &str) -> bool {
+  as_root(&["nft", "list", "table", "inet", table])
+}
+
+/// A firewall table a test stood, taken away however the test ends.
+struct StoodTable(String);
+
+impl Drop for StoodTable {
+  fn drop(&mut self) {
+    as_root(&["nft", "delete", "table", "inet", &self.0]);
   }
 }
 
@@ -129,6 +150,82 @@ fn the_sandbox_hides_other_users_processes_and_stands_its_user_s_network_rule_be
   ] {
     assert!(firewall.contains(rule), "{rule} in {firewall}");
   }
+}
+
+#[test]
+fn a_table_left_keyed_on_a_user_s_id_is_told_from_the_user_s_own_and_from_every_other() {
+  let ruleset = serde_json::json!({ "nftables": [
+    { "metainfo": { "version": "1.0.9" } },
+    { "table": { "family": "inet", "name": "bmo-account-7" } },
+    { "rule": { "family": "inet", "table": "bmo-account-7", "chain": "out", "expr": [skuid(993), jump()] } },
+    { "rule": { "family": "inet", "table": "bmo-account-8", "chain": "out", "expr": [skuid(993), jump()] } },
+    { "rule": { "family": "inet", "table": "bmo-account-8", "chain": "account", "expr": [skuid(993), jump()] } },
+    { "rule": { "family": "inet", "table": "bmo-account-9", "chain": "out", "expr": [skuid(994), jump()] } },
+    { "rule": { "family": "inet", "table": "f2b-table", "chain": "out", "expr": [skuid(993), jump()] } },
+    { "rule": { "family": "ip", "table": "bmo-account-6", "chain": "out", "expr": [skuid(993), jump()] } },
+  ] });
+
+  assert_eq!(
+    agency_server::account_isolation::tables_keyed_on(&ruleset, 993, "bmo-account-7"),
+    ["bmo-account-8"]
+  );
+  assert_eq!(
+    agency_server::account_isolation::tables_keyed_on(&serde_json::json!({}), 993, "bmo-account-7"),
+    Vec::<String>::new()
+  );
+}
+
+fn skuid(uid: u32) -> serde_json::Value {
+  serde_json::json!({ "match": { "op": "==", "left": { "meta": { "key": "skuid" } }, "right": uid } })
+}
+
+fn jump() -> serde_json::Value {
+  serde_json::json!({ "jump": { "target": "account" } })
+}
+
+#[tokio::test]
+async fn a_table_another_user_left_on_the_account_s_id_is_taken_away_once_the_setup_s_door_opens() {
+  if !can_stand_one_here() {
+    return;
+  }
+
+  let isolation = Isolation::of_account(&format!("95{}", std::process::id())).expect("a login id");
+  // The table a user gone left standing, named after it and keyed on the id this user is given.
+  let gone = Isolation::of_account(&format!("94{}", std::process::id())).expect("a login id");
+
+  remove_user(&isolation.user);
+  as_root(&["nft", "delete", "table", "inet", &gone.user]);
+
+  let _made = MadeUser(isolation.user.clone());
+  let tool_host = TcpListener::bind("127.0.0.1:0").expect("a tool host");
+  let tool_port = tool_host.local_addr().expect("its port").port();
+  let reach = format!("exec 3<>/dev/tcp/127.0.0.1/{tool_port}");
+  let door = IsolatedDoor::open(&isolation, true, &[tool_port]).await.expect("the user is made");
+  let uid =
+    String::from_utf8(Command::new("id").args(["-u", &isolation.user]).output().expect("its id").stdout)
+      .expect("an id")
+      .trim()
+      .to_owned();
+  let left = gone
+    .firewall(&[NO_TOOL_HOST])
+    .replace(&format!("meta skuid {}", gone.user), &format!("meta skuid {uid}"));
+  let _left = StoodTable(gone.user.clone());
+
+  assert!(as_root(&["nft", &left]), "the table left: {left}");
+
+  let refused = door.run(&reach).await;
+
+  assert_ne!(refused.code, 0, "the table left holds the account to its user's ports");
+  assert!(table_stands(&isolation.user), "the account's own table stands");
+
+  let door = IsolatedDoor::open(&isolation, true, &[tool_port]).await.expect("the door again");
+
+  assert!(!table_stands(&gone.user), "the table left is taken away");
+  assert!(table_stands(&isolation.user), "the account's own table is kept");
+
+  let reached = door.run(&reach).await;
+
+  assert_eq!(reached.code, 0, "the tool host's port is the account's to reach: {}", reached.stderr);
 }
 
 #[tokio::test]
