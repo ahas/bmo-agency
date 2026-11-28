@@ -35,6 +35,9 @@ pub struct Member {
   pub api_base: Option<String>,
   /// The key file under the data root's `env/`.
   pub key_file: String,
+  /// Headers every request to the provider carries beside its key, by name: what the key needs said with it.
+  #[serde(default)]
+  pub headers: std::collections::BTreeMap<String, String>,
   /// The window a run on the member is sized to, in tokens.
   #[serde(default)]
   pub context_tokens: Option<i64>,
@@ -140,6 +143,16 @@ pub fn validate(members: &[Member]) -> Result<(), String> {
       && Url::parse(base).is_err()
     {
       return Err(format!("{who} names an API base that is no address"));
+    }
+    if let Some(name) = member
+      .headers
+      .keys()
+      .find(|name| name.is_empty() || !name.chars().all(|one| one.is_ascii_alphanumeric() || one == '-'))
+    {
+      return Err(format!("{who} names a header {name:?}, which is no header's name"));
+    }
+    if member.headers.values().any(|value| value.contains(['\r', '\n'])) {
+      return Err(format!("{who} names a header whose value breaks its line"));
     }
     if let Some(context) = member.context_tokens
       && !REGISTRY.context_tokens.holds(context)

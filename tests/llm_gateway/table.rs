@@ -235,6 +235,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       model: "deepseek-flash".into(),
       api_base: Some("https://api.deepseek.com/v1".into()),
       key_file: "deepseek.key".into(),
+      headers: Default::default(),
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
@@ -250,6 +251,7 @@ fn members_are_served_under_their_own_names_on_their_providers() {
       model: "deepseek/deepseek-v4.1-flash-1017".into(),
       api_base: Some("https://openrouter.ai/api/v1".into()),
       key_file: "openrouter.key".into(),
+      headers: Default::default(),
       context_tokens: Some(1_048_576),
       answer_tokens: Some(32_768),
       thinking: Some(true),
@@ -284,6 +286,7 @@ fn a_member_naming_a_registration_refuses_the_table() {
     model: "taken-model".into(),
     api_base: None,
     key_file: "deepseek.key".into(),
+    headers: Default::default(),
     context_tokens: None,
     answer_tokens: None,
     thinking: None,
@@ -360,6 +363,7 @@ fn road_member(name: &str, road: Option<&str>) -> Member {
     model: format!("{name}-model"),
     api_base: Some("https://openrouter.ai/api/v1".into()),
     key_file: format!("{name}.key"),
+    headers: Default::default(),
     context_tokens: Some(131_072),
     answer_tokens: Some(8_192),
     thinking: Some(false),
@@ -425,6 +429,7 @@ fn a_persons_lowest_open_key_of_a_road_lays_one_personal_member_beside_each_memb
       name: "router-a@u7".into(),
       road: None,
       key_file: "users/7/router-first".into(),
+      headers: Default::default(),
       account: Some(7),
       unit: None,
       ..members[0].clone()
@@ -525,4 +530,46 @@ fn rows_filed_under_a_unit_stand_owned_by_the_unit_under_every_name_they_are_ser
     ]),
     "one row has one owner: the account it is owned by, or the unit it is filed under, on every name it is served by"
   );
+}
+
+// A member's headers go with every request to its provider, beside its key; a member naming none carries none.
+#[test]
+fn a_member_s_headers_ride_with_its_requests() {
+  let mut workspace = Member {
+    name: "claude-sonnet-5".into(),
+    road: Some("anthropic".into()),
+    label: None,
+    provider: "anthropic".into(),
+    model: "claude-sonnet-5".into(),
+    api_base: Some("https://api.anthropic.com/v1".into()),
+    key_file: "anthropic-api-key".into(),
+    headers: Default::default(),
+    context_tokens: Some(200_000),
+    answer_tokens: Some(32_000),
+    thinking: Some(false),
+    free: None,
+    account: None,
+    unit: None,
+  };
+  let plain = Member {
+    name: "claude-plain".into(),
+    ..workspace.clone()
+  };
+
+  workspace.headers.insert("anthropic-workspace-id".into(), "wrkspc_example".into());
+
+  let table = gateway_table_with_members(&[], &[workspace, plain]).unwrap();
+  let config: Value = serde_json::from_str(&table.text).unwrap();
+  let params = |name: &str| {
+    config["model_list"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .find(|entry| entry["model_name"] == name)
+      .unwrap()["litellm_params"]
+      .clone()
+  };
+
+  assert_eq!(params("claude-sonnet-5")["extra_headers"]["anthropic-workspace-id"], "wrkspc_example");
+  assert!(params("claude-plain").get("extra_headers").is_none());
 }

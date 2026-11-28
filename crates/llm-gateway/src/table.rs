@@ -228,6 +228,9 @@ struct Params {
   /// An address that takes no key is still handed one, since the OpenAI client will not go without;
   /// the backend reads none.
   api_key: String,
+  /// Headers every request to the provider carries beside its key, a member's own; none for a registration.
+  #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+  extra_headers: std::collections::BTreeMap<String, String>,
   /// Thinking off where a request names nothing: the template's own default thinks for minutes on a
   /// slow card, even on a turn that asked for none.
   chat_template_kwargs: TemplateSettings,
@@ -330,6 +333,7 @@ pub fn gateway_table_with_personal(
         model: format!("openai/{}", registration.model),
         api_base: Some(api_base(&address.url, address.reach_port)),
         api_key: variable.map_or_else(|| "no-key".to_owned(), |variable| format!("os.environ/{variable}")),
+        extra_headers: std::collections::BTreeMap::new(),
         chat_template_kwargs: TemplateSettings {
           enable_thinking: false,
         },
@@ -378,6 +382,7 @@ pub fn gateway_table_with_personal(
         model: format!("{provider}/{}", member.model),
         api_base: member.api_base.clone(),
         api_key: format!("os.environ/{variable}"),
+        extra_headers: member.headers.clone(),
         chat_template_kwargs: TemplateSettings {
           enable_thinking: false,
         },

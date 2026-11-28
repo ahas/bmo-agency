@@ -460,6 +460,10 @@ never the model's name.
   - `provider`: the LiteLLM provider, one of `anthropic`, `deepseek`, `openrouter` and `openai`.
   - `model`: the id the provider's API knows, with its `api_base` and its `key_file` under the data
     root's `env/`.
+  - `headers`: headers every request to the provider carries beside its key, by name, none where it names
+    none: what a key needs said with it, such as the Anthropic API's `anthropic-workspace-id` for an
+    organisation's key that no one workspace holds. A name is letters, digits and `-`; a value is no secret, since
+    a secret stands in a key file alone.
   - `context_tokens`, `answer_tokens`, `thinking`: the window, the answer ceiling and the default
     thinking of a run on the member. A member of a road holds all three; a member of no road may
     leave them out.

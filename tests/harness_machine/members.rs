@@ -13,6 +13,7 @@ fn member(name: &str, road: Option<&str>) -> Member {
     model: format!("{name}-model"),
     api_base: Some("https://api.deepseek.com/v1".into()),
     key_file: "deepseek.key".into(),
+    headers: Default::default(),
     context_tokens: Some(1_048_576),
     answer_tokens: Some(32_768),
     thinking: Some(true),
@@ -118,4 +119,17 @@ fn a_file_that_is_not_there_is_no_members() {
   let root = tempfile::tempdir().unwrap();
 
   assert!(read(&root.path().join("members.json")).unwrap().is_empty());
+}
+
+#[test]
+fn a_header_out_of_shape_refuses_the_members() {
+  let mut named = member("named", None);
+
+  named.headers.insert("bad header".into(), "x".into());
+  assert!(validate(&[named]).unwrap_err().contains("no header's name"));
+
+  let mut broken = member("broken", None);
+
+  broken.headers.insert("x-ok".into(), "a\nb".into());
+  assert!(validate(&[broken]).unwrap_err().contains("breaks its line"));
 }
