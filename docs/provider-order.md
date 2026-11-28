@@ -114,7 +114,9 @@ person's run goes out inside its road is `docs/supply.md`.
   many requests or a spent window (a 429, `rate_limit`), and a refused credential or balance (a 401 or 402,
   `authentication_failed`, `billing_error`).
 - **A request the provider refused for its shape is the work's own:** a 400, 413 or 422, the kinds
-  `invalid_request` and `max_output_tokens`. The run ends failed with that error.
+  `invalid_request` and `max_output_tokens`. The run ends failed with that error. A 400 whose words say the key
+  itself cannot be used as it is — the Anthropic API's key that is not scoped to a workspace — is no request's
+  shape but the credential's, and reads as a refused credential.
 - **Inside the Claude Code road the accounts are walked,** never the road left: a run that fails on its account
   moves to the next open account of the same provider and model (`docs/cache-fallback.md`, 「The Claude Code
   road is a list of accounts」).

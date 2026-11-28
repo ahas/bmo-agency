@@ -129,6 +129,16 @@ fn a_refused_connection_is_an_outage_and_a_request_refused_for_its_shape_is_the_
   assert!(!request_refused("API Error: 429 too many requests", Some("rate_limit")));
 }
 
+// The Anthropic API refuses every request on a key not scoped to a workspace with a 400: that is the key's
+// refusal, read as a refused login, and no request's shape.
+#[test]
+fn a_key_not_scoped_to_a_workspace_is_a_refused_login_and_no_request_s_shape() {
+  let unscoped = r#"API Error: 400 litellm.BadRequestError: AnthropicException - {"type":"error","error":{"type":"invalid_request_error","message":"This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header with the ID of the workspace to use."}}"#;
+
+  assert!(!request_refused(unscoped, Some("invalid_request")));
+  assert_eq!(of_errored(unscoped, "bmo").account_failure(), Some(AccountFailure::Login));
+}
+
 // The endpoint answers in HTTP status codes rather than in a subscription's words: a refused key or a
 // spent balance waits for a person, and too many requests at once is a short limit. The text is what
 // DeepSeek answered with, in the line Claude Code 2.1.304 writes around it.

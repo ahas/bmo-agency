@@ -229,6 +229,11 @@ static API_STATUS: LazyLock<Regex> =
 // it will not take, and a balance spent.
 static KEY_REFUSED: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r#""type"\s*:\s*"authentication_error""#).expect("a key refusal"));
+// A key the endpoint will not use as it is, whatever status it answers with: the Anthropic API's key that is not
+// scoped to a workspace, which every request on it is refused for alike.
+static KEY_UNUSABLE: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(r"(?i)api key is not scoped to a workspace").expect("an unusable key's wording")
+});
 static BALANCE_SPENT: LazyLock<Regex> =
   LazyLock::new(|| Regex::new(r#"(?i)"message"\s*:\s*"insufficient balance""#).expect("a balance refusal"));
 
@@ -241,6 +246,10 @@ static CONNECTION_REFUSED: LazyLock<Regex> =
 /// the error's kind naming the request (`invalid_request`, `max_output_tokens`), or a 400, 413 or 422 status.
 /// That failure is the work's own and moves no road (docs/provider-order.md, 「A road that fails」).
 pub fn request_refused(error: &str, kind: Option<&str>) -> bool {
+  if KEY_UNUSABLE.is_match(error) {
+    return false;
+  }
+
   matches!(kind, Some("invalid_request" | "max_output_tokens"))
     || API_STATUS
       .captures(error)
@@ -394,6 +403,7 @@ fn status_refusal(evidence: &str, key: &str) -> Option<Failure> {
   let status = API_STATUS.captures(evidence).and_then(|found| found[1].parse::<i64>().ok());
 
   let gone = match status {
+    _ if KEY_UNUSABLE.is_match(evidence) => true,
     Some(401..=403) => true,
     None => KEY_REFUSED.is_match(evidence) || BALANCE_SPENT.is_match(evidence),
     Some(_) => false,
