@@ -115,4 +115,8 @@ chars = 300
 # the turn itself, once a run of them (docs/agent-control.md, 「A call made again and again is told in the
 # turn」): the call is keyed by its tool and its input less its description, its answer as the stall reads one.
 repeat_say = 5
+# Past this many in a row the job's turn is ended and the job stopped, its orderer told why by the job's end: a
+# loop the words did not break is no work going on (the owner's word).
+repeat_stop = 20
+repeat_stop_why = "stopped: its last {count} tool calls were the same call answered the same, so it was looping."
 repeat_words = "Your last {count} tool calls were the same call, and each answered the same. Doing it again will not change the answer: read what it answered, then do something else, or say what blocks you."

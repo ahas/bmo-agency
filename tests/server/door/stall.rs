@@ -259,6 +259,20 @@ fn a_run_of_alike_calls_is_told_once_at_the_policy_s_count() {
 
   assert_eq!(told, [count], "told once, as the run reaches the count");
 
+  // Going on to the stop count it is told once more, which ends the job's turn.
+  let stop = policy::tool_clock::TOOL_CLOCK.stall.repeat_stop;
+
+  for at in (count as i64 + 4)..=(stop as i64 + 2) {
+    let now = at * 1_000;
+
+    records.push(called("ls src", now));
+    records.push(answered("a.rs", now));
+    progress.records(&records, 0, now);
+    told.extend(std::iter::from_fn(|| progress.take_repeated()));
+  }
+
+  assert_eq!(told, [count, stop]);
+
   // A call answered otherwise starts the run again.
   records.push(called("ls src", 99_000));
   records.push(answered("a.rs b.rs", 99_000));

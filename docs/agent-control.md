@@ -1544,7 +1544,9 @@ it names a job.
     times in a row (`policy/tool-clock.toml`, `repeat_say`, five), each answered alike, is told so in the turn
     itself, once a run, where its provider takes words while a turn works: that the answer will not change, to
     read it and do something else or say what blocks it. A call is keyed by its tool and its input less its
-    description, an answer as the stall reads lines.
+    description, an answer as the stall reads lines. A run that goes on to the stop count (`repeat_stop`,
+    twenty) ends the job's turn and stops the job, its reason the loop, so its end tells the orderer why: a loop
+    the words did not break is no work going on.
   - **When nothing is told.** While a call of the turn stands under an overtime ask, a keep, or a wait on the
     job's own question, the supervisor already holds that wait, so no stall is told; one that outlasts them is
     told at the next read. A turn picked up across a restart counts its last progress from the time of the

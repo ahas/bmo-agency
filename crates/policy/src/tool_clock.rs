@@ -95,6 +95,10 @@ pub struct StallClock {
   pub repeat_say: usize,
   /// The words put into the turn then: `{count}`.
   pub repeat_words: String,
+  /// How many such calls in a row end a job's turn and stop the job.
+  pub repeat_stop: usize,
+  /// Why the job stopped then, its end's reason told to its orderer: `{count}`.
+  pub repeat_stop_why: String,
 }
 
 crate::part!(pub TOOL_CLOCK: ToolClock = "tool-clock.toml");

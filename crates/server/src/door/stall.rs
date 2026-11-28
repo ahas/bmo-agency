@@ -236,7 +236,9 @@ impl Progress {
       self.last_call = Some(made);
       self.last_answer = Some(key);
 
-      if tells && self.repeats == TOOL_CLOCK.stall.repeat_say {
+      if tells
+        && (self.repeats == TOOL_CLOCK.stall.repeat_say || self.repeats == TOOL_CLOCK.stall.repeat_stop)
+      {
         self.repeated.push_back(self.repeats);
       }
     }

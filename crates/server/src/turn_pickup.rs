@@ -1050,6 +1050,8 @@ async fn followed(
   let grace_ms = clock.in_process_grace_ms;
   let grace_cut = clock.in_process_grace_cut.clone();
   let mut in_process_cut: Option<InProcessCut> = None;
+  // A job whose loop reached the stop count: the job and how many alike calls it made.
+  let mut looped: Option<(i64, usize)> = None;
   let mut tools = clocked.then(|| ToolWatch::taken_up(clock));
   let mut following = Following::of(ground, turn, place, pane).await;
   let provider = pane
@@ -1164,6 +1166,14 @@ async fn followed(
       // A run of alike tool calls is told in the turn itself, where its provider takes words mid-turn
       // (docs/agent-control.md, 「A call made again and again is told in the turn」).
       while let Some(count) = watch.take_repeated() {
+        // Past the stop count the loop the words did not break ends the job's turn and stops the job.
+        if count >= policy::tool_clock::TOOL_CLOCK.stall.repeat_stop
+          && let Some(job) = turn.job
+        {
+          looped = Some((job, count));
+          break;
+        }
+
         if let (true, Some(herdr), Some(target)) =
           (takes_words_mid_turn(provider), &ground.herdr, target.as_deref())
         {
@@ -1182,6 +1192,22 @@ async fn followed(
           stall.heard(&ground.db, ground.vars(), &change).await;
         }
       }
+    }
+
+    if let Some((job, count)) = looped.take() {
+      let why =
+        fill_marks(&policy::tool_clock::TOOL_CLOCK.stall.repeat_stop_why, &[("count", &count.to_string())]);
+
+      if let Err(refused) = crate::queue::stops::mark_job_stopped(&ground.db, job, &why).await {
+        eprintln!("{}: job {job} was not marked stopped for its loop: {}", turn.run, refused.detail);
+      }
+
+      println!("{}: {}", turn.run, why);
+      following.log.write(&ground.db, Line::note(&why)).await;
+      surface_interrupt(ground, &turn.run, pane).await;
+      following.feed(ground, turn, place, pane).await;
+
+      return hand_back(ground, place, turn, Came::Failed(why), true).await;
     }
 
     if let Some(cut) = &in_process_cut
