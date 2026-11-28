@@ -245,7 +245,8 @@ fn a_supervisor_s_place_guards_its_shell_and_carries_its_background_on_its_stop_
     )
   };
 
-  assert_eq!(guard["matcher"], "Bash");
+  // The file tools' writes go to the same hook, which keeps a supervisor out of code checkouts.
+  assert_eq!(guard["matcher"], "Bash|Edit|Write|MultiEdit|NotebookEdit");
   assert_eq!(guard["hooks"][0]["command"], hook("shell", " '--refuse-claude'"));
   assert_eq!(
     settings["hooks"]["Stop"][0]["hooks"][0]["command"],

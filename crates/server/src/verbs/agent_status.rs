@@ -24,7 +24,9 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use super::{CONTROL_PORT, CONTROL_TOKEN, control_port, control_token};
-use crate::command_reading::job_guard::{FILE_WRITERS, JobGround, file_refusal, job_refusal};
+use crate::command_reading::job_guard::{
+  FILE_WRITERS, JobGround, file_refusal, job_refusal, supervisor_refusal,
+};
 use crate::command_reading::records::claude_launch;
 use crate::command_reading::{hook_input, hook_refusal};
 use crate::door::place_run::{
@@ -267,6 +269,27 @@ pub async fn shell_hook(input: &str, refuses: Refuses, home: &str, job: &impl Jo
     let refused = match (read.tool.as_str(), read.command, read.path) {
       ("Bash", Some(command), _) => job_refusal(&command, read.call, home, read.cwd.as_deref(), job).await,
       (tool, _, Some(path)) if FILE_WRITERS.contains(&tool) => file_refusal(&path, job).await,
+      _ => None,
+    };
+
+    if let Some(refused) = refused {
+      return Some(hook_refusal(&refused));
+    }
+  }
+
+  // A supervisor's program, which refuses Claude Code and holds no job, writes in no code checkout
+  // (docs/live-claude-guard.md, 「A supervisor writes in no code repository」).
+  if refuses.claude
+    && !refuses.job
+    && let Ok(read) = hook_input(input)
+  {
+    let refused = match (read.tool.as_str(), read.command.as_deref(), read.path.as_deref()) {
+      ("Bash", Some(command), _) => {
+        supervisor_refusal(Some(command), None, home, read.cwd.as_deref(), job).await
+      }
+      (tool, _, Some(path)) if FILE_WRITERS.contains(&tool) => {
+        supervisor_refusal(None, Some(path), home, None, job).await
+      }
       _ => None,
     };
 

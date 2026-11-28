@@ -153,6 +153,33 @@ impl JobGround for StoreGround {
     }
   }
 
+  async fn code_checkouts(&self) -> Checkouts {
+    let Some(db) = self.db().await else { return Checkouts::default() };
+    let known = match workers(db, Path::new("")).await {
+      Ok(known) => known,
+      Err(why) => {
+        eprintln!("supervisor-guard: {}", why.detail);
+        return Checkouts::default();
+      }
+    };
+    let path = |checkout: &Worker| resolve(&checkout.cwd).to_string_lossy().into_owned();
+
+    // Every code checkout standing on this machine: a node's stand on other machines, and the built-in worker
+    // is no repository's.
+    Checkouts {
+      foreign: known
+        .iter()
+        .filter(|checkout| !checkout.builtin && !checkout.cwd.is_empty() && checkout.node.is_none())
+        .map(|checkout| ForeignCheckout {
+          worker: checkout.name.clone(),
+          repository: checkout.repository().to_owned(),
+          cwd: path(checkout),
+        })
+        .collect(),
+      ..Checkouts::default()
+    }
+  }
+
   async fn checkouts(&self) -> Checkouts {
     let (Some(job), Some(db)) = (self.job().await, self.db().await) else {
       return Checkouts::default();

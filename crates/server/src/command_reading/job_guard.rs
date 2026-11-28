@@ -19,9 +19,9 @@ use super::records::{CliRecords, command_refusal, print_mode_refusal};
 use super::removal::removal_refusal;
 use super::testbed::{Classified, testbed_refusal};
 use super::writes::{
-  Checkouts, Standing, foreign_command_write, foreign_file_write, foreign_refusal, may_write,
-  sealed_command_write, sealed_file_write, sealed_refusal, structure_command_write, structure_file_write,
-  structure_refusal,
+  Checkouts, ForeignCheckout, Standing, foreign_command_write, foreign_file_write, foreign_refusal,
+  may_write, sealed_command_write, sealed_file_write, sealed_refusal, structure_command_write,
+  structure_file_write, structure_refusal,
 };
 
 /// The file tools that write, whose calls the guard reads for the file they name.
@@ -47,6 +47,11 @@ pub trait JobGround {
   /// Whether the job's item opens the statement document: the owner asked for it and its words name the
   /// document; false where it cannot be read.
   fn opens_structure(&self) -> impl Future<Output = bool>;
+  /// Every code checkout agency holds on this machine, each as a checkout no supervisor writes in; none where the
+  /// store cannot be read.
+  fn code_checkouts(&self) -> impl Future<Output = Checkouts> {
+    async { Checkouts::default() }
+  }
 }
 
 // Whether a command's text could name a path of another checkout by itself: every spelling of one holds a slash
@@ -93,6 +98,63 @@ pub async fn file_refusal(path: &str, ground: &impl JobGround) -> Option<String>
     ground,
   )
   .await
+}
+
+/// What a refusal of a supervisor's write into a code checkout says.
+pub fn code_refusal(checkout: &ForeignCheckout, why: &str) -> String {
+  format!(
+    "refused: {why} — {cwd} is a checkout of {repository}, and a supervisor writes in no code repository: a change of code is a job's. File it as an item with file_item and launch it, and its close lands it after the check (docs/live-claude-guard.md, 「A supervisor writes in no code repository」).",
+    cwd = checkout.cwd,
+    repository = checkout.repository,
+  )
+}
+
+/// Why a supervisor's shell command or file tool's call may not write where it would, or nothing: a code checkout
+/// agency holds, written into or changed through git there.
+pub async fn supervisor_refusal(
+  command: Option<&str>,
+  path: Option<&str>,
+  home: &str,
+  cwd: Option<&str>,
+  ground: &impl JobGround,
+) -> Option<String> {
+  let checkouts = ground.code_checkouts().await;
+
+  if checkouts.foreign.is_empty() {
+    return None;
+  }
+
+  if let Some(path) = path {
+    return foreign_file_write(path, &checkouts)
+      .map(|checkout| code_refusal(checkout, "it edits a file there"));
+  }
+
+  let standing = Standing {
+    at: cwd.map(str::to_owned),
+    home: home.to_owned(),
+  };
+
+  let command = command?;
+
+  if let Some((checkout, why)) = foreign_command_write(command, &checkouts, &standing) {
+    return Some(code_refusal(checkout, &why));
+  }
+
+  // A push lands a checkout's commits without a close: refused where it names a code checkout or stands in one.
+  let pushes = super::reading::read_command(command).commands.iter().any(|segment| {
+    super::reading::program_of(&segment.words)
+      .is_some_and(|run| run.program == "git" && run.args.iter().any(|arg| arg == "push"))
+  });
+  let inside = |checkout: &&ForeignCheckout| {
+    command.contains(&checkout.cwd)
+      || cwd.is_some_and(|at| at == checkout.cwd || at.starts_with(&format!("{}/", checkout.cwd)))
+  };
+
+  if pushes && let Some(checkout) = checkouts.foreign.iter().find(inside) {
+    return Some(code_refusal(checkout, "it pushes that checkout's commits"));
+  }
+
+  None
 }
 
 /// What a refusal of a command the job has not opened the live-Claude guard for says.

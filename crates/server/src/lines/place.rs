@@ -304,7 +304,8 @@ pub fn write_place_settings(
     .filter_map(|(asked, flag)| asked.then_some(flag))
     .collect();
 
-  let shell_calls = match holds.job_guard {
+  // A job's guard and a supervisor's both judge the file tools' writes beside the shell.
+  let shell_calls = match holds.job_guard || holds.shell_guard {
     true => std::iter::once(SHELL_CALLS).chain(FILE_WRITERS).collect::<Vec<_>>().join("|"),
     false => SHELL_CALLS.to_owned(),
   };

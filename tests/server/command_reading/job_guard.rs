@@ -55,6 +55,10 @@ impl JobGround for Stand {
   async fn opens_structure(&self) -> bool {
     self.opens_structure
   }
+
+  async fn code_checkouts(&self) -> Checkouts {
+    self.checkouts.clone()
+  }
 }
 
 fn web() -> Checkouts {
@@ -280,4 +284,47 @@ async fn the_statement_document_changes_only_where_the_job_s_item_opens_it() {
 
   assert!(matches!(answered("echo x >> STRUCTURE.md", JOB, &opened).await, Answered::Sent(_)));
   assert_eq!(file_answer("Edit", "/home/tester/repos/agency/STRUCTURE.md", &opened).await, None);
+}
+
+const SUPERVISOR: Refuses = Refuses {
+  claude: true,
+  job: false,
+};
+
+#[tokio::test]
+async fn a_supervisor_writes_in_no_code_checkout_and_reads_and_writes_elsewhere() {
+  let stand = Stand {
+    checkouts: web(),
+    ..Stand::default()
+  };
+
+  for command in [
+    "echo x > /home/tester/repos/web-w2/notes.md",
+    "cd /home/tester/repos/web-w2 && git commit -am fix",
+    "git -C /home/tester/repos/web-w2 push origin HEAD",
+  ] {
+    match answered(command, SUPERVISOR, &stand).await {
+      Answered::Refused(why) => assert!(why.contains("a supervisor writes in no code repository"), "{why}"),
+      Answered::Sent(sent) => panic!("{command} went through as {sent}"),
+    }
+  }
+
+  for command in [
+    "cat /home/tester/repos/web-w2/README.md",
+    "git -C /home/tester/repos/web-w2 log -3",
+    "echo x > /home/tester/notes/today.md",
+  ] {
+    assert!(matches!(answered(command, SUPERVISOR, &stand).await, Answered::Sent(_)), "{command}");
+  }
+
+  let refused =
+    shell_hook(&file_call("Edit", "/home/tester/repos/web-w2/src/a.rs"), SUPERVISOR, HOME, &stand)
+      .await
+      .unwrap();
+
+  assert!(refused.contains("a supervisor writes in no code repository"), "{refused}");
+  assert_eq!(
+    shell_hook(&file_call("Write", "/home/tester/notes/a.md"), SUPERVISOR, HOME, &stand).await,
+    None
+  );
 }

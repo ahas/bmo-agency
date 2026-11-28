@@ -293,6 +293,20 @@ This is what the hook does on every line, whether or not it judges as the job gu
   under `timeout <secs> zsh -c '…'`.
 - **Nothing opens it.** Each refusal names what the command would have done and how to write it.
 
+## A supervisor writes in no code repository
+
+- **Why:** a change of code is a job's: it runs in a checkout of its own, is checked, and lands through its
+  close. A supervisor that edits a checkout or commits there lands nothing through a check, and its edit stands
+  under whatever job holds the checkout.
+- **What it refuses:** on a supervisor's program — the shell hook that refuses Claude Code and judges no job — a
+  shell command that writes into a code checkout agency holds on the machine, or changes one through git, read
+  as the job guard reads a write into another worker's checkout, and a file tool's write of a file inside one.
+  Every checkout of every repository the store holds counts, the built-in worker aside.
+- **What it lets through:** reading a checkout, git's reading verbs there, and every write outside the code
+  checkouts: the supervisor's own place, its brain's documents and any other folder.
+- **What it answers with:** the refusal names the checkout and its repository and says to file the change as an
+  item and launch it.
+
 ## The same hook sends a heavy command to the testbed
 
 - **Why:** one heavy test or build command holds the machine at a time (the testbed unit's `testbed.md`), and a
