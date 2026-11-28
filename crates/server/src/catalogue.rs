@@ -162,6 +162,8 @@ struct KeptVersion {
   permissions: Asks,
   #[serde(default)]
   memories: Vec<Value>,
+  #[serde(default)]
+  extension: Option<bmo_agency_client::CatalogueExtension>,
   shared_at: i64,
   review: Value,
   approval: KeptApproval,
@@ -637,6 +639,7 @@ async fn view(
     descriptions: app.descriptions.clone(),
     machine: app.machine.clone(),
     server,
+    extension: latest.extension.clone(),
     maker: app.maker.clone(),
     owner: app.owner.clone(),
     targets: app.targets(),

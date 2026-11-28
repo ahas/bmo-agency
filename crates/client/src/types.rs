@@ -4257,6 +4257,31 @@ pub struct ScreenSession {
 }
 
 /// CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its
+/// CatalogueExtension: the newest version's extension manifest as the tool host read it (the tool host's
+/// `docs/catalogue.md`, 「The extension manifest」), its texts standing as the entry's title and description.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogueExtension {
+  #[serde(default)]
+  pub publisher: Option<String>,
+  #[serde(default)]
+  pub version: Option<String>,
+  /// The icon's SVG text, where the manifest names one.
+  #[serde(default)]
+  pub icon_svg: Option<String>,
+  #[serde(default)]
+  pub categories: Vec<String>,
+  #[serde(default)]
+  pub repository: Option<String>,
+  #[serde(default)]
+  pub engines: BTreeMap<String, String>,
+  #[serde(default)]
+  pub dependencies: Vec<String>,
+  /// What it contributes, by contribution point: each a list of its bundle's paths.
+  #[serde(default)]
+  pub contributes: BTreeMap<String, Vec<String>>,
+}
+
 /// own folders, and its review report's state and text.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -4363,6 +4388,9 @@ pub struct CatalogueApp {
   /// How an MCP server is reached; none for any other kind.
   #[serde(default)]
   pub server: Option<CatalogueServer>,
+  /// The newest version's extension manifest, null where it carries none.
+  #[serde(default)]
+  pub extension: Option<CatalogueExtension>,
   pub maker: String,
   pub owner: String,
   pub targets: Vec<Value>,

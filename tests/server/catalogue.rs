@@ -94,6 +94,9 @@ if args[2] == "catalogue":
         record["targets"] = json.loads(opt("--targets"))
         record["withdrawn"] = None
         record["versions"].append({"version": version, "sourceHash": source_hash(bundle["files"]), "permissions": {"network": permissions.get("network", []), "secrets": permissions.get("secrets", [])}, "sharedAt": int(time.time() * 1000), "review": {"state": "pending"}, "approval": {"required": "--review-required" in args, "by": None}})
+        if "bmo-extension.toml" in files:
+            extension = tomllib.loads(files["bmo-extension.toml"])
+            record["versions"][-1]["extension"] = {"name": name, "publisher": extension.get("publisher"), "categories": extension.get("categories", []), "contributes": extension.get("contributes", {})}
         save(record)
     elif verb == "source":
         record = load(positional[0])
@@ -1165,4 +1168,30 @@ fn a_versions_memory_pack_becomes_lessons_keyed_under_the_item_and_only_whole_ti
   );
   assert!(lessons.iter().all(|lesson| lesson.subjects.is_empty()));
   assert!(agency_server::catalogue::pack_lessons("x", "y", &[]).is_empty());
+}
+
+#[tokio::test]
+async fn an_entry_carries_its_newest_version_s_extension_manifest() {
+  let stood = stood().await;
+  let ground = &stood.ground;
+  let mut files = skill_files("tidy-notes", "Tidies.");
+
+  files.insert(
+    "bmo-extension.toml".to_owned(),
+    "name = \"tidy-notes\"\npublisher = \"team-tools\"\ncategories = [\"skill\"]\n\n[contributes]\nskills = [\"SKILL.md\"]\n"
+      .to_owned(),
+  );
+  agency_server::skills::save(ground, &MAKER.to_string(), "tidy-notes", &files)
+    .await
+    .unwrap();
+
+  let maker = reader(&stood, MAKER).await;
+  let shared = catalogue::share(ground, &maker, "tidy-notes", &[], (Some("skill"), None))
+    .await
+    .unwrap();
+  let extension = shared.extension.expect("the entry carries the manifest");
+
+  assert_eq!(extension.publisher.as_deref(), Some("team-tools"));
+  assert_eq!(extension.categories, vec!["skill".to_owned()]);
+  assert_eq!(extension.contributes.get("skills"), Some(&vec!["SKILL.md".to_owned()]));
 }

@@ -21942,6 +21942,18 @@
             "description": "How an MCP server is reached; none for any other kind.",
             "default": null
           },
+          "extension": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogueExtension"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The newest version's extension manifest, null where it carries none.",
+            "default": null
+          },
           "maker": {
             "type": "string"
           },
@@ -22018,6 +22030,7 @@
           "descriptions",
           "machine",
           "server",
+          "extension",
           "maker",
           "owner",
           "targets",
@@ -22091,6 +22104,83 @@
         ],
         "description": "CatalogueServer: how a shared MCP server is reached, read off its newest version's `mcp.toml`: `local`, its\n`command`; or `remote`, its `url`, its `auth` (`none`, `bearer` or `header`), the `header` it is sent in and the\nname of the `secret` each receiver holds, never its value."
       },
+      "CatalogueExtension": {
+        "type": "object",
+        "properties": {
+          "publisher": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "version": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "iconSvg": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The icon's SVG text, where the manifest names one.",
+            "default": null
+          },
+          "categories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "repository": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "engines": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {}
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "default": []
+          },
+          "contributes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "What it contributes, by contribution point: each a list of its bundle's paths.",
+            "default": {}
+          }
+        },
+        "required": [
+          "publisher",
+          "version",
+          "iconSvg",
+          "categories",
+          "repository",
+          "engines",
+          "dependencies",
+          "contributes"
+        ],
+        "description": "CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its\nCatalogueExtension: the newest version's extension manifest as the tool host read it (the tool host's\n`docs/catalogue.md`, 「The extension manifest」), its texts standing as the entry's title and description."
+      },
       "CatalogueVersion": {
         "type": "object",
         "properties": {
@@ -22118,7 +22208,7 @@
           "permissions",
           "review"
         ],
-        "description": "CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its\nown folders, and its review report's state and text."
+        "description": "own folders, and its review report's state and text."
       },
       "CatalogueReview": {
         "type": "object",

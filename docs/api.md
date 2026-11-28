@@ -1930,7 +1930,10 @@ where the shell stands in an agent's program, else the owner.
   maker's, or null), `titles` and `descriptions` (by locale, each locale written), `machine` (the locales a
   translation wrote), `server` (for an MCP server, how it is reached, read off its newest version's `mcp.toml`:
   `transport`, `local` or `remote`, and `url`, `auth`, `header`, `secret` for a remote one or `command` for a local
-  one, each null where it names none; null for any other kind), `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,
+  one, each null where it names none; null for any other kind), `extension` (the newest version's extension manifest as
+  the tool host read it, its texts standing as the entry's own: `publisher`, `version`, `iconSvg`, `categories`,
+  `repository`, `engines`, `dependencies` and `contributes`, by contribution point; null where it carries none),
+  `maker`, `owner`, `targets`, `version` (the newest), `versions` (each `version`,
   `sharedAt`, `sourceHash`, `permissions` and `review`), `permissions` and `review` of the newest, `approval`
   (`required`, `approved`), `installs` (how many), `withdrawn`, `promotion`, `installed` (the account's copy,
   `version` and `how`, or null), `updateWaiting` (a newer version stands), `permissionsGrown` (it asks for more than

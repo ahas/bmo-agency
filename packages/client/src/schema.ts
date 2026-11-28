@@ -6497,6 +6497,11 @@ export interface components {
              * @default null
              */
             server: components["schemas"]["CatalogueServer"] | null;
+            /**
+             * @description The newest version's extension manifest, null where it carries none.
+             * @default null
+             */
+            extension: components["schemas"]["CatalogueExtension"] | null;
             maker: string;
             owner: string;
             targets: unknown[];
@@ -6540,8 +6545,38 @@ export interface components {
         };
         /**
          * @description CatalogueVersion: one version of a shared app: when it was shared, its source hash, what it asks for beyond its
-         *     own folders, and its review report's state and text.
+         *     CatalogueExtension: the newest version's extension manifest as the tool host read it (the tool host's
+         *     `docs/catalogue.md`, 「The extension manifest」), its texts standing as the entry's title and description.
          */
+        CatalogueExtension: {
+            /** @default null */
+            publisher: string | null;
+            /** @default null */
+            version: string | null;
+            /**
+             * @description The icon's SVG text, where the manifest names one.
+             * @default null
+             */
+            iconSvg: string | null;
+            /** @default [] */
+            categories: string[];
+            /** @default null */
+            repository: string | null;
+            /** @default {} */
+            engines: {
+                [key: string]: string;
+            };
+            /** @default [] */
+            dependencies: string[];
+            /**
+             * @description What it contributes, by contribution point: each a list of its bundle's paths.
+             * @default {}
+             */
+            contributes: {
+                [key: string]: string[];
+            };
+        };
+        /** @description own folders, and its review report's state and text. */
         CatalogueVersion: {
             version: string;
             /** Format: int64 */
