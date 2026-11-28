@@ -2256,6 +2256,8 @@ pub async fn carry_job<C: Carrier>(
   // The fallback road of the job's agent the job moved onto, where it did; it stays there to its end
   // (docs/role-agents.md, 「An agent's fallback roads」).
   let mut on_fallback: Option<crate::order::Entry> = None;
+  // Why the job moved onto its fallback, kept for the road the next turn goes out on.
+  let mut fell_back_why: Option<String> = None;
   let mut left: Vec<Closed> = vec![];
   let mut roads: Vec<(Road, Option<String>)> = vec![];
   let mut values: Vec<Value> = vec![];
@@ -2314,6 +2316,7 @@ pub async fn carry_job<C: Carrier>(
         );
         keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
         on_fallback = Some(fallback);
+        fell_back_why = Some(line);
         left.clear();
         last = None;
         last_stop = None;
@@ -2367,7 +2370,10 @@ pub async fn carry_job<C: Carrier>(
       held_for(ground, job.id, None).await;
     }
 
-    let why = roads.last().and_then(|_| left.last().map(|left| left.reason.clone()));
+    let why = roads
+      .last()
+      .and_then(|_| left.last().map(|left| left.reason.clone()))
+      .or_else(|| fell_back_why.take());
     // A turn that goes out again on the road the last one left, its provider having answered it cannot serve
     // now, has not moved: the road is written once, and the job's report names no move.
     let moved = roads.last().is_none_or(|(last, _)| last != &taken);

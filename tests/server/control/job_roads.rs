@@ -1323,5 +1323,17 @@ async fn a_job_whose_turn_its_provider_refused_for_spent_credit_goes_on_on_its_a
   );
   assert!(carrier.turns[1].2.contains("## The last session's handoff"), "{}", carrier.turns[1].2);
   assert_eq!(ended.0, "ended", "the job ends as its turn on the fallback did");
+  let kept = store::one(scratch.db(), r#"SELECT "roads" FROM "jobs" WHERE "id" = 7"#, vec![])
+    .await
+    .unwrap()
+    .unwrap();
+  let roads: serde_json::Value =
+    serde_json::from_str(&kept.try_get::<String>("", "roads").unwrap()).unwrap();
+  assert!(
+    roads[1]["reason"]
+      .as_str()
+      .is_some_and(|why| why.contains("fallback road claude-code/claude-opus-4-6")),
+    "the road it moved to says why: {roads}"
+  );
   assert!(ended.2.as_deref().is_some_and(|report| report.contains("Done.")), "{:?}", ended.2);
 }
