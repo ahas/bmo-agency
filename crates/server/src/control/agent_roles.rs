@@ -508,8 +508,14 @@ impl Route for RoleChange {
     }
 
     let role = agent_roles::named(call.store(), &name).await?.ok_or_else(|| unknown(&name))?;
+    let mut shown = view(call.ground(), &role).await?;
 
-    Ok(answer(StatusCode::OK, view(call.ground(), &role).await?))
+    // The branch the change takes for the role's runs going now (docs/change-branches.md).
+    if !crate::role_agents::carrying(call.store(), &name).await?.is_empty() {
+      shown["runningWork"] = serde_json::json!(super::role_agents::RUN_TO_END);
+    }
+
+    Ok(answer(StatusCode::OK, shown))
   }
 }
 

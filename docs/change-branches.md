@@ -21,7 +21,7 @@ failing on its next request.
 | An agent removed | Run to the end | The removal is refused `409` while the agent carries a run, saying so. |
 | A supervisor's road changed (`PATCH /supervisors/{name}`) | Run to the end, then graceful resume | The turn running finishes on the road it went out on; its end hands the session over to one on the new road (`docs/supervisors.md`, 「Where a supervisor's turn runs」). |
 | A supervisor removed (`DELETE /supervisors/{name}`) | Stop | The owner's removal is an order to stop: its program ends with its sessions (`docs/supervisors.md`, 「Adding and removing a supervisor」). |
-| A role changed | Run to the end | Its runs go on; the change holds from the next admission. |
+| A role changed | Run to the end | Its runs go on; the change holds from the next admission, and the answer says so with `runningWork` `run-to-end` where a run of it goes. |
 | A role removed | Run to the end | The removal is refused `409` while a run of it goes or waits. |
 | A provider switched off (`PATCH /providers/{name}`) | Run to the end | Only the switch is written; a run going out on it goes on, and no new run goes out on it. |
 | A person's node renamed or re-placed | Run to the end | A waiting turn is placed by the record standing now (`docs/person-nodes.md`). |

@@ -472,7 +472,8 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   and `order`, `quotaShare`, `maxConcurrent`, `active`, `sessions` or `foldRatio`, none of which
   a role holds: each is its agent's (「role agents」 below). A role is the platform's preset: a member's `POST`,
   `PATCH` or `DELETE` of one is refused 403 `forbidden` (「Who a caller acts for」).
-- **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, each judged as
+- **`PATCH /roles/{roleName}` changes the fields the body names** and answers 200 with the role, `runningWork`
+  `run-to-end` on it where a run of the role goes (`docs/change-branches.md`), each judged as
   `POST` judges it; a `prompt`, a `description` or `skills` given as null clears it; `providerPrompts` sets the
   text of each provider it names and takes away each it names as null, and leaves every other provider's as
   it stands. A role removed takes its provider prompts with it. 404 `not-found` for a role the store

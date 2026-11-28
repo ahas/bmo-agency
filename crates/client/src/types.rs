@@ -3834,6 +3834,10 @@ pub struct Role {
   /// names a road
   pub provider: Option<String>,
   pub waiting_for: Option<String>,
+  /// on a change, what the change does to the runs of the role going now: `run-to-end`, each finishing as it was
+  /// admitted and the change holding from the next admission (docs/change-branches.md); absent where none goes
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub running_work: Option<String>,
 }
 
 /// RoleList: every role, every bundle a role may give, every skill a role or an agent may name and every line

@@ -5689,6 +5689,11 @@ export interface components {
              */
             provider: string | null;
             waitingFor: string | null;
+            /**
+             * @description on a change, what the change does to the runs of the role going now: `run-to-end`, each finishing as it was
+             *     admitted and the change holding from the next admission (docs/change-branches.md); absent where none goes
+             */
+            runningWork?: string | null;
         };
         /** @description RoleBundle: one bundle a role may give, with its kebab-case code and its label. */
         RoleBundle: {
