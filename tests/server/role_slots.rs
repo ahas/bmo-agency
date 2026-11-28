@@ -1318,7 +1318,8 @@ async fn an_agent_following_its_asker_takes_the_askers_road_and_falls_back_to_it
   held.push(other);
   std::fs::write(&members, serde_json::to_string(&held).unwrap()).unwrap();
 
-  provider_balance(&ground, "openrouter", 5.0).await;
+  // OpenRouter's balance is spent, so the road of the supervisor standing on it cannot answer now.
+  provider_balance(&ground, "openrouter", 0.0).await;
   deepseek_balance(&ground, 5.0).await;
   scratch
     .run(

@@ -813,20 +813,18 @@ When a demotion first catches — when a healthy session first drops — two thi
 - **The roads answer differently and do not pretend to be the same.** Every common answer carries the
   mode that actually answered (`claude-code`, `codex`, `openrouter`, `registered`, `deepseek`) with its
   model and effort, and a measured usage row keeps mode and model as a pair, so models of the same name on
-  different roads are not merged. Agency reads those figures off each road — Codex's JSON events,
-  OpenRouter's stream usage read through a loopback tab on a headless run, Claude's own answer — and
-  hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream
-  carried no usage gets no invented figures, and a turn in the terminal client's dsh session reports none: its record
-  carries the answer's words and model alone.
+  different roads are not merged. Agency reads those figures off each road — Codex's JSON events, and
+  Claude Code's own answer on every other road, the gateway's OpenRouter, DeepSeek and registered models among
+  them — and hands them to the usage collector, which splits and shows them (`usage.md`). A run whose stream
+  carried no usage gets no invented figures.
 - **Each window and run belongs to a slot:** the provider that reported it, and the account too where
   that provider holds logins, built by one constructor so no writer decides for itself whether an account
   belongs on a row. Two accounts report windows of the same names, so neither can overwrite the other.
 - **Which provider and account serve a row now is answered in one place** — the row's road, and, where its
   provider holds logins, the login the provider walks to now.
 - **Sessions follow the same principle:** Claude Code sessions and Codex threads are shown with their own
-  mode and model, a Claude session with the account it was opened under. A dsh session stands in
-  the terminal client's pane across its turns, but agency records no id for it, so an OpenRouter answer offers no
-  session back. A session is offered back only to a run on the account that opened it.
+  mode and model, a Claude session with the account it was opened under. A session is offered back
+  only to a run on the account that opened it.
 - **Cache lifetime and keepalive follow the provider's policy.** A ping goes only into a supervisor's
   program (`docs/keepalive-schedule.md`); a role's session is judged by the same lifetime when it is
   resumed (`docs/sessions.md`, 「The warm/cold criterion」).
@@ -860,17 +858,8 @@ When a demotion first catches — when a healthy session first drops — two thi
   chat line's system prompt, tools and MCP configuration:
   - **Codex** on the supervisor's kept thread for that model and effort, opened afresh where Codex no longer
     holds it, and the thread that answered kept for the next turn;
-  - **OpenRouter** through the terminal client, which keeps one dsh session on the Agent Client Protocol, the turn put
-    into its inbox and its answer read out of its record; the overlay composes the gateway route, the key
-    rides in the program's environment, and the agency's MCP configuration stands in the overlay as the
-    session's servers, rows the overlay inserts; a server that does not attach is told to the session as
-    a fact it reads in its next round, and the shell is handed back the variables dsh's own start-up
-    drops by their names (`docs/agent-control.md`, 「dsh's providers: OpenRouter and DeepSeek」); the
-    system prompt's tools paragraph names dsh's own tools; no upstream is pinned, since agency keeps no
-    record of a warmed one;
-  - **DeepSeek** through the terminal client in the same way, the overlay's route DeepSeek's own API on the model the
-    road names, with the road's key in the program's environment (「The DeepSeek road is a member of the
-    gateway」);
+  - **OpenRouter and DeepSeek** as Claude Code on the gateway, the member's model and key, on the supervisor's
+    kept session as a Claude road's is (「The DeepSeek road is a member of the gateway」);
   - **a registered model** as Claude Code on the gateway, the registration first held to the gateway's
     list, on a session of its own placed where the registration places it.
 
@@ -884,15 +873,15 @@ When a demotion first catches — when a healthy session first drops — two thi
 Each response option the Claude Code line receives is set out below, saying whether a substitute road has
 the same. "None" means that program has no such concept, with the reason.
 
-| Option | Claude Code | Codex | OpenRouter (dsh) | Registered models |
+| Option | Claude Code | Codex | OpenRouter · DeepSeek (Claude Code on the gateway) | Registered models |
 |---|---|---|---|---|
 | Process time limit | None: a supervisor's turn and a role's run each run until they end | Same | Same | None: a request with no tools waits for its answer; a run with tools is Claude Code on a registered model |
 | Cache lifetime · ping interval | 1 hour · 40 minutes | 30 minutes · 20 minutes for models that announce it, else none | Follows the answering upstream, none if not listed | None. No announced lifetime |
 | Ping time limit | None: a ping goes until it answers or fails on its own | Same | Same | No ping |
 | Keepalive switch · rest | Warms a supervisor only where its switch for the provider is on, pauses during its own account's rest | Obeys the switch but warms during a rest, since a rest is one Claude account's affair | As Codex | Not applicable |
-| Session continuation | Resumes a supervisor's session and a role's kept session | Resumes a thread per run scope, model and effort | The session stands in the terminal client's pane and carries the next turn; agency stores no id and resumes none | None for a tool-less request; a run with tools is Claude Code's |
-| Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | dsh compacts its own session; agency folds nothing | Not applicable |
-| effort · thinking | The effort set per line | Passes effort, thinking-off is low | The entry's level is the session's reasoning effort, and thinking off passes off | Thinking on or off; a run with tools sends medium or low |
-| System prompt | Replaces the CLI instruction with one whole file opening on the platform's harness, worker its rules after it | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | Goes in as one part of the dsh prompt, no replacement | A request with no tools carries its system prompt in the request; a run with tools as on Claude Code |
-| Tool · permission isolation | A supervisor's and a role's program in bypass mode with its line's denied tools, a runner's shown tools and an allow list, settings sources blocked but a role's checkout's own | Moves to a shell and sandbox, loads no user settings | Moves to filesystem/shell rows and the dsh sandbox, no per-command allow list | A run with tools is Claude Code's line |
+| Session continuation | Resumes a supervisor's session and a role's kept session | Resumes a thread per run scope, model and effort | As Claude Code: the supervisor's session on the gateway is resumed | None for a tool-less request; a run with tools is Claude Code's |
+| Context folding | The caller folds with the CLI's compaction | The Codex CLI compacts its own thread | As Claude Code: the caller folds with the CLI's compaction | Not applicable |
+| effort · thinking | The effort set per line | Passes effort, thinking-off is low | As Claude Code, the member's thinking its default | Thinking on or off; a run with tools sends medium or low |
+| System prompt | Replaces the CLI instruction with one whole file opening on the platform's harness, worker its rules after it | Replaces via `model_instructions_file`; worker the Codex default and `AGENTS.md`, rules as `developer_instructions` | As Claude Code | A request with no tools carries its system prompt in the request; a run with tools as on Claude Code |
+| Tool · permission isolation | A supervisor's and a role's program in bypass mode with its line's denied tools, a runner's shown tools and an allow list, settings sources blocked but a role's checkout's own | Moves to a shell and sandbox, loads no user settings | As Claude Code | A run with tools is Claude Code's line |
 | Output schema | None. A structured answer is asked in the prompt and validated by the caller | None, for the same reason: a schema option moves the cached prefix | None | None |

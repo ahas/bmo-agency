@@ -6,8 +6,8 @@
 label = "OpenRouter"
 
 # The lines its program carries. Its runs are Claude Code's on the gateway, which carries the chat, a worker's
-# job and a gate's one-request judgement.
-lines = ["chat", "gate", "worker"]
+# job, a gate's one-request judgement and the search line, as DeepSeek's does.
+lines = ["chat", "gate", "worker", "search"]
 
 # A mapping of it carries a ceiling on the answer's tokens: its member names one.
 caps_answer_tokens = true
