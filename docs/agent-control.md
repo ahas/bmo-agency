@@ -349,7 +349,8 @@ surface in the pane its run opens. The surface answers, in the provider's own te
   `UserPromptSubmit` and `SessionStart` hooks, and a `PreToolUse` hook on the shell that closes every
   command's standard input (`docs/live-claude-guard.md`, 「Agency's shell hook closes every command's
   standard input」) and, on a supervisor's program, refuses a command starting Claude Code
-  (`docs/agents.md`, 「No print mode」); on a line that carries its background apart, its stop and submit hooks
+  (`docs/agents.md`, 「No print mode」) and, with the file tools' writes given to it too, a write in a code checkout
+  (`docs/live-claude-guard.md`, 「A supervisor writes in no code repository」); on a line that carries its background apart, its stop and submit hooks
   also write the place's background record (「Background work on a line that carries it apart」).
   The settings also name a `PreToolUse` hook on every MCP tool, the tool brief: the first time a session calls a
   tool, it hands the program that tool's manual, as the tool host's toolbook describes it to the session, and the
