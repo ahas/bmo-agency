@@ -224,10 +224,12 @@ async fn an_openrouter_member_step_stands_claude_code_on_the_gateway() {
     Some("0"),
     "a road whose provider does not bill by the attribution block drops it, so the prefix holds still"
   );
+  assert_eq!(env.get("CLAUDE_CODE_ENTRYPOINT"), None, "and names no entry point of its own");
 }
 
 // A member of the Anthropic API's road keeps Claude Code's attribution block, by which the API bills the request
-// and without which it refuses it as though the credit were spent (docs/own-llm.md, 「How requests go」).
+// and without which it refuses it as though the credit were spent, and names in it the SDK's entry point, the one
+// the API answers (docs/own-llm.md, 「How requests go」).
 #[tokio::test]
 async fn an_anthropic_member_step_keeps_claude_code_s_attribution_block() {
   let home = tempfile::tempdir().unwrap();
@@ -270,6 +272,11 @@ async fn an_anthropic_member_step_keeps_claude_code_s_attribution_block() {
     env.get("CLAUDE_CODE_ATTRIBUTION_HEADER"),
     None,
     "the attribution block stays on: {env:?}"
+  );
+  assert_eq!(
+    env.get("CLAUDE_CODE_ENTRYPOINT").map(String::as_str),
+    Some("sdk-cli"),
+    "the block names the entry point the API bills"
   );
 }
 

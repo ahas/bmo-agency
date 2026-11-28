@@ -1086,7 +1086,10 @@ never the model's name.
   - **The prefix stays still:** the attribution header is off, since the block Claude Code otherwise puts
     at the head of every request changes each time and defeats the backend's prefix cache. A provider
     that bills a request by that block declares that it keeps it, and a run on its road leaves the block
-    on: the Anthropic API refuses a request without it as though the key's credit were spent. The traffic
+    on: the Anthropic API refuses a request without it as though the key's credit were spent. Such a
+    provider may also name the entry point the block carries, since it bills one and refuses another the
+    same way: the Anthropic API answers a run that names the SDK's entry point and refuses the
+    interactive program's own, which every pane and job runs as. The traffic
     Claude Code sends to its own services beside the model is off.
   - **Thinking is an effort word:** a run with thinking on is sent `medium`, which Claude Code sends as
     `thinking` of type `adaptive`; one with it off is sent `low` with its thinking tokens at zero, so it

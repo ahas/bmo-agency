@@ -839,10 +839,17 @@ const NO_WAIT_MS: i64 = 2_147_483_647;
 /// Whether a run on the model keeps Claude Code's attribution block: a member of a road whose provider bills a
 /// request by it (docs/own-llm.md, 「How requests go」); a registration never does.
 fn keeps_attribution(held: &GatewayModel) -> bool {
-  held
-    .road
-    .and_then(harness_providers::provider)
-    .is_some_and(|provider| provider.declared().keeps_attribution)
+  declared(held).is_some_and(|declared| declared.keeps_attribution)
+}
+
+/// The entry point a run on the model names in its attribution block, where its road's provider names one.
+fn claude_entrypoint(held: &GatewayModel) -> Option<String> {
+  declared(held).and_then(|declared| declared.claude_entrypoint.clone())
+}
+
+/// What the provider of the model's road declares; none for a registration.
+fn declared(held: &GatewayModel) -> Option<&'static policy::providers::Declared> {
+  held.road.and_then(harness_providers::provider).map(|provider| provider.declared())
 }
 
 /// What Claude Code is pointed at the gateway with for a run on a registration, under the name the run is
@@ -875,6 +882,7 @@ pub(crate) fn gateway_variables(
     ("ANTHROPIC_DEFAULT_HAIKU_MODEL", Some(name.to_owned())),
     ("CLAUDE_CODE_SUBAGENT_MODEL", Some(name.to_owned())),
     ("CLAUDE_CODE_ATTRIBUTION_HEADER", (!keeps_attribution(held)).then(|| "0".to_owned())),
+    ("CLAUDE_CODE_ENTRYPOINT", claude_entrypoint(held)),
     ("CLAUDE_CODE_MAX_CONTEXT_TOKENS", Some(held.context_tokens.to_string())),
     ("CLAUDE_CODE_MAX_OUTPUT_TOKENS", Some(answer_tokens.to_string())),
     (claude::COMPACT_SHARE, Some(fold_share(held.context_tokens, answer_tokens))),

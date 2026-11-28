@@ -92,6 +92,10 @@ pub struct Declared {
   /// so a backend's prefix cache holds.
   #[serde(default)]
   pub keeps_attribution: bool,
+  /// The entry point a Claude Code run on its road names in that block, where the provider bills one and
+  /// refuses another (docs/own-llm.md, 「How requests go」); none leaves the program's own.
+  #[serde(default)]
+  pub claude_entrypoint: Option<String>,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,
   /// The route its turns take through dsh, where it has one.

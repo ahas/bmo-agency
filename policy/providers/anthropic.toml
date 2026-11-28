@@ -24,6 +24,10 @@ workspace_header = "anthropic-workspace-id"
 # requests go」).
 keeps_attribution = true
 
+# The entry point that block names: the API answers the SDK's and refuses the interactive program's own, which a
+# pane or a job runs as, as though the key's credit were spent.
+claude_entrypoint = "sdk-cli"
+
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
 # holds no row for (docs/sessions.md, 「Session compaction」): half the window.
 fold_ratio = 0.5
