@@ -1272,3 +1272,56 @@ async fn a_job_whose_agent_s_road_cannot_answer_for_a_clear_reason_goes_on_on_it
     "the handoff stands on the item"
   );
 }
+
+// A turn its provider refused for the credit spent — the Anthropic API's words, with no status — moves the job onto
+// its agent's fallback road for the turn after it, opening on the handoff, and the job goes on there to its end
+// (docs/role-agents.md, 「An agent's fallback roads」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_turn_its_provider_refused_for_spent_credit_goes_on_on_its_agent_s_fallback() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (_peers, vars) = crate::support::peers::stand().await;
+  let ground = standing_naming(&scratch, home.path(), &vars).await;
+  let agent: String = store::one(
+    scratch.db(),
+    r#"SELECT "name" FROM "role_agents" WHERE "role" = 'worker' AND "provider" = 'deepseek' ORDER BY "name" LIMIT 1"#,
+    vec![],
+  )
+  .await
+  .unwrap()
+  .unwrap()
+  .try_get("", "name")
+  .unwrap();
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "fallbacks" = '[{"provider":"claude-code","model":"claude-opus-4-6"}]' WHERE "name" = $1"#,
+      vec![agent.clone().into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "item_agent" = $1, "item_provider" = 'deepseek', "item_model" = 'deepseek-flash' WHERE "id" = 7"#,
+      vec![agent.into()],
+    )
+    .await;
+
+  let mut carrier = Ends {
+    ends: VecDeque::from([
+      TurnEnd::failed("job-7", "Credit balance is too low", None),
+      TurnEnd::answered("job-7", "Done."),
+    ]),
+    turns: vec![],
+  };
+  let ended = carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  assert_eq!(carrier.turns.len(), 2, "the refused turn, then one on the fallback");
+  assert_eq!(carrier.turns[0].0.provider, "deepseek");
+  assert_eq!(
+    (carrier.turns[1].0.provider.as_str(), carrier.turns[1].0.model.as_str()),
+    ("claude-code", "claude-opus-4-6")
+  );
+  assert!(carrier.turns[1].2.contains("## The last session's handoff"), "{}", carrier.turns[1].2);
+  assert_eq!(ended.0, "ended", "the job ends as its turn on the fallback did");
+  assert!(ended.2.as_deref().is_some_and(|report| report.contains("Done.")), "{:?}", ended.2);
+}

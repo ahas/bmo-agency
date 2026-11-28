@@ -222,3 +222,14 @@ fn a_server_error_is_an_outage_and_every_failure_names_its_cause_in_english() {
   );
   assert!(Failure::Exhausted { attempted: vec![] }.message().is_ascii());
 }
+
+// The Anthropic API's credit spent reaches the run as Claude Code's whole text with no status in front: a balance
+// refused, read as a refused login, so its road gives way to its agent's fallback.
+#[test]
+fn the_anthropic_api_s_credit_spent_is_a_refused_balance() {
+  assert_eq!(
+    of_errored("Credit balance is too low", "bmo").account_failure(),
+    Some(AccountFailure::Login)
+  );
+  assert!(!request_refused("Credit balance is too low", None));
+}

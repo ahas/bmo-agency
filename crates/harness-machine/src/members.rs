@@ -144,6 +144,18 @@ pub fn validate(members: &[Member]) -> Result<(), String> {
     {
       return Err(format!("{who} names an API base that is no address"));
     }
+    // LiteLLM puts `/v1/messages` after an Anthropic member's base, so a base that already ends in `/v1` asks a path
+    // the API does not hold and every request on it is answered not found.
+    if member.provider == "anthropic"
+      && member
+        .api_base
+        .as_deref()
+        .is_some_and(|base| base.trim_end_matches('/').ends_with("/v1"))
+    {
+      return Err(format!(
+        "{who} names an API base ending in /v1; an Anthropic member's base is the API's root, such as https://api.anthropic.com"
+      ));
+    }
     if let Some(name) = member
       .headers
       .keys()

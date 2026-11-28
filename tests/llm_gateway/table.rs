@@ -541,7 +541,7 @@ fn a_member_s_headers_ride_with_its_requests() {
     label: None,
     provider: "anthropic".into(),
     model: "claude-sonnet-5".into(),
-    api_base: Some("https://api.anthropic.com/v1".into()),
+    api_base: Some("https://api.anthropic.com".into()),
     key_file: "anthropic-api-key".into(),
     headers: Default::default(),
     context_tokens: Some(200_000),

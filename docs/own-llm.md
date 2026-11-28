@@ -459,7 +459,8 @@ never the model's name.
   - `label`: what a screen shows in place of the name.
   - `provider`: the LiteLLM provider, one of `anthropic`, `deepseek`, `openrouter` and `openai`.
   - `model`: the id the provider's API knows, with its `api_base` and its `key_file` under the data
-    root's `env/`.
+    root's `env/`. An `anthropic` member's base is the API's root, `https://api.anthropic.com`, since LiteLLM puts
+    `/v1/messages` after it; a base ending in `/v1` is refused.
   - `headers`: headers every request to the provider carries beside its key, by name, none where it names
     none: what a key needs said with it, such as the Anthropic API's `anthropic-workspace-id` for an
     organisation's key that no one workspace holds. A name is letters, digits and `-`; a value is no secret, since

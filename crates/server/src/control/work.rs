@@ -2285,19 +2285,6 @@ pub async fn carry_job<C: Carrier>(
       // answer's block is what holds the job (docs/cache-fallback.md, 「Who receives that failure」).
       let answered_it_cannot_serve = last_stop == Some(road::BlockKind::Outage);
 
-      // Every road that can answer now was already tried in this job, or every account of the last refused
-      // it, which only a person settles: it ends as its last turn did.
-      if !answered_it_cannot_serve
-        && let Some((state, outcome, report, _)) = last.take()
-        && (refused_everywhere
-          || road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
-            .await?
-            .road()
-            .is_some())
-      {
-        return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
-      }
-
       // Where the road cannot answer for a clear reason — read before anything went out, or a turn the provider
       // refused for the credential or a limit — the job moves onto its agent's next fallback road that answers, and
       // goes on there with the handoff of the session it leaves; a road refused for anything else is waited for
@@ -2331,6 +2318,19 @@ pub async fn carry_job<C: Carrier>(
         last = None;
         last_stop = None;
         continue;
+      }
+
+      // Every road that can answer now was already tried in this job, or every account of the last refused
+      // it, which only a person settles: it ends as its last turn did.
+      if !answered_it_cannot_serve
+        && let Some((state, outcome, report, _)) = last.take()
+        && (refused_everywhere
+          || road::for_job(ground, role, Some(job.worker), item, &[], asked_by)
+            .await?
+            .road()
+            .is_some())
+      {
+        return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
       }
 
       let blocked = if answered_it_cannot_serve { roads.last().map(|(road, _)| road) } else { None };

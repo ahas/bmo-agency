@@ -133,3 +133,15 @@ fn a_header_out_of_shape_refuses_the_members() {
   broken.headers.insert("x-ok".into(), "a\nb".into());
   assert!(validate(&[broken]).unwrap_err().contains("breaks its line"));
 }
+
+#[test]
+fn an_anthropic_member_whose_base_ends_in_v1_is_refused() {
+  let mut anthropic = member("claude-a", Some("anthropic"));
+
+  anthropic.provider = "anthropic".into();
+  anthropic.api_base = Some("https://api.anthropic.com/v1".into());
+  assert!(validate(std::slice::from_ref(&anthropic)).unwrap_err().contains("ending in /v1"));
+
+  anthropic.api_base = Some("https://api.anthropic.com".into());
+  assert!(validate(&[anthropic]).is_ok());
+}

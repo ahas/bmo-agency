@@ -234,8 +234,12 @@ static KEY_REFUSED: LazyLock<Regex> =
 static KEY_UNUSABLE: LazyLock<Regex> = LazyLock::new(|| {
   Regex::new(r"(?i)api key is not scoped to a workspace").expect("an unusable key's wording")
 });
-static BALANCE_SPENT: LazyLock<Regex> =
-  LazyLock::new(|| Regex::new(r#"(?i)"message"\s*:\s*"insufficient balance""#).expect("a balance refusal"));
+// The Anthropic API's own words for its credit spent, which Claude Code writes as the turn's whole text with no
+// status in front: a balance spent, as DeepSeek's insufficient balance is.
+static BALANCE_SPENT: LazyLock<Regex> = LazyLock::new(|| {
+  Regex::new(r#"(?i)"message"\s*:\s*"insufficient balance"|credit balance is too low"#)
+    .expect("a balance refusal")
+});
 
 // The connection to the provider, or to the model gateway in front of it, refused: nothing answered the
 // request at all, as while the gateway restarts.
