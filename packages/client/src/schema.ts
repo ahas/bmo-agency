@@ -3821,6 +3821,16 @@ export interface components {
              */
             keyFile: string | null;
             /**
+             * @description Whether its requests name a workspace the owner chooses (docs/provider-presence.md, 「A provider's workspace」).
+             * @default false
+             */
+            takesWorkspace: boolean;
+            /**
+             * @description The workspace its requests are spent in, where it takes one; none for the key's default.
+             * @default null
+             */
+            workspace: string | null;
+            /**
              * @description on a switch thrown off, what it does to the runs going out on it now: `run-to-end`, each finishing as it went
              *     out and no new run going out on it (docs/change-branches.md); absent where none goes
              */
@@ -3874,6 +3884,11 @@ export interface components {
         /** @description The body that throws a provider's switch. */
         ProviderChange: {
             enabled?: boolean | null;
+            /**
+             * @description The workspace its requests are spent in, on a provider that takes one: a workspace's id, or null for the key's
+             *     default (docs/provider-presence.md, 「A provider's workspace」); absent leaves it as it stands.
+             */
+            workspace?: string | null;
         };
         /** @description The gateway's members, in the members file's order. */
         GatewayMemberPage: {

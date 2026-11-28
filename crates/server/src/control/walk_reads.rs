@@ -42,6 +42,12 @@ async fn provider_view(ground: &Ground, name: &str) -> Result<Value, Refused> {
     "reasonCode": missing.as_ref().map(|missing| missing.code.clone()),
     "foldRatioDefault": declared.fold_ratio.unwrap_or(crate::order::DEFAULT_FOLD_RATIO),
     "keyFile": provider.key_file(),
+    // The workspace its requests are spent in, where it takes one: none for the key's default
+    // (docs/provider-presence.md, 「A provider's workspace」).
+    "takesWorkspace": declared.workspace_header.is_some(),
+    "workspace": declared.workspace_header.as_deref().and_then(|header| {
+      super::gateway_members::road_header(&harness_machine::members::path(&ground.roots.data), name, header)
+    }),
   }))
 }
 
@@ -101,6 +107,42 @@ impl Route for ChangeProvider {
       set_provider_enabled(call.store(), &name, enabled)
         .await
         .map_err(|refused| Refused::new(StatusCode::CONFLICT, refused.error))?;
+    }
+
+    // The workspace its requests are spent in, where it takes one: a workspace's id, or null for the key's default
+    // (docs/provider-presence.md, 「A provider's workspace」).
+    if let Some(workspace) = asked.get("workspace") {
+      let Some(header) = named(&name)?.declared().workspace_header.clone() else {
+        return Err(
+          Refused::new(StatusCode::UNPROCESSABLE_ENTITY, format!("{name} takes no workspace"))
+            .with_field("workspace"),
+        );
+      };
+      let id = match workspace {
+        Value::Null => None,
+        Value::String(id)
+          if !id.trim().is_empty()
+            && id.trim().chars().all(|one| one.is_ascii_alphanumeric() || one == '_' || one == '-') =>
+        {
+          Some(id.trim().to_owned())
+        }
+        _ => {
+          return Err(
+            Refused::new(
+              StatusCode::UNPROCESSABLE_ENTITY,
+              "workspace: a workspace's id — letters, digits, `_` and `-` — or null for the key's default.",
+            )
+            .with_field("workspace"),
+          );
+        }
+      };
+
+      super::gateway_members::road_header_written(
+        &harness_machine::members::path(&call.data_root()),
+        &name,
+        &header,
+        id.as_deref(),
+      )?;
     }
 
     let mut shown = provider_view(call.ground(), &name).await?;

@@ -13,7 +13,7 @@ use axum::response::Response;
 use harness_machine::members::{self, Member};
 use policy::control_words::CONTROL_WORDS;
 use policy::fill_marks;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use super::fault::Fault;
 use super::registry::{checked_account, checked_unit};
@@ -142,6 +142,70 @@ fn rewritten(path: &Path, name: &str, owned: Owned) -> Result<bool, Refused> {
     .map_err(|why| unwritten(path, why))?;
 
   Ok(true)
+}
+
+/// Every member of a road given a header naming `value`, or that header taken away where `value` is none, the file
+/// rewritten whole in one step under the writer's lock (docs/provider-presence.md, 「A provider's workspace」).
+/// Answers how many members it wrote.
+pub fn road_header_written(
+  path: &Path,
+  road: &str,
+  header: &str,
+  value: Option<&str>,
+) -> Result<usize, Refused> {
+  let _writing = WRITING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+  let text = match std::fs::read_to_string(path) {
+    Ok(text) => text,
+    Err(why) if why.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+    Err(why) => return Err(unread(why)),
+  };
+  let mode = std::fs::metadata(path).map_err(unread)?.permissions();
+  let mut held: Value = serde_json::from_str(&text).map_err(unread)?;
+  let mut written = 0;
+
+  for member in held.as_array_mut().into_iter().flatten().filter_map(Value::as_object_mut) {
+    if member.get("road").and_then(Value::as_str) != Some(road) {
+      continue;
+    }
+
+    let headers = member.entry("headers").or_insert_with(|| Value::Object(Map::new()));
+
+    if let Some(headers) = headers.as_object_mut() {
+      match value {
+        Some(value) => headers.insert(header.to_owned(), value.into()),
+        None => headers.remove(header),
+      };
+
+      if headers.is_empty() {
+        member.remove("headers");
+      }
+    }
+
+    written += 1;
+  }
+
+  let text = serde_json::to_string_pretty(&held).expect("a file read is written") + "\n";
+  let mut staged = path.as_os_str().to_owned();
+
+  staged.push(format!(".{}.new", agent_host::disk::staged_suffix()));
+
+  let staged = Path::new(&staged);
+
+  std::fs::write(staged, text)
+    .and_then(|()| std::fs::set_permissions(staged, mode))
+    .and_then(|()| std::fs::rename(staged, path))
+    .map_err(|why| unwritten(path, why))?;
+
+  Ok(written)
+}
+
+/// The value of a header the members of a road carry, the first member's that names one.
+pub fn road_header(path: &Path, road: &str, header: &str) -> Option<String> {
+  read(path)
+    .ok()?
+    .into_iter()
+    .filter(|member| member.road.as_deref() == Some(road))
+    .find_map(|member| member.headers.get(header).cloned())
 }
 
 /// `GET /gateway-members`: the members of the members file the caller reaches, each with its road, label,

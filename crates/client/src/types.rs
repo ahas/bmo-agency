@@ -707,6 +707,12 @@ pub struct Provider {
   /// content is never reported.
   #[serde(default)]
   pub key_file: Option<String>,
+  /// Whether its requests name a workspace the owner chooses (docs/provider-presence.md, 「A provider's workspace」).
+  #[serde(default)]
+  pub takes_workspace: bool,
+  /// The workspace its requests are spent in, where it takes one; none for the key's default.
+  #[serde(default)]
+  pub workspace: Option<String>,
   /// on a switch thrown off, what it does to the runs going out on it now: `run-to-end`, each finishing as it went
   /// out and no new run going out on it (docs/change-branches.md); absent where none goes
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3136,6 +3142,10 @@ pub struct PlaceChange {
 pub struct ProviderChange {
   #[serde(default, skip_serializing_if = "Option::is_none")]
   pub enabled: Option<bool>,
+  /// The workspace its requests are spent in, on a provider that takes one: a workspace's id, or null for the key's
+  /// default (docs/provider-presence.md, 「A provider's workspace」); absent leaves it as it stands.
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub workspace: Option<Option<String>>,
 }
 
 /// One address of a registration set, its key named by a file in the platform's space of the secret store.

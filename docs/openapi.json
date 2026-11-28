@@ -14620,6 +14620,19 @@
             "description": "The file under the data root's `env/` its own key is read from, or null for a provider that reads none. Its\ncontent is never reported.",
             "default": null
           },
+          "takesWorkspace": {
+            "type": "boolean",
+            "description": "Whether its requests name a workspace the owner chooses (docs/provider-presence.md, 「A provider's workspace」).",
+            "default": false
+          },
+          "workspace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The workspace its requests are spent in, where it takes one; none for the key's default.",
+            "default": null
+          },
           "runningWork": {
             "type": [
               "string",
@@ -14643,7 +14656,9 @@
           "reason",
           "reasonCode",
           "foldRatioDefault",
-          "keyFile"
+          "keyFile",
+          "takesWorkspace",
+          "workspace"
         ],
         "description": "Provider: one provider agency carries, with its switch, what it declares and what it has left."
       },
@@ -14763,6 +14778,13 @@
               "boolean",
               "null"
             ]
+          },
+          "workspace": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The workspace its requests are spent in, on a provider that takes one: a workspace's id, or null for the key's\ndefault (docs/provider-presence.md, 「A provider's workspace」); absent leaves it as it stands."
           }
         },
         "description": "The body that throws a provider's switch."

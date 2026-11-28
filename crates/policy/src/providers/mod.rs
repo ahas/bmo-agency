@@ -83,6 +83,10 @@ pub struct Declared {
   #[serde(default)]
   pub fold_ratio: Option<f64>,
   pub effort: Effort,
+  /// The header a request names the provider's workspace in, where its key may belong to no one workspace and
+  /// the owner chooses one (docs/provider-presence.md, 「A provider's workspace」); none where it takes none.
+  #[serde(default)]
+  pub workspace_header: Option<String>,
   /// Its standing program, where it stands one in an agent's pane.
   pub resident: Option<Resident>,
   /// The route its turns take through dsh, where it has one.

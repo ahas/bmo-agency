@@ -15,6 +15,10 @@ caps_answer_tokens = true
 # Its engine is not the owner's own: what a session reads goes to the outside service.
 owners_engine = false
 
+# An organisation's key belongs to no one workspace, and every request on it names the workspace it is spent in:
+# the owner chooses it, or leaves the key's default (docs/provider-presence.md, 「A provider's workspace」).
+workspace_header = "anthropic-workspace-id"
+
 # The share of a model's window a session may fill before it is folded, at a tier the fold-ratio table
 # holds no row for (docs/sessions.md, 「Session compaction」): half the window.
 fold_ratio = 0.5

@@ -65,6 +65,19 @@ flowchart TD
   can answer now」, `docs/provider-order.md`, 「Whether a road can answer」). A provider whose balance is
   spent says where its member says it is topped up, from its own policy file.
 
+## A provider's workspace
+
+- **A provider whose key may belong to no one workspace declares the header a request names its workspace in,**
+  `workspace_header` in its policy: the Anthropic API's `anthropic-workspace-id`, since an organisation's key is
+  refused on every request that names none. A provider that declares none takes no workspace.
+- **The owner chooses it:** `PATCH /providers/{name}` with `workspace`, a workspace's id — letters, digits, `_` and
+  `-` — or null for the key's default (`docs/api.md`, 「providers」). The choice is written as that header on every
+  gateway member of the provider's road (`docs/own-llm.md`, 「The gateway's members」), the file rewritten whole in one
+  step, and the gateway's next beat serves it; null takes the header away, so a key a workspace holds goes out as
+  it is. A provider that takes none is refused 422.
+- **The provider's view answers it:** `takesWorkspace`, whether it declares one, and `workspace`, the id its members
+  carry now, or null for the key's default.
+
 ## Which models a provider offers
 
 - **Codex, OpenRouter and DeepSeek:** the members of their road, each with its window, answer ceiling and

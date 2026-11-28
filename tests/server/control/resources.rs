@@ -821,3 +821,89 @@ async fn the_model_resource_is_one_record() {
     404
   );
 }
+
+// A provider whose key may belong to no one workspace takes the workspace its requests are spent in: the id written as
+// its header on every gateway member of its road, null taking it away, and a provider that takes none refused
+// (docs/provider-presence.md, 「A provider's workspace」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_provider_s_workspace_is_written_on_its_road_s_members_and_taken_away() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+  let token = "secret";
+  let members = data.join("llm-gateway").join("members.json");
+
+  std::fs::create_dir_all(members.parent().unwrap()).unwrap();
+  std::fs::write(
+    &members,
+    r#"[{"name":"claude-sonnet-5","road":"anthropic","provider":"anthropic","model":"claude-sonnet-5","key_file":"anthropic-api-key","context_tokens":200000,"answer_tokens":32000,"thinking":false},
+        {"name":"claude-opus-5-5","road":"anthropic","provider":"anthropic","model":"claude-opus-5-5","key_file":"anthropic-api-key","context_tokens":200000,"answer_tokens":32000,"thinking":false},
+        {"name":"deepseek-flash","road":"deepseek","provider":"deepseek","model":"deepseek-flash","key_file":"deepseek.key","context_tokens":1048576,"answer_tokens":32768,"thinking":true}]"#,
+  )
+  .unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), token);
+  let port = server.port;
+  let headers = || -> Vec<Value> {
+    serde_json::from_str::<Vec<Value>>(&std::fs::read_to_string(&members).unwrap())
+      .unwrap()
+      .into_iter()
+      .map(|member| member["headers"].clone())
+      .collect()
+  };
+
+  let (status, set) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/providers/anthropic",
+    json!({ "workspace": "wrkspc_01Example" }),
+  )
+  .await;
+  assert_eq!(status, 200, "{set}");
+  assert_eq!(
+    (set["takesWorkspace"].clone(), set["workspace"].clone()),
+    (json!(true), json!("wrkspc_01Example"))
+  );
+  assert_eq!(
+    headers(),
+    [
+      json!({ "anthropic-workspace-id": "wrkspc_01Example" }),
+      json!({ "anthropic-workspace-id": "wrkspc_01Example" }),
+      Value::Null
+    ],
+    "every member of the road carries it, and no other road's"
+  );
+
+  let (status, cleared) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/providers/anthropic",
+    json!({ "workspace": null }),
+  )
+  .await;
+  assert_eq!(status, 200, "{cleared}");
+  assert_eq!(cleared["workspace"], Value::Null);
+  assert_eq!(headers(), [Value::Null, Value::Null, Value::Null], "the key's default sends no header");
+
+  let (status, refused) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/providers/anthropic",
+    json!({ "workspace": "not an id!" }),
+  )
+  .await;
+  assert_eq!(status, 422, "{refused}");
+
+  let (status, none) = send(
+    port,
+    token,
+    reqwest::Method::PATCH,
+    "/providers/deepseek",
+    json!({ "workspace": "wrkspc_x" }),
+  )
+  .await;
+  assert_eq!(status, 422, "a provider that takes no workspace refuses one: {none}");
+}
