@@ -128,6 +128,8 @@ waiting_item = "- #{item} {title}: {why}"
 left_out = "- {n} more waiting items are left out"
 
 [catalogue.why]
+# The orderer's own reason, its `waiting-why` label (the job service's `todo_wait`), stands before every other.
+let_wait = "its orderer lets it wait: {why}"
 paused = "its queue {queue} gives no lease"
 unlaunchable = "no checkout agency holds is of {assignee}"
 role_unknown = "its role {role} is none agency holds"
@@ -140,7 +142,7 @@ could_start = "it can start now on {agents}"
 # The next step each kind of queue notice says under its order, by its event (docs/agent-control.md, 「Every queue
 # notice says its next step」): what the orderer does now with what the notice tells, said as one line.
 [next]
-agent-idle = "Next: launch the first item it can take on it now, or say in one line why that item waits."
+agent-idle = "Next: launch the first item it can take on it now, or say in one line why that item waits with todo_wait."
 item-queue-paused = "Next: resume the queue, or move the item to a queue that gives leases."
 item-unlaunchable = "Next: set the item's assignee to a checkout agency holds."
 item-agent-refused = "Next: name an agent that takes jobs, or take the agent label off."

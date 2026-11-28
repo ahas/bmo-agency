@@ -1344,6 +1344,19 @@ fn the_catalogue_names_the_idle_agents_and_why_each_waiting_item_does_not_start(
     first("1") < first("2") && first("4") < first("5"),
     "the queue's order, the paused after: {text}"
   );
+
+  // The orderer's own reason, said with todo_wait, stands in place of agency's.
+  let mut held = standing.clone();
+
+  held.open[3].waiting_why = Some("waits for the owner's review of #3".to_owned());
+
+  let text = catalogue(&held, 0);
+
+  assert!(
+    text.lines().any(|line| line.starts_with("- #1 ")
+      && line.ends_with("its orderer lets it wait: waits for the owner's review of #3")),
+    "{text}"
+  );
 }
 
 // "carried while it is no older than the policy's freshness"

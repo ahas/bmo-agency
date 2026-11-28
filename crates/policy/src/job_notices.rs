@@ -174,6 +174,8 @@ pub struct Catalogue {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogueWhy {
+  /// Its orderer lets it wait, saying why on its `waiting-why` label: `{why}`.
+  pub let_wait: String,
   /// Its queue gives no lease: `{queue}`.
   pub paused: String,
   /// No checkout agency holds is of its assignee: `{assignee}`.

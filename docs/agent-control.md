@@ -3563,7 +3563,8 @@ them run a browser, and whose a place is.
 
 - **Every order a queue notice carries has the queue's standing under it,** as the queue's minute pass last read
   it: the agents idle now, each with its role and model, and every waiting item in the queue's order, the items of
-  a queue giving no lease after them, each with why it does not start — its queue gives no lease, no checkout
+  a queue giving no lease after them, each with why it does not start — its orderer's own reason first, where it said
+  one with the job service's `todo_wait` (the item's `waiting-why` label), else its queue gives no lease, no checkout
   agency holds is of its assignee, its role is none agency holds, its `agent` label takes no launch, no agent of
   its role switched on runs its model, no checkout it may go to is free, every agent that could take it is busy
   (naming them), or it can start now on the idle agents naming them. The orderer reads the whole queue beside the

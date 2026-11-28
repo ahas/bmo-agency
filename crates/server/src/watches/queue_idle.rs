@@ -50,6 +50,9 @@ pub const DRAFT_TOLD_PREFIX: &str = "queue_draft_told:";
 /// The settings rows, one an item by its number, of when the orderer was told the held item's wait has ended.
 pub const WAIT_TOLD_PREFIX: &str = "queue_wait_told:";
 
+/// The label an item carries why its orderer lets it wait (the job service's `todo_wait`).
+pub const WAITING_WHY_LABEL: &str = "waiting-why";
+
 /// An open item as the alarm reads it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Open {
@@ -76,6 +79,8 @@ pub struct Open {
   pub queue: String,
   /// Whether its queue is paused or under a hold, and so gives no lease.
   pub paused: bool,
+  /// Why its orderer lets it wait, its `waiting-why` label, where it names one.
+  pub waiting_why: Option<String>,
 }
 
 impl Open {
@@ -961,6 +966,7 @@ async fn open_items(service: &JobService) -> Result<Vec<Open>, String> {
           room: room_of(item),
           parent: parent_of(item),
           paused: !taking.contains(&queue.as_str()),
+          waiting_why: named_by(&item["labels"], WAITING_WHY_LABEL).map(str::to_owned),
           queue,
         })
       })
@@ -1112,6 +1118,10 @@ pub fn catalogue(standing: &Standing, at: i64) -> String {
 fn why_waiting(standing: &Standing, item: &Open, idle: &[&RoleAgent]) -> String {
   let why = &JOB_NOTICES.catalogue.why;
   let assignee = item.assignee.clone().unwrap_or_else(|| JOB_NOTICES.any_worker.clone());
+
+  if let Some(said) = &item.waiting_why {
+    return fill_marks(&why.let_wait, &[("why", said)]);
+  }
 
   if item.paused {
     return fill_marks(&why.paused, &[("queue", &item.queue)]);
