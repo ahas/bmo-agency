@@ -44,6 +44,7 @@ base_libraries = [
   "bmo-chat",
   "bmo-chat-client",
   "bmo-secret-shapes",
+  "bmo-chain",
   "bmo-gate-client",
   "bmo-ui",
   "bmo-brain-client",

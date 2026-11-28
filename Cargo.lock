@@ -69,6 +69,7 @@ dependencies = [
  "bmo-agency-client",
  "bmo-brain-client",
  "bmo-cache-warmer-schedule",
+ "bmo-chain",
  "bmo-chat",
  "bmo-gate-client",
  "bmo-node-client",
@@ -459,6 +460,14 @@ dependencies = [
 [[package]]
 name = "bmo-cache-warmer-schedule"
 version = "0.0.0"
+
+[[package]]
+name = "bmo-chain"
+version = "0.0.0"
+dependencies = [
+ "reqwest",
+ "serde_json",
+]
 
 [[package]]
 name = "bmo-chat"

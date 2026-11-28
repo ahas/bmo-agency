@@ -2732,7 +2732,8 @@ own and returns; and once an hour GitHub's search through
 asked of the authority when a judgement needs it and kept nowhere (「Who a caller acts for」 above): in a BMO
 deployment the web's account service, reached at `WEB_ADDRESS` with `WEB_TOKEN`, or the file `WEB_TOKEN_FILE`
 names, else from the web unit's `env/web.env` under the data root where the process's environment names neither.
-Where none is named, agency stands alone: no account heads any unit, and every chained setting says nothing, so
+It asks the chain's routes through the base library `bmo-chain` (bmo-chat's `docs/chain.md`), as agency the unit
+that declares its kinds. Where none is named, agency stands alone: no account heads any unit, and every chained setting says nothing, so
 its default stands. Whether a person heads a unit is the chain's answer of who writes the unit's link of the
 resource's kind, `GET /chain/kinds/{key}/links/unit:<id>` in the person's name, and the units under a unit are
 `GET /units/{unit}/subtree` in the reader's name. The authority is asked, as a record is issued for a person's account and as a resident program's turn begins, for the

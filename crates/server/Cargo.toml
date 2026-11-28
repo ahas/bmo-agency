@@ -34,6 +34,7 @@ bmo-brain-client.workspace = true
 bmo-cache-warmer-schedule.workspace = true
 bmo-chat.workspace = true
 bmo-secret-shapes.workspace = true
+bmo-chain.workspace = true
 bmo-gate-client.workspace = true
 bmo-node-client.workspace = true
 bmo-pocket-client.workspace = true
