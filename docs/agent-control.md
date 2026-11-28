@@ -3497,6 +3497,9 @@ them run a browser, and whose a place is.
   one of the job service's unattended labels, a pull request's review among them, so its state is the whole of
   whether it may be launched. An agent is idle where all of these hold:
   - it is switched on, of the deployment's own account, and its road names a provider and a model;
+  - its home node, where it names one, is heard: no launch goes to a node whose link is down
+    (`docs/work-nodes.md`), so an agent whose home node's link has not been heard in the last twenty seconds is no
+    idle agent until it is;
   - it is free: no job naming it stands `starting`, `running` or `reviewing` unpaused and no slot request is
     let in on it, a job standing in the machine's turn aside (`docs/role-agents.md`, 「When an agent is busy」);
     a role's cap is the number of its agents switched on, so a free agent always finds a slot of its role;

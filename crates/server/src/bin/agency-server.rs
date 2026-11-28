@@ -498,7 +498,13 @@ fn clocks(ground: &Arc<Ground>) {
       let ground = idle.clone();
 
       async move {
-        agency_server::watches::queue_idle::pass(&ground.db, ground.vars(), &ground.peers.gate).await
+        agency_server::watches::queue_idle::pass(
+          &ground.db,
+          ground.vars(),
+          &ground.peers.gate,
+          &ground.roots.data,
+        )
+        .await
       }
     })
     .await

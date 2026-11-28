@@ -36,7 +36,13 @@ async fn pass(
   db: &sea_orm::DatabaseConnection,
   vars: &std::collections::BTreeMap<String, String>,
 ) -> Result<(), String> {
-  agency_server::watches::queue_idle::pass(db, vars, &crate::support::gates::none()).await
+  agency_server::watches::queue_idle::pass(
+    db,
+    vars,
+    &crate::support::gates::none(),
+    std::path::Path::new("/nonexistent"),
+  )
+  .await
 }
 
 fn open(id: i64, assignee: Option<&str>) -> Open {
@@ -203,6 +209,7 @@ fn an_agent_switched_on_on_a_road_carrying_no_run_and_able_to_take_an_open_item_
   };
 
   not_idle(&|held| held.carrying = vec!["coder-a".to_owned()], "it carries a run");
+  not_idle(&|held| held.unheard = vec!["coder-a".to_owned()], "its home node's link is not heard");
   not_idle(&|held| held.agents[0].enabled = false, "switched off");
   not_idle(&|held| held.agents[0].owner_account = Some(7), "a login account's seat");
   not_idle(&|held| held.agents[0].provider = None, "its road names no provider");

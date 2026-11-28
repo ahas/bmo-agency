@@ -125,6 +125,9 @@ pub struct Standing {
   pub agents: Vec<RoleAgent>,
   /// Every role the store holds, by name.
   pub roles: Vec<String>,
+  /// The agents whose home node's link is not heard now: no launch goes to a node whose link is down
+  /// (docs/work-nodes.md), so none of them is idle.
+  pub unheard: Vec<String>,
 }
 
 impl Standing {
@@ -175,6 +178,7 @@ impl Standing {
       && agent.provider.is_some()
       && agent.model.is_some()
       && !self.carrying.contains(&agent.name)
+      && !self.unheard.contains(&agent.name)
   }
 }
 
@@ -908,6 +912,7 @@ pub async fn held(db: &DatabaseConnection, open: Vec<Open>) -> Result<Standing, 
     carrying,
     agents,
     roles,
+    unheard: vec![],
   })
 }
 
@@ -1163,6 +1168,7 @@ pub async fn pass(
   db: &DatabaseConnection,
   vars: &BTreeMap<String, String>,
   gate: &Arc<dyn Gate>,
+  data: &std::path::Path,
 ) -> Result<(), String> {
   let Some(service) = JobService::of(vars) else { return Ok(()) };
 
@@ -1171,7 +1177,21 @@ pub async fn pass(
   }
 
   let open = open_items(&service).await?;
-  let standing = held(db, open).await.map_err(|why| why.detail)?;
+  let mut standing = held(db, open).await.map_err(|why| why.detail)?;
+
+  // An agent whose home node's link is not heard is no idle agent (docs/agent-control.md, 「An idle agent is told
+  // to the orderers of the items it could take」).
+  standing.unheard = standing
+    .agents
+    .iter()
+    .filter(|agent| {
+      agent
+        .home_node
+        .as_deref()
+        .is_some_and(|node| !crate::watches::links::link_heard(data, node))
+    })
+    .map(|agent| agent.name.clone())
+    .collect();
   let now = crate::now_ms();
 
   crate::job_notices::hold_catalogue(now, catalogue(&standing, now));
