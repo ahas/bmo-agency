@@ -6,9 +6,10 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bmo_agency_client::{
-  AgencyClient, Answer, AssignWorker, Assignment, AssignmentChange, AssignmentState, ClientFailure,
-  FILE_ITEM, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobReviewed, JobStopAsk, REVIEW_JOB,
-  ReleaseWorker, ReviewJob, RunJob, STOP_JOB, StopJob,
+  AGENT_FALLBACK_ADD, AGENT_FALLBACK_MOVE, AGENT_FALLBACK_REMOVE, AddFallback, AgencyClient, Answer,
+  AssignWorker, Assignment, AssignmentChange, AssignmentState, ClientFailure, FILE_ITEM, FallbackAdd,
+  FallbackMove, FileItem, ItemFiled, ItemFilingAsk, Job, JobReviewAsk, JobReviewed, JobStopAsk,
+  MoveFallback, REVIEW_JOB, ReleaseWorker, RemoveFallback, ReviewJob, RoleAgent, RunJob, STOP_JOB, StopJob,
 };
 use rmcp::model::{
   CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation, InitializeResult,
@@ -190,6 +191,35 @@ pub fn tools(agent: Option<&str>) -> Vec<AgencyTool> {
   }
 
   tools.extend([
+    tool::<AddFallback, RoleAgent, _, _>(
+      "agent_fallback_add",
+      AGENT_FALLBACK_ADD,
+      "POST /role-agents/{agentName}/fallbacks",
+      |client, add: AddFallback| async move {
+        let body = FallbackAdd {
+          road: add.road,
+          position: add.position,
+        };
+
+        client.create_role_agent_fallbacks(&add.agent, &body).await
+      },
+    ),
+    tool::<RemoveFallback, RoleAgent, _, _>(
+      "agent_fallback_remove",
+      AGENT_FALLBACK_REMOVE,
+      "DELETE /role-agents/{agentName}/fallbacks/{position}",
+      |client, remove: RemoveFallback| async move {
+        client.delete_role_agent_fallback(&remove.agent, remove.position).await
+      },
+    ),
+    tool::<MoveFallback, RoleAgent, _, _>(
+      "agent_fallback_move",
+      AGENT_FALLBACK_MOVE,
+      "POST /role-agents/{agentName}/fallbacks/{position}/move",
+      |client, moved: MoveFallback| async move {
+        client.create_role_agent_fallback_move(&moved.agent, moved.position, &FallbackMove { to: moved.to }).await
+      },
+    ),
     tool::<AssignWorker, Assignment, _, _>(
       "assign_worker",
       "Assign a worker to an item for the harness holding it: the agency picks the worker from the item's content and the assignee it names, and holds it until the job starts or the hold runs out.",

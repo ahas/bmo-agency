@@ -181,6 +181,7 @@ pub(crate) fn fresh(role: &str, name: Option<String>) -> RoleAgent {
     owner_unit: None,
     home_node: None,
     follows_asker: None,
+    fallbacks: Vec::new(),
   }
 }
 

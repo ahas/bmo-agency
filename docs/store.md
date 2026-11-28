@@ -94,9 +94,9 @@ seeds. The other crates and the server reach the store only through it.
     is or none, the provider and model
     its runs go out on or none, the effort, thinking, answer ceiling and advisor there, whether it is switched on,
     whether its kept session is kept warm, whether its runs keep their sessions, its compaction threshold or none,
-    whether it follows the supervisor that asks its run or none for its role's setting, and the prompt,
-    bundles and skills it lays over its role's, each none where the role's own stands
-    (`docs/role-agents.md`);
+    whether it follows the supervisor that asks its run or none for its role's setting, its fallback roads in
+    order (`fallbacks`, a JSON list, empty where it holds none), and the prompt, bundles and skills it lays over
+    its role's, each none where the role's own stands (`docs/role-agents.md`);
   - the agents' attachments: `agent_attachments`, one row an item attached to a holder — the account, the holder's
     kind, `supervisor` or `agent`, its name, the item's kind, `skill` or `mcp`, its name, and when it was attached
     in epoch milliseconds (`docs/person-nodes.md`, 「Attaching skills and MCP servers」);

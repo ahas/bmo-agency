@@ -1176,3 +1176,99 @@ async fn a_launch_on_a_worker_with_runs_writes_start() {
 
   assert_eq!(&*started.lock().unwrap(), &["start".to_owned()]);
 }
+
+// A job whose agent's own road cannot answer for a clear reason — its key file gone, read before anything goes out —
+// moves onto the agent's fallback road, opening its turn on the run log's handoff and keeping the road it moved
+// to on its row; a job whose road refuses for no clear reason moves nowhere (docs/role-agents.md, 「An agent's
+// fallback roads」).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_job_whose_agent_s_road_cannot_answer_for_a_clear_reason_goes_on_on_its_fallback_with_the_handoff()
+ {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let (peers, vars) = crate::support::peers::stand().await;
+  let ground = standing_naming(&scratch, home.path(), &vars).await;
+  let agent: String = store::one(
+    scratch.db(),
+    r#"SELECT "name" FROM "role_agents" WHERE "role" = 'worker' AND "provider" = 'deepseek' ORDER BY "name" LIMIT 1"#,
+    vec![],
+  )
+  .await
+  .unwrap()
+  .unwrap()
+  .try_get("", "name")
+  .unwrap();
+
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "fallbacks" = '[{"provider":"claude-code","model":"claude-opus-4-6","effort":"high"}]'
+         WHERE "name" = $1"#,
+      vec![agent.clone().into()],
+    )
+    .await;
+  scratch
+    .run(
+      r#"UPDATE "jobs" SET "item_agent" = $1, "item_provider" = 'deepseek', "item_model" = 'deepseek-flash'
+         WHERE "id" = 7"#,
+      vec![agent.clone().into()],
+    )
+    .await;
+
+  let mut log = RunLog::new(Target {
+    agent: "helper".to_owned(),
+    run: "job-7".to_owned(),
+    chat_id: None,
+    job_id: Some(7),
+  });
+
+  log
+    .write(
+      scratch.db(),
+      agency_server::run_log::lines::Line::note("Wrote the parser; the fixture still fails.".to_owned()),
+    )
+    .await;
+  // The agent's own road has no credential on this machine now: a clear reason.
+  std::fs::remove_file(home.path().join("data").join("env").join("deepseek.key")).unwrap();
+
+  let mut carrier = Ends {
+    ends: VecDeque::from([TurnEnd::answered("job-7", "Done.")]),
+    turns: vec![],
+  };
+  carry_job(&ground, &job(), &mut carrier).await.unwrap().expect("an end");
+
+  let (taken, entry, prompt) = &carrier.turns[0];
+
+  assert_eq!((taken.provider.as_str(), taken.model.as_str()), ("claude-code", "claude-opus-4-6"));
+  assert_eq!(entry.effort.as_deref(), Some("high"), "the fallback's own effort goes with it");
+  assert!(prompt.contains("## The last session's handoff"), "{prompt}");
+  assert!(prompt.contains("Wrote the parser; the fixture still fails."), "{prompt}");
+  assert!(prompt.contains("fallback road claude-code/claude-opus-4-6"), "{prompt}");
+  assert!(prompt.ends_with(job().prompt), "{prompt}");
+
+  let row = store::one(
+    scratch.db(),
+    r#"SELECT "item_provider", "item_model" FROM "jobs" WHERE "id" = 7"#,
+    vec![],
+  )
+  .await
+  .unwrap()
+  .unwrap();
+
+  assert_eq!(
+    (
+      row.try_get::<String>("", "item_provider").unwrap(),
+      row.try_get::<String>("", "item_model").unwrap()
+    ),
+    ("claude-code".to_owned(), "claude-opus-4-6".to_owned()),
+    "the job's row names the road it stands on now"
+  );
+  assert!(
+    peers
+      .lock()
+      .unwrap()
+      .notes
+      .get(&70)
+      .is_some_and(|notes| notes.iter().any(|note| note["labels"]["kind"] == "handoff")),
+    "the handoff stands on the item"
+  );
+}

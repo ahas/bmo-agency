@@ -6,5 +6,8 @@ mod tools;
 mod types;
 
 pub use client::{AgencyClient, Answer, ClientFailure, ListAccountsQuery, OrgUnitRemovalQuery};
-pub use tools::{FILE_ITEM, REVIEW_JOB, STOP_JOB, TOOLS, Tool};
+pub use tools::{
+  AGENT_FALLBACK_ADD, AGENT_FALLBACK_MOVE, AGENT_FALLBACK_REMOVE, FILE_ITEM, REVIEW_JOB, STOP_JOB, TOOLS,
+  Tool,
+};
 pub use types::*;

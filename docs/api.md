@@ -428,6 +428,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
 | POST | `/role-agents` | Add an agent to a role. |
 | PATCH | `/role-agents/{agentName}` | Change any field of an agent. |
 | DELETE | `/role-agents/{agentName}` | Remove an agent that carries no run. |
+| POST | `/role-agents/{agentName}/fallbacks` | Add one fallback road to an agent, at a position. |
+| DELETE | `/role-agents/{agentName}/fallbacks/{position}` | Remove one fallback road of an agent. |
+| POST | `/role-agents/{agentName}/fallbacks/{position}/move` | Move one fallback road of an agent to another position. |
 | POST | `/composed-agents/{ownerAccount}` | Make a person's agents as the sign-up composition resolved for them says. |
 | GET | `/signup-composition` | The sign-up composition standing for a unit or a person, and the subject's own link. |
 | POST | `/signup-composition/judge` | Judge a sign-up composition's value, which the console then writes on its chain. |
@@ -486,7 +489,9 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   `keepsCache`, `sessions`, `foldRatio`, `prompt`, `bundles`, `skills`, `addedAt`, `followsAsker`, true or false
   where it sets whether it follows its asker and null where its role's setting stands (`docs/role-agents.md`, 「An
   agent that follows its asker」), with `followsSupervisor`, true where it names no road or follows its asker by its
-  own setting or its role's, and `carries`, whether a run stands let in on it now. A role's `agents` are answered
+  own setting or its role's, `carries`, whether a run stands let in on it now, and `fallbacks`, its fallback
+  roads in order, each `provider`, `model`, `effort`, `thinking`, `answerTokens` and `advisor`, an empty list
+  where it holds none (`docs/role-agents.md`, 「An agent's fallback roads」). A role's `agents` are answered
   the same way. `POST /role-agents` takes `role` and
   may add any other field, `name` being the role and a number where none is named, and answers 201 with the
   agent; `PATCH /role-agents/{agentName}` changes the fields the body names, a field given as null cleared,
@@ -501,6 +506,16 @@ both. `road-verbs` is what the procedures tool asks a room's road.
   own account or, naming `ownerUnit`, under a unit they head, and changes and removes those and the seats
   filed under the units they head alone; a body naming both owners is refused 422 (「Who a caller acts
   for」).
+- **An agent's fallback roads are changed one at a time** (`docs/role-agents.md`, 「An agent's fallback roads」),
+  never by `PATCH /role-agents/{agentName}`, which refuses `fallbacks` 422. `POST
+  /role-agents/{agentName}/fallbacks` takes a road — `provider` and `model`, and `effort`, `thinking`,
+  `answerTokens` and `advisor` where given — and `position`, counted from 0, the end where none is named; `DELETE
+  /role-agents/{agentName}/fallbacks/{position}` takes none; `POST .../fallbacks/{position}/move` takes `to`, the
+  position it moves to. Each answers 200 with the agent, `runningWork` `run-to-end` where it carries a run, and
+  refuses 404 an agent the store does not hold or a position it holds no fallback at; 422 a road judged as the
+  agent's own road is and refused the same way, a road the agent already holds, its own road or a fallback, an
+  agent that names no road of its own, and a position past the list's end. The same caller who may change the
+  agent may change its fallbacks.
 - **`DELETE /roles/{roleName}`** answers 204; 404 `not-found` for a role the store does not hold, and 409
   `conflict` while a run of it goes or waits, or for a role the roles policy names as a default.
 - **`GET /roles/{roleName}/sessions` answers `items`,** the sessions the role's runs opened, newest first, a
@@ -2672,6 +2687,10 @@ tool is a thin call of one route through the agency's own client.
 - `release_worker` calls `PATCH /assignments/{assignmentId}` with `state` `released`, giving back a hold the
   harness will not run.
 - `run_job` calls `POST /jobs`.
+- `agent_fallback_add`, `agent_fallback_remove` and `agent_fallback_move` call `POST
+  /role-agents/{agentName}/fallbacks`, `DELETE /role-agents/{agentName}/fallbacks/{position}` and `POST
+  .../fallbacks/{position}/move`, each naming the agent, and answer the agent with its `fallbacks` as they then
+  stand (`docs/role-agents.md`, 「An agent's fallback roads」).
 
 ## The clients
 

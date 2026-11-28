@@ -56,6 +56,9 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
     `docs/provider-order.md`, 「The advisor」), each where it is set;
   - **whether it follows its asker,** `followsAsker`: true or false, or none where its role's setting stands
     (「An agent that follows its asker」 below);
+  - **its fallback roads,** `fallbacks`, an ordered list, each a road as its own is — `provider` and `model`,
+    with `effort`, `thinking`, `answerTokens` and `advisor` where set — none where it holds none (「An agent's
+    fallback roads」 below);
   - **whether it is switched on,** `enabled`; an agent switched off takes no run and counts for nothing;
   - **whether its kept session is kept warm** between runs, `keepsCache`: the session its last answered run
     kept is pinged before its cache cools, so its next run there resumes it warm
@@ -94,6 +97,41 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
 - **The transliterator follows its asker** (`docs/agent-roles.md`, 「The translator and the transliterator
   roles」): a narration's spoken words go out on the road of the supervisor whose narration asks them, and on
   its agents' own roads where none is named.
+
+## An agent's fallback roads
+
+- **An agent may hold fallback roads after its own,** in the order a person sets: each a road of its own,
+  checked as its own road is as it is added, and never the agent's own road again. Its own road stays its
+  primary: every run of it asks that road first, and a fallback is asked only where the road before it cannot
+  answer for a clear reason. An agent that names no road of its own holds none.
+- **A clear reason is one the road judgement reads before anything goes out** (「Availability: whether a
+  provider can answer now」 in `docs/cache-fallback.md`): the owner's switch on the provider off; no credential
+  for it on this machine; its balance spent; no login of it open; its program not carrying the run's line; or a
+  block standing on the road whose kind is `access` or `limit` (`docs/provider-order.md`, 「A road that
+  fails」). Nothing a run met on its way is one: a turn that ended on an error, a request the provider refused,
+  an answer that never came, a block of the kind `outage` or of none, a node not heard from, an engine stopped
+  that starts on demand. A road refused for any of these is waited for as it always is, never left for a
+  fallback.
+- **Where it applies:** every run let in on the agent — a role's run and a job alike. A run of an agent that
+  follows its asker asks the asker's road, then its own, then its fallbacks. A run that names no agent asks
+  every candidate agent's own road before any agent's fallback, so a fallback is taken only where no agent of
+  the role can take the run on its own road. A supervisor holds none: it stands on its one road
+  (`docs/supervisors.md`).
+- **A job that went out on a fallback stays on it to its end,** turn after turn and through its review; the
+  agent's next run asks its own road first again. A job whose road can no longer answer for a clear reason
+  when its next turn is due moves to the next fallback that answers, on the same agent, seat, checkout and
+  item, and its next session opens on the handoff of the one it left (`docs/sessions.md`, 「The handoff a
+  job's session leaves」), so it goes on with the work where that session stopped.
+- **A run on a fallback is never hidden.** A run let in on one logs which fallback it took and the reason the road
+  before it gave. A job that moves onto one says so in a line of its run log and in the handoff note on its item,
+  its row names the fallback's provider and model as the road it stands on, and its roads list each road a turn
+  went out on with why it moved (`docs/api.md`, 「assignments and jobs」). The agent's own road stays its road: a
+  screen shows the fallbacks beside it, never in its place.
+- **They are added, removed and moved one at a time,** never written whole: `POST /role-agents/{name}/fallbacks`
+  adds one at a position, last where none is named; `DELETE /role-agents/{name}/fallbacks/{position}` removes one;
+  `POST /role-agents/{name}/fallbacks/{position}/move` moves one to another position (`docs/api.md`,
+  「role-agents」). Each answers the agent as it stands, with `runningWork` `run-to-end`: a run already let in
+  keeps the road it went out on, and the list holds from the next (`docs/change-branches.md`).
 
 ## What a run reads off its agent
 
@@ -148,8 +186,8 @@ holds is `docs/agent-roles.md`; how a run waits for its turn is `docs/role-slots
   and where the role holds no candidate at all it is refused with the agents and roads the role holds; the job
   is never let in on another agent in its place.
 - **A run that names an agent takes that agent alone.** An ask naming an agent of the role by name is let in
-  only on it, on its own road, and waits for it however long it is busy or its provider cannot answer;
-  it is never let in on another agent of the role. Every job asks so, the agent its launch took for a model as
+  only on it, on its own road or one of its fallbacks (「An agent's fallback roads」), and waits for it however
+  long it is busy or none of its roads can answer; it is never let in on another agent of the role. Every job asks so, the agent its launch took for a model as
   much as one its item names, and a job's launch is refused while its agent is busy (「Agency starts no job by
   itself」 below).
 - **A job that moves to another agent, model or session carries its handoff.** The session it leaves writes

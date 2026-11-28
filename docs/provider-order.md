@@ -125,7 +125,9 @@ person's run goes out inside its road is `docs/supply.md`.
   five for a refused access — a refused credential or balance —, and fifteen for a limit, or until its reset
   where the failure names one (`policy/roads.toml`, `[blocks]`). A run of a role that names no agent and could
   take any free agent of its role passes a blocked agent's road over while another agent's road can answer; a
-  road a run names alone — its agent's, a supervisor's, a pin, a named road — is never passed over for a block.
+  road a run names alone — its agent's, a supervisor's, a pin, a named road — is never passed over for a block,
+  save that an agent's road blocked for `access` or a `limit` gives way to that agent's own fallback road
+  (`docs/role-agents.md`, 「An agent's fallback roads」); a block for an outage gives way to nothing.
   A failure of the work itself blocks nothing, and a provider that holds logins is blocked by no failure: a
   failure there is its login's, which its account walk rests. A failure on a person's own key blocks nothing
   either: the key waits for its person and the run takes its next source (`docs/supply.md`, 「Running out

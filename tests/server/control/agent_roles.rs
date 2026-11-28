@@ -463,3 +463,108 @@ async fn a_role_is_added_changed_and_removed_on_the_control_port() {
     "a role removed takes its agents with it"
   );
 }
+
+// An agent's fallback roads are added, moved and removed one at a time, each judged as its own road is, and never
+// written whole by a change of the agent (docs/role-agents.md, 「An agent's fallback roads」).
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agent_s_fallback_roads_are_added_moved_and_removed_one_at_a_time() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let data = home.path().join("data");
+
+  std::fs::create_dir_all(&data).unwrap();
+
+  let server = standing::stand_server(home.path(), &data, &scratch.address(), TOKEN);
+  let port = server.port;
+  let at = "/role-agents/worker-01/fallbacks";
+  let (status, shown) = ask(reqwest::Method::GET, port, "/role-agents?role=worker", None).await;
+
+  assert_eq!(status, 200, "{shown}");
+  assert_eq!(
+    shown["items"][0]["fallbacks"],
+    json!([]),
+    "an agent holds none until one is added: {shown}"
+  );
+
+  let (status, own) = ask(
+    reqwest::Method::POST,
+    port,
+    at,
+    Some(json!({ "provider": "deepseek", "model": "deepseek-flash" })),
+  )
+  .await;
+  assert_eq!(status, 422, "its own road again is refused: {own}");
+
+  let (status, added) = ask(
+    reqwest::Method::POST,
+    port,
+    at,
+    Some(json!({ "provider": "claude-code", "model": "claude-opus-4-6", "effort": "high" })),
+  )
+  .await;
+  assert_eq!(status, 200, "{added}");
+  assert_eq!(added["fallbacks"][0]["model"], "claude-opus-4-6", "{added}");
+  assert_eq!(added["fallbacks"][0]["effort"], "high", "{added}");
+
+  let (status, twice) = ask(
+    reqwest::Method::POST,
+    port,
+    at,
+    Some(json!({ "provider": "claude-code", "model": "claude-opus-4-6" })),
+  )
+  .await;
+  assert_eq!(status, 422, "a road it holds already is refused: {twice}");
+
+  let (status, second) = ask(
+    reqwest::Method::POST,
+    port,
+    at,
+    Some(json!({ "provider": "claude-code", "model": "claude-sonnet-4-6", "position": 0 })),
+  )
+  .await;
+  assert_eq!(status, 200, "{second}");
+  assert_eq!(
+    second["fallbacks"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|road| road["model"].as_str().unwrap())
+      .collect::<Vec<_>>(),
+    ["claude-sonnet-4-6", "claude-opus-4-6"],
+    "added at the position named"
+  );
+
+  let (status, moved) =
+    ask(reqwest::Method::POST, port, &format!("{at}/0/move"), Some(json!({ "to": 1 }))).await;
+  assert_eq!(status, 200, "{moved}");
+  assert_eq!(
+    moved["fallbacks"]
+      .as_array()
+      .unwrap()
+      .iter()
+      .map(|road| road["model"].as_str().unwrap())
+      .collect::<Vec<_>>(),
+    ["claude-opus-4-6", "claude-sonnet-4-6"]
+  );
+
+  let (status, whole) =
+    ask(reqwest::Method::PATCH, port, "/role-agents/worker-01", Some(json!({ "fallbacks": [] }))).await;
+  assert_eq!(status, 422, "a whole list is never written: {whole}");
+  assert!(whole["error"].as_str().unwrap().contains("one at a time"), "{whole}");
+
+  let (status, none) = ask(reqwest::Method::DELETE, port, &format!("{at}/5"), None).await;
+  assert_eq!(status, 404, "{none}");
+
+  let (status, removed) = ask(reqwest::Method::DELETE, port, &format!("{at}/0"), None).await;
+  assert_eq!(status, 200, "{removed}");
+  assert_eq!(removed["fallbacks"][0]["model"], "claude-sonnet-4-6", "{removed}");
+
+  let (status, unknown) = ask(
+    reqwest::Method::POST,
+    port,
+    "/role-agents/nobody/fallbacks",
+    Some(json!({ "provider": "claude-code", "model": "claude-opus-4-6" })),
+  )
+  .await;
+  assert_eq!(status, 404, "{unknown}");
+}

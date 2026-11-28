@@ -120,6 +120,14 @@ pub(crate) async fn judged(
   let held_road = (held.provider.clone(), held.model.clone());
   let mut agent = held;
 
+  // Its fallback roads are added, removed and moved one at a time (docs/role-agents.md, 「An agent's fallback
+  // roads」), never written whole here.
+  if body.get("fallbacks").is_some() {
+    return Err(unprocessable(
+      "fallbacks: change an agent's fallback roads one at a time with POST /role-agents/{name}/fallbacks, DELETE /role-agents/{name}/fallbacks/{position} or POST /role-agents/{name}/fallbacks/{position}/move.",
+    ));
+  }
+
   // The account whose seat it is, its login account's id, or none for the deployment's own.
   if let Some(account) = body.get("ownerAccount") {
     agent.owner_account = seat_account(account)?;
@@ -490,6 +498,7 @@ impl Route for RoleAgentCreate {
       owner_unit: None,
       home_node: None,
       follows_asker: None,
+      fallbacks: Vec::new(),
     };
     let mut agent = judged(call.ground(), &held, fresh, &body).await?;
     let acting = Acting::of(&call)?;
@@ -594,3 +603,212 @@ pub fn queue_told(call: &Call) {
 
   tokio::spawn(async move { crate::watches::queue_idle::agents_changed(&ground.db, ground.vars()).await });
 }
+
+/// A fallback road a body names, judged as an agent's own road is against its role's line (docs/role-agents.md,
+/// 「An agent's fallback roads」).
+async fn fallback_judged(ground: &Ground, role: &AgentRole, body: &Value) -> Result<order::Entry, Refused> {
+  let field = |name: &str| text(body.get(name).unwrap_or(&Value::Null), name);
+  let (Some(provider), Some(model)) = (field("provider")?, field("model")?) else {
+    return Err(unprocessable("A fallback road names its provider together with its model."));
+  };
+  let answer_tokens = match body.get("answerTokens") {
+    None | Some(Value::Null) => None,
+    Some(tokens) => Some(
+      whole(tokens)
+        .filter(|tokens| *tokens > 0)
+        .ok_or_else(|| unprocessable("answerTokens: a whole number above zero, or null for none."))?,
+    ),
+  };
+  let entry = order::Entry {
+    provider,
+    model,
+    effort: field("effort")?,
+    thinking: field("thinking")?,
+    answer_tokens,
+    advisor: field("advisor")?,
+  };
+  let judged = json!([entry]);
+
+  order::judge(Judging::of(ground), &ground.machine(), &role.line, &judged, Empty::Refused)
+    .await
+    .map_err(|refusal| {
+      unprocessable(if refusal.field == order::ADVISOR {
+        format!("advisor: {}", refusal.error)
+      } else {
+        refusal.error
+      })
+    })?;
+
+  Ok(entry)
+}
+
+// A position a path names, counted from 0.
+fn position(call: &Call) -> Result<usize, Refused> {
+  call
+    .param("position")
+    .and_then(|position| position.parse::<usize>().ok())
+    .ok_or_else(|| unprocessable("position: a whole number counted from 0."))
+}
+
+// The agent a fallback route names and its role, held for its change.
+async fn fallback_target(
+  db: &sea_orm::DatabaseConnection,
+  name: &str,
+) -> Result<(RoleAgent, AgentRole), Refused> {
+  let held = role_agents::named(db, name).await?.ok_or_else(|| unknown(name))?;
+  let role = agent_roles::named(db, &held.role)
+    .await?
+    .ok_or_else(|| unprocessable(agent_roles::unknown(&held.role)))?;
+
+  if held.entry().is_none() {
+    return Err(unprocessable(format!(
+      "{name} names no road of its own, so it holds no fallback; give it a road first."
+    )));
+  }
+
+  Ok((held, role))
+}
+
+// The agent written with its fallbacks changed, answered as the routes answer an agent, with the branch its running
+// work takes (docs/change-branches.md).
+async fn fallbacks_written(
+  db: &sea_orm::DatabaseConnection,
+  events: &crate::events::Bus,
+  role: &AgentRole,
+  agent: &RoleAgent,
+) -> Result<Response, Refused> {
+  role_agents::write(db, agent).await?;
+  seats_changed(db, events, &agent.role).await?;
+
+  let carrying = role_agents::carrying(db, &agent.role).await?;
+  let mut shown = view(agent, role.follows_asker, &carrying);
+
+  if shown["carries"] == json!(true) {
+    shown["runningWork"] = json!(RUN_TO_END);
+  }
+
+  Ok(answer(StatusCode::OK, shown))
+}
+
+/// `POST /role-agents/{agentName}/fallbacks`: one fallback road added to an agent at a position, last where none
+/// is named.
+pub struct RoleAgentFallbackAdd;
+
+impl Route for RoleAgentFallbackAdd {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/role-agents/{agentName}/fallbacks";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let name = call.param("agentName").unwrap_or_default().to_owned();
+    let (mut agent, role) = fallback_target(call.store(), &name).await?;
+    let entry = fallback_judged(call.ground(), &role, &body).await?;
+
+    if agent
+      .roads()
+      .iter()
+      .any(|road| (&road.provider, &road.model) == (&entry.provider, &entry.model))
+    {
+      return Err(unprocessable(format!(
+        "{} already holds the road {}/{}, as its own or a fallback.",
+        agent.name, entry.provider, entry.model
+      )));
+    }
+
+    let at = match body.get("position") {
+      None | Some(Value::Null) => agent.fallbacks.len(),
+      Some(position) => whole(position)
+        .and_then(|position| usize::try_from(position).ok())
+        .filter(|position| *position <= agent.fallbacks.len())
+        .ok_or_else(|| {
+          unprocessable("position: a whole number from 0 to the number of fallbacks it holds.")
+        })?,
+    };
+
+    agent.fallbacks.insert(at, entry);
+    // The same caller who may change the agent changes its fallbacks: its owner's own, or the unit's head.
+    filed(call.ground(), Acting::of(&call)?, &mut agent).await?;
+
+    let written = fallbacks_written(call.store(), call.events(), &role, &agent).await;
+
+    queue_told(&call);
+    written
+  }
+}
+
+crate::moved!(RoleAgentFallbackAdd);
+
+/// `DELETE /role-agents/{agentName}/fallbacks/{position}`: one fallback road of an agent removed.
+pub struct RoleAgentFallbackRemove;
+
+impl Route for RoleAgentFallbackRemove {
+  const METHOD: Method = Method::DELETE;
+  const PATH: &'static str = "/role-agents/{agentName}/fallbacks/{position}";
+
+  async fn answer(&self, call: Call) -> Result<Response, Refused> {
+    let name = call.param("agentName").unwrap_or_default().to_owned();
+    let (mut agent, role) = fallback_target(call.store(), &name).await?;
+    let at = position(&call)?;
+
+    if at >= agent.fallbacks.len() {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{} holds no fallback at position {at}.", agent.name),
+      ));
+    }
+
+    agent.fallbacks.remove(at);
+    // The same caller who may change the agent changes its fallbacks: its owner's own, or the unit's head.
+    filed(call.ground(), Acting::of(&call)?, &mut agent).await?;
+
+    let written = fallbacks_written(call.store(), call.events(), &role, &agent).await;
+
+    queue_told(&call);
+    written
+  }
+}
+
+crate::moved!(RoleAgentFallbackRemove);
+
+/// `POST /role-agents/{agentName}/fallbacks/{position}/move`: one fallback road of an agent moved to `to`.
+pub struct RoleAgentFallbackMove;
+
+impl Route for RoleAgentFallbackMove {
+  const METHOD: Method = Method::POST;
+  const PATH: &'static str = "/role-agents/{agentName}/fallbacks/{position}/move";
+
+  async fn answer(&self, mut call: Call) -> Result<Response, Refused> {
+    let body = call.body().await?;
+    let name = call.param("agentName").unwrap_or_default().to_owned();
+    let (mut agent, role) = fallback_target(call.store(), &name).await?;
+    let at = position(&call)?;
+
+    if at >= agent.fallbacks.len() {
+      return Err(Refused::new(
+        StatusCode::NOT_FOUND,
+        format!("{} holds no fallback at position {at}.", agent.name),
+      ));
+    }
+
+    let to = body
+      .get("to")
+      .and_then(whole)
+      .and_then(|to| usize::try_from(to).ok())
+      .filter(|to| *to < agent.fallbacks.len())
+      .ok_or_else(|| {
+        unprocessable("to: the position it moves to, a whole number counted from 0 within the list.")
+      })?;
+    let moved = agent.fallbacks.remove(at);
+
+    agent.fallbacks.insert(to, moved);
+    // The same caller who may change the agent changes its fallbacks: its owner's own, or the unit's head.
+    filed(call.ground(), Acting::of(&call)?, &mut agent).await?;
+
+    let written = fallbacks_written(call.store(), call.events(), &role, &agent).await;
+
+    queue_told(&call);
+    written
+  }
+}
+
+crate::moved!(RoleAgentFallbackMove);

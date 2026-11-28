@@ -577,6 +577,23 @@ pub async fn road_of(
   held: &Request,
   role: &AgentRole,
 ) -> Result<Result<Entry, String>, Fault> {
+  Ok(judged_road(ground, held, role).await?.map_err(|refused| refused.why))
+}
+
+/// Why a road cannot take a request now, and whether that is a clear reason, one read before anything goes out,
+/// which an agent's fallback road stands in for (docs/role-agents.md, 「An agent's fallback roads」).
+#[derive(Clone, Debug)]
+pub struct Refused {
+  pub why: String,
+  pub clear: bool,
+}
+
+/// The road judgement of a request's road, with whether a refusal is a clear one.
+pub async fn judged_road(
+  ground: &Ground,
+  held: &Request,
+  role: &AgentRole,
+) -> Result<Result<Entry, Refused>, Fault> {
   let fixed = (!held.provider.is_empty()).then(|| Entry {
     provider: held.provider.clone(),
     model: held.model.clone(),
@@ -596,7 +613,10 @@ pub async fn road_of(
 
   Ok(match resolution.taken() {
     Some(step) => Ok(step.entry.clone()),
-    None => Err(resolution.sentence()),
+    None => Err(Refused {
+      why: resolution.sentence(),
+      clear: resolution.clear(),
+    }),
   })
 }
 
@@ -610,6 +630,9 @@ pub struct Seat {
   /// supervisor and its road, and the sentence the road answered (docs/role-agents.md, 「An agent that follows its
   /// asker」).
   pub passed_over: Option<String>,
+  /// Why the agent's own road gave way to one of its fallback roads, where it did: which fallback, and the
+  /// sentence the road before it answered (docs/role-agents.md, 「An agent's fallback roads」).
+  pub fell_back: Option<String>,
 }
 
 /// The agents a request may be let in on (docs/role-agents.md, 「Which agent a run takes」), in the order it
@@ -619,6 +642,27 @@ pub struct Seat {
 /// supervisor that asked the request, where one did, its own road standing where none did or that road cannot
 /// answer now, and any other agent on its own road.
 pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Result<Vec<Seat>, Fault> {
+  // A run that names no agent asks every agent's own road before any agent's fallback (docs/role-agents.md,
+  // 「An agent's fallback roads」); one that names its agent asks that agent's fallbacks as its own road gives way.
+  if held.agent_wanted.is_some() {
+    return seats_on(ground, held, role, true).await;
+  }
+
+  let own = seats_on(ground, held, role, false).await?;
+
+  if own.iter().any(|seat| seat.road.is_ok()) {
+    return Ok(own);
+  }
+
+  seats_on(ground, held, role, true).await
+}
+
+async fn seats_on(
+  ground: &Ground,
+  held: &Request,
+  role: &AgentRole,
+  fallbacks: bool,
+) -> Result<Vec<Seat>, Fault> {
   // A request that names an agent is let in on that agent alone (docs/role-agents.md, 「Which agent a run
   // takes」).
   // A request is let in only on the agents its account may take: its own, and the seats of the units its ask
@@ -642,44 +686,93 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
       _ => None,
     };
     // One road is asked of its provider once, whichever agents stand on it.
-    let mut judged: Vec<(String, String, Result<(), String>)> = vec![];
+    let mut judged: Vec<(String, String, Result<(), Refused>)> = vec![];
 
     for agent in on {
       // The asker's road first where the agent follows it, then the agent's own, which stands where no
-      // supervisor's road does or where that road cannot answer now.
+      // supervisor's road does or where that road cannot answer now, then its fallbacks in order, each asked
+      // only where the road before it cannot answer for a clear reason.
       let asker = followed.clone().filter(|_| role.follows(agent));
-      let own = agent.entry().filter(|own| {
-        asker
-          .as_ref()
-          .is_none_or(|asker| (&asker.provider, &asker.model) != (&own.provider, &own.model))
-      });
       let asker_road = asker.as_ref().map(|asker| format!("{}/{}", asker.provider, asker.model));
-      let roads: Vec<Entry> = asker.into_iter().chain(own).collect();
+      // The agent's own road stands even where it is the asker's: its judgement is the asker's, read once, so a
+      // refusal of no clear reason there gives way to no fallback.
+      let roads: Vec<Entry> = agent.roads();
 
-      if roads.is_empty() {
+      if asker.is_none() && roads.is_empty() {
         continue;
       }
 
       let mut refusals: Vec<String> = vec![];
       let mut taken: Option<Entry> = None;
+      let mut asker_refused: Option<String> = None;
+      let mut fell_back: Option<String> = None;
 
-      for road in roads {
-        match answers_now(ground, held, role, &road, &mut judged).await? {
-          Ok(()) => {
-            taken = Some(road);
+      if let Some(asker) = &asker {
+        match answers_now(ground, held, role, asker, &mut judged).await? {
+          Ok(()) => taken = Some(asker.clone()),
+          Err(refused) => {
+            asker_refused = Some(refused.why.clone());
+            refusals.push(refused.why);
+          }
+        }
+      }
+
+      if taken.is_none() {
+        let mut before: Option<(String, String)> = None;
+
+        for (at, road) in roads.iter().enumerate() {
+          let fallback = at > 0;
+
+          if fallback && !fallbacks {
             break;
           }
-          Err(why) => refusals.push(why),
+
+          let answered = match answers_now(ground, held, role, road, &mut judged).await? {
+            // An agent's road that answers but stands blocked for a refused access or a limit gives way to its
+            // fallback where it holds one; an outage block gives way to nothing.
+            Ok(()) if !agent.fallbacks.is_empty() && at + 1 < roads.len() => {
+              match clear_block(ground, road).await {
+                Some(why) => Err(Refused { why, clear: true }),
+                None => Ok(()),
+              }
+            }
+            answered => answered,
+          };
+
+          match answered {
+            Ok(()) => {
+              if let (true, Some((road_words, why))) = (fallback, &before) {
+                fell_back = Some(format!(
+                  "on its fallback road {}/{} (fallback {at}), its road {road_words} cannot answer now: {}",
+                  road.provider,
+                  road.model,
+                  one_line(why)
+                ));
+              }
+
+              taken = Some(road.clone());
+              break;
+            }
+            Err(refused) => {
+              let clear = refused.clear;
+
+              before = Some((format!("{}/{}", road.provider, road.model), refused.why.clone()));
+              refusals.push(refused.why);
+
+              if !clear {
+                break;
+              }
+            }
+          }
         }
       }
 
       // The asker's road answered first where it was tried, so a refusal before a road taken is the asker's.
-      let passed_over = match (&taken, &asker_road, refusals.first()) {
-        // The road's sentence runs over several lines; the log keeps it on one.
+      let passed_over = match (&taken, &asker_road, &asker_refused) {
         (Some(_), Some(asker_road), Some(why)) => Some(format!(
           "it follows {}, whose road {asker_road} cannot answer now: {}",
           held.asked_by.as_deref().unwrap_or_default(),
-          why.lines().map(str::trim).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ")
+          one_line(why)
         )),
         _ => None,
       };
@@ -688,6 +781,7 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
         agent: agent.name.clone(),
         road: taken.ok_or_else(|| refusals.join("; on its own road, ")),
         passed_over,
+        fell_back,
       });
     }
 
@@ -714,9 +808,28 @@ pub async fn seats_for(ground: &Ground, held: &Request, role: &AgentRole) -> Res
         agent: agent.name.clone(),
         road: road.clone(),
         passed_over: None,
+        fell_back: None,
       })
       .collect(),
   )
+}
+
+// A road's sentence, which runs over several lines, on one line as a log keeps it.
+fn one_line(why: &str) -> String {
+  why.lines().map(str::trim).filter(|line| !line.is_empty()).collect::<Vec<_>>().join(" ")
+}
+
+/// The block standing on a road for a refused access or a limit, as the reason its agent's fallback stands in for
+/// it, where one stands; a block an outage left is none (docs/role-agents.md, 「An agent's fallback roads」).
+pub async fn clear_block(ground: &Ground, road: &Entry) -> Option<String> {
+  let selection = format!("{}::{}", road.provider, road.model);
+  let standing = crate::queue::routes::standing_block(&ground.db, &selection, crate::now_ms())
+    .await
+    .ok()??;
+  let kind = standing.kind.as_deref()?;
+
+  (kind == crate::road::BlockKind::Access.word() || kind.starts_with("limit"))
+    .then(|| format!("its road is blocked for {kind}: {}", standing.reason))
 }
 
 // Whether a road can take the request now, asked of its provider once however many agents stand on it: `judged`
@@ -726,8 +839,8 @@ async fn answers_now(
   held: &Request,
   role: &AgentRole,
   road: &Entry,
-  judged: &mut Vec<(String, String, Result<(), String>)>,
-) -> Result<Result<(), String>, Fault> {
+  judged: &mut Vec<(String, String, Result<(), Refused>)>,
+) -> Result<Result<(), Refused>, Fault> {
   if let Some((_, _, answers)) = judged
     .iter()
     .find(|(provider, model, _)| *provider == road.provider && *model == road.model)
@@ -741,7 +854,7 @@ async fn answers_now(
     effort: road.effort.clone(),
     ..held.clone()
   };
-  let answers = road_of(ground, &asked, role).await?.map(|_| ());
+  let answers = judged_road(ground, &asked, role).await?.map(|_| ());
 
   judged.push((road.provider.clone(), road.model.clone(), answers.clone()));
 
@@ -767,6 +880,10 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
     .iter()
     .filter_map(|seat| seat.passed_over.clone().map(|why| (seat.agent.clone(), why)))
     .collect();
+  let fell_back: Vec<(String, String)> = seats
+    .iter()
+    .filter_map(|seat| seat.fell_back.clone().map(|why| (seat.agent.clone(), why)))
+    .collect();
   let written = ground.db.begin().await.map_err(faulted)?;
   let (admitted, changed) = admission(&written, &held.token, &role, seats, crate::now_ms()).await?;
 
@@ -784,6 +901,11 @@ pub async fn acquire(ground: &Ground, held: &Request) -> Result<Option<Request>,
     if let Some((agent, why)) = passed_over.iter().find(|(agent, _)| request.seat.as_deref() == Some(agent))
     {
       eprintln!("{}", fallback_line(request, agent, why));
+    }
+
+    // A request let in on one of its agent's fallback roads says so, with the reason the road before it gave.
+    if let Some((agent, why)) = fell_back.iter().find(|(agent, _)| request.seat.as_deref() == Some(agent)) {
+      eprintln!("{} slot {}: let in on {agent} {why}", request.role, request.token);
     }
   }
 

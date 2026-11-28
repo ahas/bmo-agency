@@ -33,6 +33,7 @@ fn agent(name: &str, role: &str, road: Option<(&str, &str)>, enabled: bool) -> R
     skills: None,
     added_at: 0,
     follows_asker: None,
+    fallbacks: Vec::new(),
   }
 }
 

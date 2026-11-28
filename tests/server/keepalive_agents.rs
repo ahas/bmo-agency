@@ -39,6 +39,7 @@ fn agent(enabled: bool, keeps_cache: bool) -> RoleAgent {
     owner_unit: None,
     home_node: None,
     follows_asker: None,
+    fallbacks: Vec::new(),
   }
 }
 

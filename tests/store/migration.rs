@@ -6,8 +6,8 @@
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::MigratorTrait;
 use store::migration::{
-  BASELINE, BEFORE, FRONT_TABLES_GONE, JOB_END_CAUSE, JOB_START_TOLD, MIGRATIONS_TABLE, Migrator,
-  OWN_TABLES, OWNERSHIP, POST_BASELINE, SEAT_UNITS, SUBJECT_SETTINGS, SUPERVISOR_ACCOUNTS,
+  AGENT_FALLBACKS, BASELINE, BEFORE, FRONT_TABLES_GONE, JOB_END_CAUSE, JOB_START_TOLD, MIGRATIONS_TABLE,
+  Migrator, OWN_TABLES, OWNERSHIP, POST_BASELINE, SEAT_UNITS, SUBJECT_SETTINGS, SUPERVISOR_ACCOUNTS,
   SUPERVISOR_NAME_TAG, UNIT_REACH,
 };
 
@@ -25,6 +25,7 @@ const SUPERVISOR_ACCOUNTS_SQL: &str =
   include_str!("../../crates/store/src/migration/supervisor_accounts.sql");
 const JOB_START_TOLD_SQL: &str = include_str!("../../crates/store/src/migration/job_start_told.sql");
 const JOB_END_CAUSE_SQL: &str = include_str!("../../crates/store/src/migration/job_end_cause.sql");
+const AGENT_FALLBACKS_SQL: &str = include_str!("../../crates/store/src/migration/agent_fallbacks.sql");
 
 async fn tables(scratch: &Scratch) -> Vec<String> {
   let rows = store::all(
@@ -231,6 +232,7 @@ fn every_run() -> Vec<String> {
       SUPERVISOR_ACCOUNTS.to_owned(),
       JOB_START_TOLD.to_owned(),
       JOB_END_CAUSE.to_owned(),
+      AGENT_FALLBACKS.to_owned(),
     ])
     .collect()
 }
@@ -276,6 +278,7 @@ async fn a_blank_database_gets_the_baseline_and_every_migration_made_since() {
   laid.db().execute_unprepared(SUPERVISOR_ACCOUNTS_SQL).await.unwrap();
   laid.db().execute_unprepared(JOB_START_TOLD_SQL).await.unwrap();
   laid.db().execute_unprepared(JOB_END_CAUSE_SQL).await.unwrap();
+  laid.db().execute_unprepared(AGENT_FALLBACKS_SQL).await.unwrap();
 
   assert_eq!(shape(migrated.db()).await, shape(laid.db()).await);
   assert_eq!(recorded(migrated.db()).await, every_run());

@@ -67,6 +67,7 @@ fn template(role: &str) -> RoleAgent {
     owner_unit: None,
     home_node: None,
     follows_asker: None,
+    fallbacks: Vec::new(),
   }
 }
 

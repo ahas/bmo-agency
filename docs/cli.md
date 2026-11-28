@@ -21,6 +21,12 @@ machine.
   five, its `add` keeping its own `--path`, `--label` and `--umbrella`; `supervisor` takes `list`, `show` and `set`,
   a supervisor being added and removed through the receiver, which keeps its room; `model` keeps its own steps of
   the same names (`docs/model-catalogue.md`).
+- **An agent's fallback roads are changed one at a time,** never by `role-agent set` (docs/role-agents.md, 「An
+  agent's fallback roads」): `role-agent fallback add <agent> --set provider=… --set model=… [--position N]` adds
+  one road, its `effort`, `thinking`, `answerTokens` and `advisor` set the same way, at a position counted from 0 or
+  last; `role-agent fallback remove <agent> <position>` removes one; `role-agent fallback move <agent> <position>
+  <to>` moves one. Each prints the agent as it then stands, its `fallbacks` in order, through the routes under
+  `/role-agents/{name}/fallbacks`.
 - **A change names only what it changes.** Each `--set field=value` is one field of the route's body, its value
   read as JSON where it reads as JSON — `enabled=false` the boolean, `answerTokens=8000` the number — and as text
   otherwise, `model=q38fn-dq8`. A `set` naming nothing is refused before anything is asked.

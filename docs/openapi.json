@@ -8972,6 +8972,182 @@
         ]
       }
     },
+    "/role-agents/{agentName}/fallbacks": {
+      "post": {
+        "operationId": "addRoleAgentFallback",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Add one fallback road to an agent, at a position.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FallbackAdd"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/role-agents/{agentName}/fallbacks/{position}": {
+      "delete": {
+        "operationId": "removeRoleAgentFallback",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Remove one fallback road of an agent.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the fallback's position, counted from 0"
+            }
+          }
+        ]
+      }
+    },
+    "/role-agents/{agentName}/fallbacks/{position}/move": {
+      "post": {
+        "operationId": "moveRoleAgentFallback",
+        "tags": [
+          "roles"
+        ],
+        "summary": "Move one fallback road of an agent to another position.",
+        "responses": {
+          "200": {
+            "description": "Answered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleAgent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          }
+        },
+        "x-codes": [
+          "unauthorized",
+          "not-found",
+          "unprocessable-entity"
+        ],
+        "parameters": [
+          {
+            "name": "agentName",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": ""
+            }
+          },
+          {
+            "name": "position",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "description": "the fallback's position, counted from 0"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FallbackMove"
+              }
+            }
+          }
+        }
+      }
+    },
     "/repositories": {
       "get": {
         "operationId": "listRepositories",
@@ -19726,6 +19902,14 @@
             "description": "whether a run stands let in on it now",
             "default": false
           },
+          "fallbacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FallbackRoad"
+            },
+            "description": "its fallback roads in order, asked only where the road before them cannot answer for a clear reason\n(docs/role-agents.md, 「An agent's fallback roads」)",
+            "default": []
+          },
           "runningWork": {
             "type": [
               "string",
@@ -19755,7 +19939,8 @@
           "addedAt",
           "followsAsker",
           "followsSupervisor",
-          "carries"
+          "carries",
+          "fallbacks"
         ],
         "description": "RoleAgent: one agent of a role as its row holds it (docs/role-agents.md): one seat of the role, on the one\nroad its runs go out on."
       },
@@ -19766,6 +19951,55 @@
           "fresh"
         ],
         "description": "RoleSessions: whether a role's runs go on in the session an earlier run left while its cache is warm,\n`keep`, or each open a session of its own, `fresh`."
+      },
+      "FallbackRoad": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens",
+          "advisor"
+        ],
+        "description": "FallbackRoad: one fallback road of an agent, a road as its own is (docs/role-agents.md, 「An agent's fallback\nroads」)."
       },
       "RoleAsk": {
         "type": "object",
@@ -20740,6 +20974,77 @@
           }
         },
         "description": "RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an\noverride gives the role's own back."
+      },
+      "FallbackAdd": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          }
+        },
+        "required": [
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens",
+          "advisor",
+          "position"
+        ],
+        "description": "FallbackAdd: one fallback road added to an agent, at `position` counted from 0, or last where none is named."
+      },
+      "FallbackMove": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "description": "FallbackMove: the position a fallback road moves to, counted from 0."
       },
       "RepositoryList": {
         "type": "object",
@@ -23439,6 +23744,114 @@
         ],
         "description": "ReviewJob: a move on a job's report under review as the supervisor asks it, everything but the agent its\nplugin was started for."
       },
+      "AddFallback": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "the agent's name"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "thinking": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "answerTokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "default": null
+          },
+          "advisor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "where it stands, counted from 0; last where none is named",
+            "default": null
+          }
+        },
+        "required": [
+          "agent",
+          "provider",
+          "model",
+          "effort",
+          "thinking",
+          "answerTokens",
+          "advisor",
+          "position"
+        ],
+        "description": "One fallback road added to an agent (docs/role-agents.md, 「An agent's fallback roads」)."
+      },
+      "RemoveFallback": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "the agent's name"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the fallback's position, counted from 0"
+          }
+        },
+        "required": [
+          "agent",
+          "position"
+        ],
+        "description": "One fallback road of an agent removed."
+      },
+      "MoveFallback": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "the agent's name"
+          },
+          "position": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the fallback's position, counted from 0"
+          },
+          "to": {
+            "type": "integer",
+            "format": "int64",
+            "description": "the position it moves to, counted from 0"
+          }
+        },
+        "required": [
+          "agent",
+          "position",
+          "to"
+        ],
+        "description": "One fallback road of an agent moved."
+      },
       "ReleaseWorker": {
         "type": "object",
         "properties": {
@@ -24416,6 +24829,39 @@
         "$ref": "#/components/schemas/JobReviewed"
       },
       "route": "POST /job-reviews"
+    },
+    {
+      "name": "agent_fallback_add",
+      "description": "Add one fallback road to an agent: a provider and model, with its effort, thinking, answerTokens and advisor where given, at a position counted from 0, or last. A fallback is asked only where the road before it cannot answer for a clear reason read before anything goes out: the provider off, no credential, a spent balance, no login open, or a block for a refused access or a limit; never for an error a turn met. A job that moves onto one goes on there with its handoff. The road is judged as the agent's own is, and one it holds already is refused.",
+      "input": {
+        "$ref": "#/components/schemas/AddFallback"
+      },
+      "output": {
+        "$ref": "#/components/schemas/RoleAgent"
+      },
+      "route": "POST /role-agents/{agentName}/fallbacks"
+    },
+    {
+      "name": "agent_fallback_remove",
+      "description": "Remove one fallback road of an agent, by its position counted from 0; the agent is answered with the fallbacks it then holds.",
+      "input": {
+        "$ref": "#/components/schemas/RemoveFallback"
+      },
+      "output": {
+        "$ref": "#/components/schemas/RoleAgent"
+      },
+      "route": "DELETE /role-agents/{agentName}/fallbacks/{position}"
+    },
+    {
+      "name": "agent_fallback_move",
+      "description": "Move one fallback road of an agent from its position to `to`, both counted from 0, so it is asked earlier or later; the agent is answered with its fallbacks in their new order.",
+      "input": {
+        "$ref": "#/components/schemas/MoveFallback"
+      },
+      "output": {
+        "$ref": "#/components/schemas/RoleAgent"
+      },
+      "route": "POST /role-agents/{agentName}/fallbacks/{position}/move"
     },
     {
       "name": "assign_worker",

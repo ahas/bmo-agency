@@ -1,11 +1,11 @@
 ---
 name: bmo-agency
-description: How the bmo-agency MCP tools file an item, run an item on a worker, review a job's report and stop a job, with the arguments each takes and what each refusal means.
+description: How the bmo-agency MCP tools file an item, run an item on a worker, review a job's report, stop a job and change an agent's fallback roads, with the arguments each takes and what each refusal means.
 ---
 
 # bmo-agency
 
-The agency supplies, delivers and controls agents. Its MCP server lists six tools, each one call of the
+The agency supplies, delivers and controls agents. Its MCP server lists nine tools, each one call of the
 agency's API. Call each through the tool, never through the agency's routes by hand.
 
 ## Starting the server
@@ -73,6 +73,25 @@ call `review_job` once:
 
 `stop_job` only on the owner's word: only a turn whose every message is the owner's stops one. Name the job by
 `jobId`, or by `itemId` for the item's starting or running job, with the reason as one short line.
+
+## An agent's fallback roads
+
+An agent's own road is its primary. Its fallback roads, in order, are asked only where the road before them
+cannot answer for a clear reason read before anything goes out: the provider switched off, no credential for it,
+its balance spent, no login open, or a block for a refused access or a limit. A turn that ended on an error, a
+refused request or an outage block never moves a run onto a fallback. A job that moves onto one goes on there to
+its end, its new session opening on the handoff of the one it left.
+
+| Tool | Arguments | Does |
+|---|---|---|
+| `agent_fallback_add` | `agent`, `provider`, `model`; `effort`, `thinking`, `answerTokens`, `advisor`, `position` (from 0; last where left out) | adds one fallback road |
+| `agent_fallback_remove` | `agent`, `position` | removes the fallback at that position |
+| `agent_fallback_move` | `agent`, `position`, `to` | moves the fallback to `to` |
+
+Each answers the agent with its `fallbacks` in order, and `runningWork` `run-to-end` where it carries a run: that run
+keeps the road it went out on. A road the agent already holds, its own road again, and an agent that names no road of
+its own are refused 422; a position it holds no fallback at is 404. Never write `fallbacks` with a change of the agent:
+that is refused, since the list changes one road at a time.
 
 ## When a tool refuses
 

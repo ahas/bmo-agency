@@ -3956,6 +3956,10 @@ pub struct RoleAgent {
   /// whether a run stands let in on it now
   #[serde(default)]
   pub carries: bool,
+  /// its fallback roads in order, asked only where the road before them cannot answer for a clear reason
+  /// (docs/role-agents.md, 「An agent's fallback roads」)
+  #[serde(default)]
+  pub fallbacks: Vec<FallbackRoad>,
   /// on a change, what the change does to the run it carries: `run-to-end`, the run finishing as it was admitted
   /// and the change holding from the next admission (docs/change-branches.md); absent where it carries none
   #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -3979,6 +3983,39 @@ pub struct RoleAgentAsk {
   pub name: Option<String>,
   #[serde(flatten)]
   pub fields: RoleAgentChange,
+}
+
+/// FallbackRoad: one fallback road of an agent, a road as its own is (docs/role-agents.md, 「An agent's fallback
+/// roads」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackRoad {
+  pub provider: String,
+  pub model: String,
+  #[serde(default)]
+  pub effort: Option<String>,
+  #[serde(default)]
+  pub thinking: Option<String>,
+  #[serde(default)]
+  pub answer_tokens: Option<i64>,
+  #[serde(default)]
+  pub advisor: Option<String>,
+}
+
+/// FallbackAdd: one fallback road added to an agent, at `position` counted from 0, or last where none is named.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct FallbackAdd {
+  #[serde(flatten)]
+  pub road: FallbackRoad,
+  #[serde(default)]
+  pub position: Option<i64>,
+}
+
+/// FallbackMove: the position a fallback road moves to, counted from 0.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FallbackMove {
+  pub to: i64,
 }
 
 /// RoleAgentChange: the fields a change of an agent names; a field given as null is cleared, which for an
@@ -5248,4 +5285,37 @@ pub struct OwnInstructionsAsk {
   pub all: Option<String>,
   #[serde(default)]
   pub agents: Option<BTreeMap<String, String>>,
+}
+
+/// One fallback road added to an agent (docs/role-agents.md, 「An agent's fallback roads」).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AddFallback {
+  /// the agent's name
+  pub agent: String,
+  #[serde(flatten)]
+  pub road: FallbackRoad,
+  /// where it stands, counted from 0; last where none is named
+  #[serde(default)]
+  pub position: Option<i64>,
+}
+
+/// One fallback road of an agent removed.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct RemoveFallback {
+  /// the agent's name
+  pub agent: String,
+  /// the fallback's position, counted from 0
+  pub position: i64,
+}
+
+/// One fallback road of an agent moved.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct MoveFallback {
+  /// the agent's name
+  pub agent: String,
+  /// the fallback's position, counted from 0
+  pub position: i64,
+  /// the position it moves to, counted from 0
+  pub to: i64,
 }

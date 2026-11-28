@@ -209,3 +209,88 @@ fn listed(answer: Option<&Value>) -> Vec<String> {
     })
     .collect()
 }
+
+/// One change of an agent's fallback roads (docs/role-agents.md, 「An agent's fallback roads」; docs/cli.md,
+/// 「An agent's fallback roads」).
+#[derive(Clone, Debug)]
+pub enum Fallback {
+  /// A road added, its fields `--set field=value` each, at a position or last.
+  Add {
+    agent: String,
+    fields: Vec<String>,
+    position: Option<usize>,
+  },
+  /// The fallback at a position removed.
+  Remove { agent: String, position: usize },
+  /// The fallback at a position moved to another.
+  Move {
+    agent: String,
+    position: usize,
+    to: usize,
+  },
+}
+
+/// One change of an agent's fallback roads, answered as the agent then stands, or the route's refusal with the step
+/// past it.
+pub async fn fallback(change: Fallback) -> Result<Answer, VerbError> {
+  let noun = "role-agent fallback";
+  let Some(token) = control_token() else {
+    return Err(VerbError::Refused(format!("{noun}: {CONTROL_TOKEN} is not set in this process.")));
+  };
+  let agent = match &change {
+    Fallback::Add { agent, .. } | Fallback::Remove { agent, .. } | Fallback::Move { agent, .. } => {
+      agent.trim()
+    }
+  };
+
+  if agent.is_empty()
+    || !agent.chars().all(|one| one.is_ascii_alphanumeric() || matches!(one, '.' | '-' | '_'))
+  {
+    return Err(VerbError::Refused(format!(
+      "{noun}: `{agent}` is no agent's name; `role-agent list` lists the names it holds"
+    )));
+  }
+
+  let at = format!("{}/{agent}/fallbacks", ROLE_AGENTS.path);
+  let (method, path, body) = match &change {
+    Fallback::Add {
+      fields: pairs,
+      position,
+      ..
+    } => {
+      let mut body = fields(pairs).map_err(|why| VerbError::Refused(format!("{noun} add: {why}")))?;
+
+      if let Some(position) = position {
+        body.insert("position".to_owned(), (*position).into());
+      }
+
+      (Method::POST, at, Some(Value::Object(body)))
+    }
+    Fallback::Remove { position, .. } => (Method::DELETE, format!("{at}/{position}"), None),
+    Fallback::Move { position, to, .. } => {
+      (Method::POST, format!("{at}/{position}/move"), Some(serde_json::json!({ "to": to })))
+    }
+  };
+  let (status, answer) = control_call(&token, method, &path, body.as_ref())
+    .await
+    .map_err(|why| VerbError::Refused(format!("{noun}: agency's server did not answer: {why}")))?;
+
+  if !(200..300).contains(&status) {
+    let error = answer
+      .as_ref()
+      .and_then(|answer| answer.get("error"))
+      .and_then(Value::as_str)
+      .map_or_else(|| format!("agency's server answered {status}"), str::to_owned);
+    let next = if error.contains('`') {
+      String::new()
+    } else {
+      format!(" `role-agent show {agent}` shows its road and its fallbacks as they stand.")
+    };
+
+    return Err(VerbError::Refused(format!("{noun}: {error}{next}")));
+  }
+
+  Ok(Answer::from(vec![
+    serde_json::to_string_pretty(&answer.unwrap_or(Value::Null)).unwrap_or_default(),
+  ]))
+}

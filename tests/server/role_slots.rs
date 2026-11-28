@@ -1457,3 +1457,98 @@ async fn an_agent_following_its_asker_takes_the_askers_road_and_falls_back_to_it
 
   assert_eq!(road_of("own", Some("chat")).await, own, "an agent's own setting stands over its role's");
 }
+
+// An agent's fallback road stands in for its own only where its own cannot answer for a clear reason: a spent
+// balance and a block for a refused access give way to the fallback, while an outage block gives way to nothing, the
+// run staying on the agent's own road (docs/role-agents.md, 「An agent's fallback roads」).
+#[tokio::test]
+async fn an_agent_s_fallback_road_stands_in_only_for_a_clear_reason() {
+  let scratch = Scratch::new().await;
+  let home = tempfile::tempdir().unwrap();
+  let ground = seeded(scratch.db(), home.path()).await;
+
+  openrouter_road(home.path(), &[("paid", "vendor/a-model", None)]);
+  deepseek_balance(&ground, 5.0).await;
+  scratch
+    .run(
+      r#"UPDATE "role_agents" SET "provider" = 'openrouter', "model" = 'paid', "effort" = 'low', "enabled" = 1,
+           "follows_asker" = 0,
+           "fallbacks" = '[{"provider":"deepseek","model":"deepseek-flash","effort":"high"}]'
+         WHERE "role" = 'transliterator'"#,
+      vec![],
+    )
+    .await;
+
+  let road_of = async |key: &str| {
+    let run = Asked {
+      request_key: format!("fallback:{key}"),
+      owner: format!("fallback:{key}"),
+      wanted: Wanted {
+        role: "transliterator",
+        path: None,
+        fixed: None,
+        agent: None,
+      },
+      ..Asked::default()
+    };
+    let held = enqueue(&ground, &run, "voice", async |_, _| Ok(())).await.unwrap();
+    let role = agency_server::agent_roles::named(&ground.db, "transliterator").await.unwrap().unwrap();
+    let seats = dispatch::seats_for(&ground, &held, &role).await.unwrap();
+    let fell_back = seats[0].fell_back.clone();
+
+    assert!(admitted(&ground, &held).await, "{key}: let in");
+
+    let running = dispatch::request(&ground.db, &held.token).await.unwrap().unwrap();
+
+    assert!(finish(&ground.db, &ground.events, &held.token, "done", false).await.unwrap());
+
+    ((running.provider, running.model, running.effort), fell_back)
+  };
+  let own = ("openrouter".to_owned(), "paid".to_owned(), Some("low".to_owned()));
+  let fallback = ("deepseek".to_owned(), "deepseek-flash".to_owned(), Some("high".to_owned()));
+
+  provider_balance(&ground, "openrouter", 5.0).await;
+  assert_eq!(road_of("answers").await, (own.clone(), None), "its own road answers, so it takes it");
+
+  // A spent balance is a clear reason, read before anything goes out.
+  provider_balance(&ground, "openrouter", 0.0).await;
+
+  let (road, fell_back) = road_of("spent").await;
+
+  assert_eq!(
+    road, fallback,
+    "a spent balance gives way to its fallback, the fallback's own effort with it"
+  );
+  assert!(
+    fell_back
+      .as_deref()
+      .is_some_and(|why| why.contains("fallback road deepseek/deepseek-flash (fallback 1)")
+        && why.contains("its road openrouter/paid cannot answer now")),
+    "{fell_back:?}"
+  );
+
+  // A block an outage left is no clear reason: the run stays on its own road and waits there as it always does.
+  provider_balance(&ground, "openrouter", 5.0).await;
+  agency_server::queue::routes::block_route(
+    &ground.db,
+    "openrouter::paid",
+    agency_server::now_ms() + 600_000,
+    "outage: a server error",
+    Some("outage"),
+  )
+  .await
+  .unwrap();
+  assert_eq!(road_of("outage").await, (own.clone(), None), "an outage block gives way to no fallback");
+
+  // A block for a refused access is a clear reason.
+  agency_server::queue::routes::block_route(
+    &ground.db,
+    "openrouter::paid",
+    agency_server::now_ms() + 600_000,
+    "access: the key was refused",
+    Some("access"),
+  )
+  .await
+  .unwrap();
+  assert_eq!(road_of("access").await.0, fallback, "an access block gives way to its fallback");
+}

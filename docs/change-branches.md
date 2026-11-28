@@ -17,6 +17,8 @@ failing on its next request.
 | Change | Branch | What holds |
 |---|---|---|
 | An agent's provider, model, effort or advisor changed (`PATCH /role-agents/{name}`) | Run to the end | The run goes on as it was admitted; the change holds from the next admission, and the answer says so with `runningWork` `run-to-end` (`docs/api.md`, 「role-agents」). |
+| An agent's fallback roads added, removed or moved (`/role-agents/{name}/fallbacks`) | Run to the end | A run already let in keeps the road it went out on; the list holds from the next run, and the answer says so with `runningWork` `run-to-end` (`docs/role-agents.md`, 「An agent's fallback roads」). |
+| An agent's own road stops answering for a clear reason under its job | Graceful resume | The job moves to the agent's next fallback road that answers, on the same seat and checkout, its new session opening on the handoff of the one it left, and stays there to its end (`docs/role-agents.md`, 「An agent's fallback roads」). |
 | An agent switched off | Run to the end | Its run goes on; nothing new is admitted on it. |
 | An agent removed | Run to the end | The removal is refused `409` while the agent carries a run, saying so. |
 | A supervisor's road changed (`PATCH /supervisors/{name}`) | Run to the end, then graceful resume | The turn running finishes on the road it went out on; its end hands the session over to one on the new road (`docs/supervisors.md`, 「Where a supervisor's turn runs」). |

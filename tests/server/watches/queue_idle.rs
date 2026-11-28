@@ -94,6 +94,7 @@ fn agent(name: &str, role: &str, model: &str) -> RoleAgent {
     skills: None,
     added_at: 0,
     follows_asker: None,
+    fallbacks: Vec::new(),
   }
 }
 

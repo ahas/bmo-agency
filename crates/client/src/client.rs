@@ -933,6 +933,40 @@ impl AgencyClient {
     Self::answered(self.request(Method::POST, &["assignments"]).json(body)).await
   }
 
+  /// `POST /role-agents/{agentName}/fallbacks`: Add one fallback road to an agent, at a position.
+  pub async fn create_role_agent_fallbacks(
+    &self,
+    agent_name: &str,
+    body: &FallbackAdd,
+  ) -> Answer<RoleAgent> {
+    Self::answered(self.request(Method::POST, &["role-agents", agent_name, "fallbacks"]).json(body)).await
+  }
+
+  /// `DELETE /role-agents/{agentName}/fallbacks/{position}`: Remove one fallback road of an agent.
+  pub async fn delete_role_agent_fallback(&self, agent_name: &str, position: i64) -> Answer<RoleAgent> {
+    let position = position.to_string();
+
+    Self::answered(self.request(Method::DELETE, &["role-agents", agent_name, "fallbacks", &position])).await
+  }
+
+  /// `POST /role-agents/{agentName}/fallbacks/{position}/move`: Move one fallback road of an agent to another
+  /// position.
+  pub async fn create_role_agent_fallback_move(
+    &self,
+    agent_name: &str,
+    position: i64,
+    body: &FallbackMove,
+  ) -> Answer<RoleAgent> {
+    let position = position.to_string();
+
+    Self::answered(
+      self
+        .request(Method::POST, &["role-agents", agent_name, "fallbacks", &position, "move"])
+        .json(body),
+    )
+    .await
+  }
+
   /// `POST /borrowings`: Lend a running job a free checkout of another repository on its own machine.
   pub async fn create_borrowings(&self, body: &BorrowAsk) -> Answer<Borrowing> {
     Self::answered(self.request(Method::POST, &["borrowings"]).json(body)).await

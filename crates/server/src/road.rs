@@ -127,6 +127,10 @@ pub async fn reads(ground: &Ground, provider: &str, model: &str) -> Vec<policy::
 pub struct Closed {
   pub provider: String,
   pub reason: String,
+  /// Whether the reason is a block a failure of no clear kind left, an outage, which an agent's fallback does not
+  /// stand in for (docs/role-agents.md, 「An agent's fallback roads」).
+  #[serde(skip)]
+  pub outage: bool,
   #[serde(skip)]
   pub command: Option<String>,
   #[serde(skip)]
@@ -139,6 +143,7 @@ impl Closed {
     Self {
       provider: provider.to_owned(),
       reason: reason.into(),
+      outage: false,
       command: None,
       reopens_at: None,
     }
@@ -236,6 +241,12 @@ impl Resolution {
   }
 
   /// Every provider of the walk that cannot answer now, with why.
+  /// Whether every road the walk closed was closed for a clear reason, read before anything went out: no block an
+  /// outage left among them (docs/role-agents.md, 「An agent's fallback roads」).
+  pub fn clear(&self) -> bool {
+    self.closed().iter().all(|closed| !closed.outage)
+  }
+
   pub fn closed(&self) -> Vec<&Closed> {
     self
       .steps
@@ -426,6 +437,32 @@ pub async fn for_job(
   })
 }
 
+/// Where a job's turn goes out on one road its agent holds, a fallback of it, named whole with its effort, thinking
+/// and advisor (docs/role-agents.md, 「An agent's fallback roads」).
+pub async fn for_job_on(
+  ground: &Ground,
+  role: Option<&str>,
+  entry: &Entry,
+  left: &[Closed],
+) -> Result<Resolution, String> {
+  let role = role.unwrap_or_else(|| crate::agent_roles::job_role());
+  let held = crate::agent_roles::named(&ground.db, role)
+    .await
+    .map_err(|why| why.detail)?
+    .ok_or_else(|| crate::agent_roles::unknown(role))?;
+  let ask = Ask {
+    left,
+    fixed: Some(entry),
+    ..Ask::of(Row::Role(&held.name), &held.line, &held.order)
+  };
+  let resolution = resolve(ground, &ask).await?;
+
+  Ok(Resolution {
+    chosen_by: Some(ChosenBy::Item),
+    ..resolution
+  })
+}
+
 // Why a job of a role all of whose switched-on agents name no road cannot start: the road its agents are on,
 // the supervisor whose road it follows where one asked, and the reason none stands
 // (docs/repositories.md, 「A job」).
@@ -610,6 +647,7 @@ async fn blocked_now(ground: &Ground, road: &Road, now: i64) -> Option<Closed> {
 
   Some(Closed {
     reopens_at: Some(until),
+    outage: standing.kind.as_deref().is_none_or(|kind| kind == BlockKind::Outage.word()),
     ..Closed::plain(&road.provider, reason)
   })
 }
@@ -820,6 +858,7 @@ async fn logins(
   Ok(Err(Closed {
     provider: name.to_owned(),
     reason: format!("{}: {}", ROADS.reasons.no_login, reasons.join("; ")),
+    outage: false,
     command,
     reopens_at,
   }))

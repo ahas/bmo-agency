@@ -44,7 +44,17 @@ fn the_harness_plugin_lists_exactly_the_document_s_tools() {
 
   assert_eq!(
     listed,
-    ["file_item", "stop_job", "review_job", "assign_worker", "release_worker", "run_job"]
+    [
+      "file_item",
+      "stop_job",
+      "review_job",
+      "agent_fallback_add",
+      "agent_fallback_remove",
+      "agent_fallback_move",
+      "assign_worker",
+      "release_worker",
+      "run_job"
+    ]
   );
   assert_eq!(listed, stated);
 }

@@ -2136,6 +2136,57 @@ export interface paths {
         patch: operations["changeRoleAgent"];
         trace?: never;
     };
+    "/role-agents/{agentName}/fallbacks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add one fallback road to an agent, at a position. */
+        post: operations["addRoleAgentFallback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/role-agents/{agentName}/fallbacks/{position}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove one fallback road of an agent. */
+        delete: operations["removeRoleAgentFallback"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/role-agents/{agentName}/fallbacks/{position}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move one fallback road of an agent to another position. */
+        post: operations["moveRoleAgentFallback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/repositories": {
         parameters: {
             query?: never;
@@ -5782,6 +5833,12 @@ export interface components {
              */
             carries: boolean;
             /**
+             * @description its fallback roads in order, asked only where the road before them cannot answer for a clear reason
+             *     (docs/role-agents.md, 「An agent's fallback roads」)
+             * @default []
+             */
+            fallbacks: components["schemas"]["FallbackRoad"][];
+            /**
              * @description on a change, what the change does to the run it carries: `run-to-end`, the run finishing as it was admitted
              *     and the change holding from the next admission (docs/change-branches.md); absent where it carries none
              */
@@ -5793,6 +5850,25 @@ export interface components {
          * @enum {string}
          */
         RoleSessions: "keep" | "fresh";
+        /**
+         * @description FallbackRoad: one fallback road of an agent, a road as its own is (docs/role-agents.md, 「An agent's fallback
+         *     roads」).
+         */
+        FallbackRoad: {
+            provider: string;
+            model: string;
+            /** @default null */
+            effort: string | null;
+            /** @default null */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            answerTokens: number | null;
+            /** @default null */
+            advisor: string | null;
+        };
         /** @description RoleAsk: the body that adds a role. */
         RoleAsk: {
             name: string;
@@ -6098,6 +6174,32 @@ export interface components {
              *     now; null gives its role's setting back
              */
             followsAsker?: boolean | null;
+        };
+        /** @description FallbackAdd: one fallback road added to an agent, at `position` counted from 0, or last where none is named. */
+        FallbackAdd: {
+            provider: string;
+            model: string;
+            /** @default null */
+            effort: string | null;
+            /** @default null */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            answerTokens: number | null;
+            /** @default null */
+            advisor: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            position: number | null;
+        };
+        /** @description FallbackMove: the position a fallback road moves to, counted from 0. */
+        FallbackMove: {
+            /** Format: int64 */
+            to: number;
         };
         /** @description RepositoryList: every repository. */
         RepositoryList: {
@@ -7034,6 +7136,55 @@ export interface components {
              *     handed over again with `text` as what is to be done, and the stages after it follow again.
              */
             stage?: number | null;
+        };
+        /** @description One fallback road added to an agent (docs/role-agents.md, 「An agent's fallback roads」). */
+        AddFallback: {
+            /** @description the agent's name */
+            agent: string;
+            provider: string;
+            model: string;
+            /** @default null */
+            effort: string | null;
+            /** @default null */
+            thinking: string | null;
+            /**
+             * Format: int64
+             * @default null
+             */
+            answerTokens: number | null;
+            /** @default null */
+            advisor: string | null;
+            /**
+             * Format: int64
+             * @description where it stands, counted from 0; last where none is named
+             * @default null
+             */
+            position: number | null;
+        };
+        /** @description One fallback road of an agent removed. */
+        RemoveFallback: {
+            /** @description the agent's name */
+            agent: string;
+            /**
+             * Format: int64
+             * @description the fallback's position, counted from 0
+             */
+            position: number;
+        };
+        /** @description One fallback road of an agent moved. */
+        MoveFallback: {
+            /** @description the agent's name */
+            agent: string;
+            /**
+             * Format: int64
+             * @description the fallback's position, counted from 0
+             */
+            position: number;
+            /**
+             * Format: int64
+             * @description the position it moves to, counted from 0
+             */
+            to: number;
         };
         /** @description The body that releases an assignment the harness will not run. */
         ReleaseWorker: {
@@ -12603,6 +12754,91 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RoleAgentChange"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    addRoleAgentFallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentName: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FallbackAdd"];
+            };
+        };
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    removeRoleAgentFallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentName: string;
+                position: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Answered. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleAgent"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            422: components["responses"]["UnprocessableEntity"];
+        };
+    };
+    moveRoleAgentFallback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                agentName: string;
+                position: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FallbackMove"];
             };
         };
         responses: {

@@ -104,8 +104,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   whose role has two agents switched on run two at a time, each in its own repository's checkout on its
   agent's provider and model; the third waits for a slot.
 - **It runs on the road of the agent its item names, or its launch takes for its model,** and on no other
-  (「An agent an item names」 below): that agent's provider, model and effort, let in on that agent alone
-  (`docs/role-agents.md`, 「Which agent a run takes」).
+  agent's (「An agent an item names」 below): that agent's provider, model and effort, let in on that agent
+  alone, or that agent's fallback road where its own cannot answer for a clear reason (`docs/role-agents.md`,
+  「Which agent a run takes」, 「An agent's fallback roads」).
 - **It goes on in a kept session** where one is valid for its role at that checkout on that provider and
   model, under the role's session policy (`docs/sessions.md`, 「A role's session」), and its runner may hand
   the session over as the job ends.
@@ -125,7 +126,9 @@ preamble, the workbench, the dev server — is `docs/worker-bench.md`.
   item names them, and may change them before it launches it, choosing from what it has learned of the work and
   of its agents, unless the owner named them himself. The job runs as its agent's role, goes out on that
   agent's road — its provider, model and effort — and is let in on that agent alone, waiting for it however
-  long its provider cannot answer, never on another agent of the role and never on another road. Its slot ask
+  long none of its roads can answer, never on another agent of the role and never on a road the agent does not
+  hold: its own, or a fallback of it where its own cannot answer for a clear reason (`docs/role-agents.md`,
+  「An agent's fallback roads」). Its slot ask
   belongs to that agent's account (`docs/role-slots.md`, 「Accounts」) and its run stands on that agent's home
   node (`docs/role-agents.md`, 「What an agent is」). Where the named agent leaves the register, moves to
   another role or to an account the ask cannot belong to, the job is ended failed at once with that reason in

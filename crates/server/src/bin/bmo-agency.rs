@@ -332,6 +332,33 @@ enum RowVerb {
   },
   /// Remove the row.
   Remove { name: String },
+  /// An agent's fallback roads, changed one at a time (docs/cli.md, 「An agent's fallback roads」).
+  Fallback {
+    #[command(subcommand)]
+    what: FallbackVerb,
+  },
+}
+
+/// One change of an agent's fallback roads.
+#[derive(Subcommand)]
+enum FallbackVerb {
+  /// Add a fallback road, `--set provider=… --set model=…` and its effort, thinking, answerTokens or advisor,
+  /// at `--position`, counted from 0, or last.
+  Add {
+    agent: String,
+    #[arg(long = "set", value_name = "FIELD=VALUE", required = true)]
+    fields: Vec<String>,
+    #[arg(long)]
+    position: Option<usize>,
+  },
+  /// Remove the fallback at a position, counted from 0.
+  Remove { agent: String, position: usize },
+  /// Move the fallback at a position to another.
+  Move {
+    agent: String,
+    position: usize,
+    to: usize,
+  },
 }
 
 impl RowVerb {
@@ -344,6 +371,7 @@ impl RowVerb {
       Self::Add { name, fields } => Step::Add(name, fields),
       Self::Set { name, fields } => Step::Set(name, fields),
       Self::Remove { name } => Step::Remove(name),
+      Self::Fallback { .. } => unreachable!("a fallback change is no row step"),
     }
   }
 }
@@ -651,6 +679,32 @@ async fn run(verb: Verb) -> ExitCode {
         ended(crud::run(crud::REPOSITORIES, crud::Step::Set(name, fields)).await)
       }
     },
+    Verb::RoleAgent {
+      what: RowVerb::Fallback { what },
+    } => ended(
+      crud::fallback(match what {
+        FallbackVerb::Add {
+          agent,
+          fields,
+          position,
+        } => crud::Fallback::Add {
+          agent,
+          fields,
+          position,
+        },
+        FallbackVerb::Remove { agent, position } => crud::Fallback::Remove { agent, position },
+        FallbackVerb::Move {
+          agent,
+          position,
+          to,
+        } => crud::Fallback::Move {
+          agent,
+          position,
+          to,
+        },
+      })
+      .await,
+    ),
     Verb::RoleAgent { what } => ended(crud::run(crud::ROLE_AGENTS, what.step()).await),
     Verb::Claude {
       what: ClaudeVerb::Batch(asked),

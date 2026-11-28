@@ -81,7 +81,17 @@ async fn the_mcp_server_starts_and_lists_exactly_the_document_s_tools() {
   // A server started for an agent files that agent's items.
   assert_eq!(
     names,
-    ["file_item", "stop_job", "review_job", "assign_worker", "release_worker", "run_job"]
+    [
+      "file_item",
+      "stop_job",
+      "review_job",
+      "agent_fallback_add",
+      "agent_fallback_remove",
+      "agent_fallback_move",
+      "assign_worker",
+      "release_worker",
+      "run_job"
+    ]
   );
 }
 

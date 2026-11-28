@@ -2253,6 +2253,9 @@ pub async fn carry_job<C: Carrier>(
   let asked_by = Some(job.holder).filter(|name| !name.is_empty());
   let item = item_model_of_job(ground, job.id).await;
   let item = item.as_ref();
+  // The fallback road of the job's agent the job moved onto, where it did; it stays there to its end
+  // (docs/role-agents.md, 「An agent's fallback roads」).
+  let mut on_fallback: Option<crate::order::Entry> = None;
   let mut left: Vec<Closed> = vec![];
   let mut roads: Vec<(Road, Option<String>)> = vec![];
   let mut values: Vec<Value> = vec![];
@@ -2272,7 +2275,10 @@ pub async fn carry_job<C: Carrier>(
   keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
 
   loop {
-    let resolution = road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?;
+    let resolution = match &on_fallback {
+      Some(fallback) => road::for_job_on(ground, role, fallback, &left).await?,
+      None => road::for_job(ground, role, Some(job.worker), item, &left, asked_by).await?,
+    };
     let Some((taken, entry)) = resolution.going().map(|(road, entry)| (road.clone(), entry.clone())) else {
       // A provider that answered it cannot serve now — a 5xx, a refused connection — is waited for rather
       // than ended as that turn's failure: the road's own availability does not read that answer, so the
@@ -2290,6 +2296,41 @@ pub async fn carry_job<C: Carrier>(
             .is_some())
       {
         return Ok(Some((state, outcome, with_roads(report, &roads), spent)));
+      }
+
+      // Where the road cannot answer for a clear reason — read before anything went out, or a turn the provider
+      // refused for the credential or a limit — the job moves onto its agent's next fallback road that answers, and
+      // goes on there with the handoff of the session it leaves; a road refused for anything else is waited for
+      // (docs/role-agents.md, 「An agent's fallback roads」).
+      let clear = if left.is_empty() {
+        resolution.clear()
+      } else {
+        matches!(last_stop, Some(road::BlockKind::Access | road::BlockKind::Limit { .. }))
+      };
+
+      if !answered_it_cannot_serve
+        && clear
+        && let Some((fallback, why)) =
+          fallback_for_job(ground, job, role, on_fallback.as_ref(), &resolution).await?
+      {
+        let words = format!("{}/{}", fallback.provider, fallback.model);
+        let line = format!(
+          "The road cannot answer now, so the job goes on on its agent's fallback road {words}: {why}"
+        );
+
+        noted_line(ground, job.id, &line).await;
+        eprintln!("job {}: {line}", job.id);
+        fallback_written(ground, job.id, &fallback).await;
+        prompt = crate::job_handoff::ahead(
+          &crate::job_handoff::road_stopped(ground, job.id).await.text,
+          &format!("{line}\n\n{}", job.prompt),
+        );
+        keep_turn_words(&ground.db, job.id, Some(&prompt)).await;
+        on_fallback = Some(fallback);
+        left.clear();
+        last = None;
+        last_stop = None;
+        continue;
       }
 
       let blocked = if answered_it_cannot_serve { roads.last().map(|(road, _)| road) } else { None };
@@ -2627,6 +2668,71 @@ async fn personal_refused(ground: &Ground, job: &Carried<'_>, chosen: &crate::su
   };
 
   crate::supply::told::refused(ground, &told, &chosen.run, &chosen.provider, why).await;
+}
+
+/// The next fallback road of a job's agent that can answer now, after the road it stands on, with the reason the
+/// road before it gave; none where its agent holds no fallback past it, or where a fallback refuses for no clear
+/// reason, which is waited for as any road is (docs/role-agents.md, 「An agent's fallback roads」).
+async fn fallback_for_job(
+  ground: &Ground,
+  job: &Carried<'_>,
+  role: Option<&str>,
+  standing: Option<&crate::order::Entry>,
+  refused: &road::Resolution,
+) -> Result<Option<(crate::order::Entry, String)>, String> {
+  let Some(name) = item_agent_of_job(ground, job.id).await else {
+    return Ok(None);
+  };
+  let Some(agent) = crate::role_agents::named(&ground.db, &name).await.map_err(|why| why.detail)? else {
+    return Ok(None);
+  };
+  let roads = agent.roads();
+  let from = standing
+    .and_then(|standing| {
+      roads
+        .iter()
+        .position(|road| (&road.provider, &road.model) == (&standing.provider, &standing.model))
+    })
+    .unwrap_or(0);
+  let mut why = refused
+    .sentence()
+    .lines()
+    .map(str::trim)
+    .filter(|line| !line.is_empty())
+    .collect::<Vec<_>>()
+    .join(" ");
+
+  for fallback in roads.into_iter().skip(from + 1) {
+    let resolution = road::for_job_on(ground, role, &fallback, &[]).await?;
+
+    if resolution.going().is_some() {
+      return Ok(Some((fallback, why)));
+    }
+
+    if !resolution.clear() {
+      return Ok(None);
+    }
+
+    why = resolution
+      .sentence()
+      .lines()
+      .map(str::trim)
+      .filter(|line| !line.is_empty())
+      .collect::<Vec<_>>()
+      .join(" ");
+  }
+
+  Ok(None)
+}
+
+/// The job's row moved onto a fallback road of its agent, so a screen and a relaunch read the road it stands on.
+async fn fallback_written(ground: &Ground, job: i64, fallback: &crate::order::Entry) {
+  let _ = store::run(
+    &ground.db,
+    r#"UPDATE "jobs" SET "item_provider" = $1, "item_model" = $2 WHERE "id" = $3"#,
+    vec![fallback.provider.clone().into(), fallback.model.clone().into(), job.into()],
+  )
+  .await;
 }
 
 /// The agent a job's item names, as its row keeps it from the launch (docs/repositories.md, 「An agent an item

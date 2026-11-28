@@ -49,6 +49,9 @@ pub struct RoleAgent {
   /// Whether a run of it a supervisor asks goes out on that supervisor's road while its own road stands where
   /// none does, none where its role's setting stands (docs/role-agents.md, 「An agent that follows its asker」).
   pub follows_asker: Option<bool>,
+  /// Its fallback roads in order, asked only where the road before them cannot answer for a clear reason
+  /// (docs/role-agents.md, 「An agent's fallback roads」).
+  pub fallbacks: Vec<Entry>,
 }
 
 // The sessions setting as the routes write it.
@@ -92,7 +95,19 @@ impl RoleAgent {
       owner_unit: row.try_get("", "owner_unit")?,
       home_node: row.try_get("", "home_node")?,
       follows_asker: row.try_get::<Option<i64>>("", "follows_asker")?.map(|on| on != 0),
+      fallbacks: row
+        .try_get::<Option<String>>("", "fallbacks")
+        .ok()
+        .flatten()
+        .and_then(|kept| serde_json::from_str(&kept).ok())
+        .unwrap_or_default(),
     })
+  }
+
+  /// Every road a run of it may go out on, in the order they are asked: its own, then its fallbacks; none where
+  /// it names no road of its own, since such an agent holds no fallback.
+  pub fn roads(&self) -> Vec<Entry> {
+    self.entry().into_iter().chain(self.fallbacks.iter().cloned()).collect()
   }
 
   /// The road its runs go out on, none where it follows the supervisor that asks it.
@@ -269,8 +284,8 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
     r#"INSERT INTO "role_agents"
          ("name", "role", "provider", "model", "effort", "thinking", "answer_tokens", "enabled",
           "keeps_cache", "fold_ratio", "prompt", "bundles", "skills", "added_at", "sessions",
-          "owner_account", "owner_unit", "home_node", "advisor", "follows_asker")
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+          "owner_account", "owner_unit", "home_node", "advisor", "follows_asker", "fallbacks")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
        ON CONFLICT ("name") DO UPDATE SET
          "role" = excluded."role", "provider" = excluded."provider", "model" = excluded."model",
          "effort" = excluded."effort", "thinking" = excluded."thinking",
@@ -280,7 +295,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
          "skills" = excluded."skills", "sessions" = excluded."sessions",
          "owner_account" = excluded."owner_account", "owner_unit" = excluded."owner_unit",
          "home_node" = excluded."home_node", "advisor" = excluded."advisor",
-         "follows_asker" = excluded."follows_asker""#,
+         "follows_asker" = excluded."follows_asker", "fallbacks" = excluded."fallbacks""#,
     vec![
       agent.name.clone().into(),
       agent.role.clone().into(),
@@ -302,6 +317,7 @@ pub async fn write<C: ConnectionTrait>(db: &C, agent: &RoleAgent) -> Result<(), 
       agent.home_node.clone().into(),
       agent.advisor.clone().into(),
       agent.follows_asker.map(i64::from).into(),
+      serde_json::to_string(&agent.fallbacks).unwrap_or_else(|_| "[]".to_owned()).into(),
     ],
   )
   .await?;
