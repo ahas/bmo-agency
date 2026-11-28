@@ -1152,7 +1152,7 @@ node's link keeps of that checkout instead.
 |---|---|---|
 | GET | `/providers` | Every provider agency carries, with its switch and what it has left. |
 | GET | `/providers/{providerName}` | One provider. |
-| PATCH | `/providers/{providerName}` | Throw the owner's switch on a provider. |
+| PATCH | `/providers/{providerName}` | Throw the owner's switch on a provider; thrown off while a run goes out on it, the answer names `runningWork` `run-to-end` (`docs/change-branches.md`). |
 | GET | `/models` | The registered models the caller reaches. |
 | POST | `/models` | Register a model. |
 | GET | `/models/{modelKey}` | One registered model the caller reaches, and its health. |

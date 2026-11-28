@@ -103,8 +103,29 @@ impl Route for ChangeProvider {
         .map_err(|refused| Refused::new(StatusCode::CONFLICT, refused.error))?;
     }
 
-    Ok(answer(StatusCode::OK, provider_view(call.ground(), &name).await?))
+    let mut shown = provider_view(call.ground(), &name).await?;
+
+    // The branch a switch thrown off takes for the runs going out on the provider now (docs/change-branches.md).
+    if asked.get("enabled").and_then(Value::as_bool) == Some(false) && going_on(call.store(), &name).await?
+    {
+      shown["runningWork"] = serde_json::json!(super::role_agents::RUN_TO_END);
+    }
+
+    Ok(answer(StatusCode::OK, shown))
   }
+}
+
+// Whether a run goes out on the provider now: a slot request of it let in on a seat.
+async fn going_on(db: &sea_orm::DatabaseConnection, provider: &str) -> Result<bool, Refused> {
+  let row = store::one(
+    db,
+    r#"SELECT 1 AS "one" FROM "role_slot_requests" WHERE "provider" = $1 AND "state" = 'active'
+         AND "seat" IS NOT NULL LIMIT 1"#,
+    vec![provider.into()],
+  )
+  .await?;
+
+  Ok(row.is_some())
 }
 
 crate::moved!(ChangeProvider);

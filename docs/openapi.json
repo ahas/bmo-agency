@@ -14443,6 +14443,13 @@
             ],
             "description": "The file under the data root's `env/` its own key is read from, or null for a provider that reads none. Its\ncontent is never reported.",
             "default": null
+          },
+          "runningWork": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "on a switch thrown off, what it does to the runs going out on it now: `run-to-end`, each finishing as it went\nout and no new run going out on it (docs/change-branches.md); absent where none goes"
           }
         },
         "required": [

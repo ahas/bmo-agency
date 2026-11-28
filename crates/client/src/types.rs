@@ -707,6 +707,10 @@ pub struct Provider {
   /// content is never reported.
   #[serde(default)]
   pub key_file: Option<String>,
+  /// on a switch thrown off, what it does to the runs going out on it now: `run-to-end`, each finishing as it went
+  /// out and no new run going out on it (docs/change-branches.md); absent where none goes
+  #[serde(default, skip_serializing_if = "Option::is_none")]
+  pub running_work: Option<String>,
 }
 
 /// Model: one registration of the registry's provider and its health.

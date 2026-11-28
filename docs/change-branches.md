@@ -23,7 +23,7 @@ failing on its next request.
 | A supervisor removed (`DELETE /supervisors/{name}`) | Stop | The owner's removal is an order to stop: its program ends with its sessions (`docs/supervisors.md`, 「Adding and removing a supervisor」). |
 | A role changed | Run to the end | Its runs go on; the change holds from the next admission, and the answer says so with `runningWork` `run-to-end` where a run of it goes. |
 | A role removed | Run to the end | The removal is refused `409` while a run of it goes or waits. |
-| A provider switched off (`PATCH /providers/{name}`) | Run to the end | Only the switch is written; a run going out on it goes on, and no new run goes out on it. |
+| A provider switched off (`PATCH /providers/{name}`) | Run to the end | Only the switch is written; a run going out on it goes on, and no new run goes out on it; the answer says so with `runningWork` `run-to-end` where a run goes out on it. |
 | A person's node renamed or re-placed | Run to the end | A waiting turn is placed by the record standing now (`docs/person-nodes.md`). |
 | A node's link gone silent under a running job | Graceful resume | The job is taken up again in its checkout once its road answers (`docs/worker-slots.md`). |
 | An account's window full | Run to the end | The run is never cut; the login takes no new run (`docs/usage-windows.md`). |

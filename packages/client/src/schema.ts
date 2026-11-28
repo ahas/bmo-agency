@@ -3769,6 +3769,11 @@ export interface components {
              * @default null
              */
             keyFile: string | null;
+            /**
+             * @description on a switch thrown off, what it does to the runs going out on it now: `run-to-end`, each finishing as it went
+             *     out and no new run going out on it (docs/change-branches.md); absent where none goes
+             */
+            runningWork?: string | null;
         };
         /** @description ProviderQuota: what a provider has left as an order reads it. */
         ProviderQuota: {
